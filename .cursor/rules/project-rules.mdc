@@ -1,0 +1,606 @@
+# BuildSuite 開発システム構成ルール
+
+## システム全体構成
+
+### アーキテクチャ概要
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    ┌─────────────────┐    ┌─────────────────┐
+│   (React 18 SPA)│◄──►│   Backend       │◄──►│   Database      │
+│                 │    │   (Laravel API) │    │   (PostgreSQL)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │   Nginx         │
+                    │   (Reverse Proxy)│
+                    └─────────────────┘
+```
+
+### 技術スタック (確定)
+- **Frontend**: React 18 (SPA) - 中堅中小企業向けの長期的保守性と帳票出力機能を重視
+- **Backend**: Laravel 12 (API)
+- **Database**: PostgreSQL 15+
+- **Web Server**: Nginx (Reverse Proxy)
+- **Container**: Docker & Docker Compose
+- **Authentication**: Laravel Sanctum
+
+### フロントエンド技術詳細
+- **フレームワーク**: Next.js 14 (App Router)
+- **状態管理**: Redux Toolkit
+- **ルーティング**: Next.js App Router
+- **HTTP クライアント**: Axios
+- **UI ライブラリ**: Material-UI (MUI) v5
+- **フォーム管理**: React Hook Form
+- **帳票出力**: jsPDF, @react-pdf/renderer, xlsx
+- **型安全性**: TypeScript
+- **ビルドツール**: Next.js (Webpack)
+- **テスト**: Jest + React Testing Library
+
+## プロジェクト構成
+
+### ディレクトリ構造
+```
+buildsuite/
+├── backend/                 # Laravel API アプリケーション
+│   ├── app/                # アプリケーションロジック
+│   │   ├── Http/           # コントローラー
+│   │   ├── Models/         # Eloquentモデル
+│   │   ├── Services/       # ビジネスロジック
+│   │   └── Exports/        # 帳票出力クラス
+│   ├── database/           # マイグレーション・シーダー
+│   ├── routes/             # API ルート定義
+│   ├── tests/              # テストコード
+│   └── composer.json       # PHP依存関係
+├── frontend/               # Next.js 14 アプリケーション
+│   ├── src/                # ソースコード
+│   │   ├── app/            # App Router (Next.js 14)
+│   │   │   ├── (auth)/     # 認証関連ページ
+│   │   │   ├── (dashboard)/ # ダッシュボード
+│   │   │   ├── (management)/ # 管理画面
+│   │   │   ├── (estimates)/ # 見積管理
+│   │   │   ├── (budgets)/   # 予算管理
+│   │   │   ├── (orders)/    # 発注管理
+│   │   │   ├── (progress)/  # 出来高管理
+│   │   │   ├── (payments)/  # 支払管理
+│   │   │   ├── (approvals)/ # 承認フロー
+│   │   │   ├── (reports)/   # 帳票出力
+│   │   │   └── api/         # API Routes
+│   │   ├── components/      # React コンポーネント
+│   │   ├── hooks/           # カスタムフック
+│   │   ├── services/        # API サービス
+│   │   ├── store/           # Redux ストア
+│   │   ├── types/           # TypeScript 型定義
+│   │   └── utils/           # ユーティリティ関数
+│   ├── public/              # 静的ファイル
+│   ├── package.json         # Node.js依存関係
+│   ├── next.config.js       # Next.js設定
+│   └── tailwind.config.js   # Tailwind CSS設定
+├── nginx/                  # Nginx設定
+│   ├── conf.d/             # サイト設定
+│   ├── ssl/                # SSL証明書
+│   └── nginx.conf          # メイン設定
+├── docker/                 # Docker関連ファイル
+│   ├── docker-compose.yml  # 開発環境設定
+│   ├── Dockerfile.*        # 各サービスのDockerfile
+│   └── Makefile           # 開発コマンド
+├── docs/                   # ドキュメント
+│   ├── database-design.md  # データベース設計書
+│   ├── api-documentation.md # API仕様書
+│   └── deployment-guide.md # デプロイメントガイド
+└── README.md              # プロジェクト概要
+```
+
+## 開発環境設定
+
+### Docker コンテナ構成
+- `buildsuite-frontend`: React 18 開発サーバー (Vite)
+- `buildsuite-backend`: Laravel API サーバー
+- `buildsuite-database`: PostgreSQL データベース
+- `buildsuite-nginx`: Nginx リバースプロキシ
+
+### ネットワーク設定
+- 内部ネットワーク: `buildsuite-network`
+- ポート設定:
+  - Frontend: 3000 (Vite Dev Server)
+  - Backend: 9000 (Laravel Artisan Serve)
+  - Database: 5432 (PostgreSQL)
+  - Nginx: 80, 443 (HTTP/HTTPS)
+
+## 業務機能範囲
+
+### 建設業向け業務システム機能
+詳細な業務機能仕様は `docs/business-functions.md` を参照してください。
+
+- **見積管理**: 見積書作成、承認フロー、出力機能
+- **実行予算管理**: 予算作成、承認フロー、実績比較
+- **発注管理**: 発注書作成、承認フロー、出力機能
+- **出来高管理**: 出来高入力、承認フロー、進捗管理
+- **支払通知管理**: 支払通知書作成、承認フロー、出力機能
+
+### 承認フロー機能
+詳細な承認フロー仕様は `docs/business-functions.md` を参照してください。
+
+- **ルート設定**: 承認ステップ、承認者、条件分岐
+- **条件設定**: 金額、部門、役割、プロジェクト条件
+- **承認プロセス**: 承認・却下・差し戻し・代理承認
+- **通知機能**: 承認依頼・完了・却下・差し戻し通知
+
+### 権限管理機能
+詳細な権限管理仕様は `docs/business-functions.md` を参照してください。
+
+- **ユーザー管理**: ユーザー登録、役割設定、部門設定
+- **役割管理**: 役割定義、権限設定、機能制限
+- **部門管理**: 部門階層、部門権限、承認権限
+- **機能制限**: 画面表示、操作、データアクセス制限
+
+## データベース設計
+
+### PostgreSQL 設定
+- 文字エンコーディング: UTF-8
+- タイムゾーン: Asia/Tokyo
+- 接続プール: PgBouncer (本番環境)
+- バージョン: PostgreSQL 15+
+
+### テーブル設計原則
+- テーブル名は複数形で定義
+- 主キーは `id` (BIGSERIAL)
+- タイムスタンプ: `created_at`, `updated_at`
+- ソフトデリート: `deleted_at`
+- 詳細設計は `docs/database-design.md` を参照
+
+### 主要テーブル構成
+```sql
+-- ユーザー・権限管理
+users                    # ユーザー情報
+roles                    # 役割定義
+departments              # 部門情報
+user_roles               # ユーザー役割関連
+user_departments         # ユーザー部門関連
+permissions              # 権限定義
+role_permissions         # 役割権限関連
+
+-- 承認フロー管理
+approval_flows           # 承認フロー定義
+approval_steps           # 承認ステップ
+approval_conditions      # 承認条件
+approval_requests        # 承認依頼
+approval_histories       # 承認履歴
+
+-- 業務データ
+customers                # 顧客情報
+projects                 # プロジェクト情報
+estimates                # 見積情報
+estimate_items           # 見積明細
+estimate_approvals       # 見積承認
+budgets                  # 実行予算
+budget_items             # 予算明細
+budget_approvals         # 予算承認
+orders                   # 発注情報
+order_items              # 発注明細
+order_approvals          # 発注承認
+progress_reports         # 出来高報告
+progress_approvals       # 出来高承認
+payment_notices          # 支払通知
+payment_approvals        # 支払承認
+
+-- マスタデータ
+materials                # 材料マスタ
+equipment                # 機材マスタ
+labor_costs              # 労務費マスタ
+tax_rates                # 税率マスタ
+```
+
+## フロントエンド設計
+
+### Next.js 14 アプリケーション構成
+- **フレームワーク**: Next.js 14 (App Router)
+- **状態管理**: Redux Toolkit (推奨) または React Context API
+- **ルーティング**: Next.js App Router
+- **HTTP クライアント**: Axios
+- **UI ライブラリ**: Material-UI (MUI) v5
+- **フォーム管理**: React Hook Form
+- **帳票出力**: jsPDF, @react-pdf/renderer, xlsx
+- **型安全性**: TypeScript
+- **ビルドツール**: Next.js (Webpack)
+- **テスト**: Jest + React Testing Library
+
+### アプリケーション構造 (App Router)
+```typescript
+src/app/
+├── (auth)/
+│   ├── login/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (dashboard)/
+│   ├── dashboard/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (management)/
+│   ├── users/
+│   │   └── page.tsx
+│   ├── roles/
+│   │   └── page.tsx
+│   ├── permissions/
+│   │   └── page.tsx
+│   ├── departments/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (estimates)/
+│   ├── estimates/
+│   │   └── page.tsx
+│   ├── estimates/[id]/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (budgets)/
+│   ├── budgets/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (orders)/
+│   ├── orders/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (progress)/
+│   ├── progress/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (payments)/
+│   ├── payments/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (approvals)/
+│   ├── approvals/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── (reports)/
+│   ├── reports/
+│   │   └── page.tsx
+│   └── layout.tsx
+├── api/
+│   ├── auth/
+│   │   └── route.ts
+│   ├── reports/
+│   │   └── route.ts
+│   └── webhooks/
+│       └── route.ts
+├── globals.css
+├── layout.tsx
+└── page.tsx
+```
+
+### 帳票出力機能 (Next.js API Routes)
+```typescript
+// app/api/reports/estimate/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { generateEstimatePDF } from '@/utils/pdf-generator';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // 認証・権限チェック
+    const user = await authenticateUser(request);
+    const estimate = await getEstimateWithPermission(params.id, user);
+    
+    // PDF生成
+    const pdf = await generateEstimatePDF(estimate);
+    
+    return new NextResponse(pdf, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="estimate-${params.id}.pdf"`
+      }
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'PDF generation failed' }, { status: 500 });
+  }
+}
+```
+
+### 承認フロー機能 (Server Components)
+```typescript
+// app/(approvals)/approvals/page.tsx
+import { getApprovalRequests } from '@/services/approval-service';
+
+export default async function ApprovalsPage() {
+  // サーバーサイドでデータ取得
+  const approvals = await getApprovalRequests();
+  
+  return (
+    <div>
+      <h1>承認依頼一覧</h1>
+      <ApprovalList approvals={approvals} />
+    </div>
+  );
+}
+```
+
+### コンポーネント設計原則
+- 再利用可能なコンポーネントを優先
+- Props の型定義を明確化 (TypeScript)
+- コンポーネントの責務を単一化
+- カスタムフックの活用
+- パフォーマンス最適化 (React.memo, useMemo, useCallback)
+
+### 状態管理設計
+```typescript
+// Redux Toolkit ストア構成
+store/
+├── index.ts              # ストア設定
+├── slices/
+│   ├── authSlice.ts      # 認証状態
+│   ├── userSlice.ts      # ユーザー情報
+│   ├── permissionSlice.ts # 権限状態
+│   ├── estimateSlice.ts  # 見積状態
+│   ├── budgetSlice.ts    # 予算状態
+│   ├── orderSlice.ts     # 発注状態
+│   ├── progressSlice.ts  # 出来高状態
+│   ├── paymentSlice.ts   # 支払状態
+│   ├── approvalSlice.ts  # 承認状態
+│   └── uiSlice.ts        # UI状態
+└── middleware/
+    ├── apiMiddleware.ts  # API通信
+    ├── authMiddleware.ts # 認証チェック
+    └── loggerMiddleware.ts # ログ出力
+```
+
+### 帳票出力機能
+- **PDF出力**: jsPDF + autoTable, @react-pdf/renderer
+- **Excel出力**: xlsx, exceljs
+- **プレビュー機能**: PDFViewer, リアルタイムプレビュー
+- **テンプレート管理**: コンポーネント化された帳票テンプレート
+- **カスタマイズ**: 動的レイアウト、条件分岐
+
+### 承認フローUI設計
+```typescript
+// 承認フローコンポーネント
+components/
+├── approval/
+│   ├── ApprovalFlow.tsx      # 承認フロー表示
+│   ├── ApprovalStep.tsx      # 承認ステップ
+│   ├── ApprovalAction.tsx    # 承認アクション
+│   ├── ApprovalHistory.tsx   # 承認履歴
+│   └── ApprovalCondition.tsx # 承認条件
+└── common/
+    ├── PermissionGuard.tsx   # 権限チェック
+    ├── RoleBasedView.tsx     # 役割別表示
+    └── DepartmentFilter.tsx  # 部門フィルター
+```
+
+## API 設計原則
+
+### API 設計パターン
+#### RESTful API (主要)
+- エンドポイントは `/api/v1/` プレフィックスを使用
+- HTTP メソッドを適切に使用 (GET, POST, PUT, DELETE)
+- ステータスコードを適切に返却
+- JSON レスポンス形式を統一
+- リソース指向の設計
+
+#### GraphQL API (将来的な拡張)
+- エンドポイントは `/graphql` を使用
+- 単一エンドポイントで複雑なクエリに対応
+- 型安全性とスキーマ定義
+- オーバーフェッチ・アンダーフェッチの解決
+- リアルタイム更新 (Subscription)
+
+### API 選択基準
+- **RESTful**: シンプルなCRUD操作、既存システムとの統合
+- **GraphQL**: 複雑なデータ取得、フロントエンドの柔軟性重視
+- **ハイブリッド**: 用途に応じて両方を併用
+
+### 認証・認可
+- Laravel Sanctum を使用したトークンベース認証
+- API キーによる外部サービス認証
+- ロールベースアクセス制御 (RBAC)
+- 部門ベースアクセス制御 (DBAC)
+- GraphQL の場合は JWT トークンも併用
+
+### 承認フローAPI
+```php
+// 承認フロー関連API
+POST   /api/v1/approval-flows              # 承認フロー作成
+GET    /api/v1/approval-flows              # 承認フロー一覧
+GET    /api/v1/approval-flows/{id}         # 承認フロー詳細
+PUT    /api/v1/approval-flows/{id}         # 承認フロー更新
+DELETE /api/v1/approval-flows/{id}         # 承認フロー削除
+
+POST   /api/v1/approval-requests           # 承認依頼作成
+GET    /api/v1/approval-requests           # 承認依頼一覧
+GET    /api/v1/approval-requests/{id}      # 承認依頼詳細
+PUT    /api/v1/approval-requests/{id}/approve  # 承認
+PUT    /api/v1/approval-requests/{id}/reject   # 却下
+PUT    /api/v1/approval-requests/{id}/return   # 差し戻し
+```
+
+## セキュリティ要件
+
+### 認証・認可
+- JWT トークンの適切な管理
+- パスワードのハッシュ化 (bcrypt)
+- CSRF トークンの実装
+- レート制限の実装
+- 多要素認証 (MFA) 対応
+- セッション管理
+
+### データ保護
+- 機密情報の環境変数管理
+- SQL インジェクション対策
+- XSS 対策
+- CORS 設定の適切な実装
+- データ暗号化 (機密データ)
+- データアクセス制御
+
+### 監査・ログ
+- 全操作のログ記録
+- セキュリティイベントの監視
+- アクセスログの分析
+- コンプライアンス対応
+- 承認履歴の完全記録
+
+## パフォーマンス要件
+
+### バックエンド最適化
+- Laravel キャッシュの活用
+- データベースクエリの最適化
+- API レスポンスの圧縮
+- 画像の最適化
+- データベースインデックスの最適化
+- 承認フローの非同期処理
+
+### フロントエンド最適化
+- コード分割 (Code Splitting)
+- 遅延読み込み (Lazy Loading)
+- アセットの圧縮・最適化
+- CDN の活用
+- React の最適化 (React.memo, useMemo)
+- 承認フローUIの最適化
+
+### 帳票出力最適化
+- 非同期処理による帳票生成
+- キャッシュ機能の活用
+- バッチ処理による大量帳票出力
+- プログレス表示によるUX向上
+- 承認済みデータの帳票出力
+
+## 開発フロー
+
+### ブランチ戦略
+- `main`: 本番環境
+- `develop`: 開発環境
+- `feature/*`: 機能開発
+- `hotfix/*`: 緊急修正
+- `release/*`: リリース準備
+
+### コードレビュー
+- プルリクエスト必須
+- 自動テストの実行
+- コード品質チェック (ESLint, Prettier)
+- セキュリティレビュー
+- TypeScript 型チェック
+- 承認フローロジックのレビュー
+
+### テスト戦略
+- **ユニットテスト**: PHPUnit (Backend), Jest (Frontend)
+- **統合テスト**: API テスト, データベーステスト
+- **E2E テスト**: Cypress, Playwright
+- **帳票テスト**: 帳票出力の自動検証
+- **承認フローテスト**: 承認プロセスの自動検証
+
+### 品質管理
+- **コード品質**: ESLint, Prettier, PHP_CodeSniffer
+- **型安全性**: TypeScript, PHPStan
+- **セキュリティ**: SonarQube, OWASP ZAP
+- **パフォーマンス**: Lighthouse, New Relic
+- **承認フロー**: 承認ロジックの検証
+
+## デプロイメント
+
+### 環境別設定
+- **開発環境**: Docker Compose
+- **ステージング環境**: Docker Swarm
+- **本番環境**: Kubernetes
+
+### CI/CD パイプライン
+- コードプッシュ時の自動テスト
+- ステージング環境への自動デプロイ
+- 本番環境への手動承認デプロイ
+- 帳票出力の自動テスト
+- 承認フローの自動テスト
+
+### 監視・ログ
+
+### ログ管理
+- アプリケーションログの統一
+- エラーログの監視
+- アクセスログの分析
+- 帳票出力ログの追跡
+- 承認フローログの記録
+
+### 監視項目
+- サーバーリソース使用率
+- データベースパフォーマンス
+- API レスポンス時間
+- エラー率の監視
+- 帳票出力の成功率
+- 承認フローの処理時間
+
+## 建設業向け特化機能
+
+### 業務機能
+詳細な業務機能仕様は `docs/business-functions.md` を参照してください。
+
+- **見積管理**: 見積書作成、承認フロー、出力機能
+- **実行予算管理**: 予算作成、承認フロー、実績比較
+- **発注管理**: 発注書作成、承認フロー、出力機能
+- **出来高管理**: 出来高入力、承認フロー、進捗管理
+- **支払通知管理**: 支払通知書作成、承認フロー、出力機能
+
+### 承認フロー機能
+詳細な承認フロー仕様は `docs/business-functions.md` を参照してください。
+
+- **ルート設定**: 承認ステップ、承認者、条件分岐
+- **条件設定**: 金額、部門、役割、プロジェクト条件
+- **承認プロセス**: 承認・却下・差し戻し・代理承認
+- **通知機能**: 承認依頼・完了・却下・差し戻し通知
+
+### 権限管理機能
+詳細な権限管理仕様は `docs/business-functions.md` を参照してください。
+
+- **ユーザー管理**: ユーザー登録、役割設定、部門設定
+- **役割管理**: 役割定義、権限設定、機能制限
+- **部門管理**: 部門階層、部門権限、承認権限
+- **機能制限**: 画面表示、操作、データアクセス制限
+
+### 基幹システム連携
+- **会計システム**: 弥生、勘定奉行、クラウド会計
+- **営業支援**: Salesforce、HubSpot
+- **ファイル管理**: SharePoint、Google Drive
+- **認証システム**: Active Directory、LDAP
+- **建設業システム**: 建設業許可、入札システム
+
+### コンプライアンス対応
+- **e-文書法**: 電子帳票の法的要件
+- **電子帳簿**: 保存義務への対応
+- **税務申告**: 自動出力機能
+- **監査対応**: 操作ログの保存
+- **建設業法**: 建設業許可要件
+
+## 開発時の注意事項
+
+### フロントエンド開発
+- TypeScript の型定義を厳密に行う
+- コンポーネントの再利用性を重視
+- パフォーマンス最適化を継続的に実施
+- アクセシビリティを考慮したUI設計
+- 承認フローUIの直感的な設計
+
+### バックエンド開発
+- API レスポンスの一貫性を保つ
+- エラーハンドリングを適切に実装
+- データベースクエリの最適化
+- セキュリティ要件の遵守
+- 承認フローロジックの厳密な実装
+
+### 帳票出力開発
+- 帳票テンプレートの保守性を重視
+- 大量データでのパフォーマンスを考慮
+- 印刷品質の最適化
+- 多言語対応の準備
+- 承認済みデータの帳票出力
+
+### 承認フロー開発
+- 承認ロジックの正確性を重視
+- 条件分岐の厳密な実装
+- 承認履歴の完全記録
+- 通知機能の確実な動作
+- 権限チェックの徹底
+
+### 運用・保守
+- 定期的なパフォーマンス監視
+- セキュリティアップデートの適用
+- データベースの最適化
+- バックアップの検証
+- 承認フローの監視

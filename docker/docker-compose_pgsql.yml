@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:15.3-alpine3.18  # PostgreSQLのバージョン指定
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: myuser          # 任意のユーザー名
+      POSTGRES_PASSWORD: mypassword  # 任意のパスワード
+      POSTGRES_DB: mydatabase        # 任意のデータベース名
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - external-network
+
+  # pgAdminコンテナの設定（postgreエディタ）
+  pgadmin:
+    image: dpage/pgadmin4:9.7        # pgAdminの最新版
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com      # ログイン用メール
+      PGADMIN_DEFAULT_PASSWORD: admin             # ログイン用パスワード
+    ports:
+      - "8081:80"                                 # 既存のphpMyAdminと同じポートのため外部ポートを8081に。
+    networks:
+      - external-network
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin  # pgAdmin設定の永続化
+
+volumes:   # ※volumeとしてデータを永続化
+  postgres_data:
+    driver: local
+  pgadmin_data:  # pgAdminの永続化ボリューム
+    driver: local
+
+networks:
+  external-network:
+    name: buildsuite-network
+    external: true
+
+

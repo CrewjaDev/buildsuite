@@ -1,0 +1,27 @@
+FROM node:20-bullseye
+
+WORKDIR /app
+
+# 必要なパッケージをインストール
+RUN apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout="60" && \
+    apt-get install -y \
+    curl \
+    bash \
+    coreutils \
+    python3 \
+    make \
+    g++ \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# パッケージファイルをコピー
+COPY package*.json ./
+
+# 依存関係をインストール
+RUN npm install
+
+# ソースコードをコピー
+COPY . .
+
+# 開発サーバーを起動
+CMD ["npm", "run", "dev"]

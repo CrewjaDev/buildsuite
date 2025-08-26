@@ -1,0 +1,84 @@
+# ===============================
+# Build stage: PHP の依存関係やライブラリのインストール
+# ===============================
+FROM php:8.2-fpm-alpine AS build
+
+# 必要なパッケージをインストール
+RUN apk --no-cache add \
+    bash \
+    git \
+    curl \
+    zip \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
+    icu-dev \
+    libxml2-dev \
+    oniguruma-dev \
+    g++ \
+    autoconf \
+    make \
+    postgresql-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install \
+        pdo_pgsql \
+        gd \
+        intl \
+        mbstring \
+        xml \
+        zip \
+        opcache \
+    && rm -rf /var/cache/apk/*
+
+# ワークディレクトリを設定
+WORKDIR /var/www/html
+
+# Composer インストール
+RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
+
+# Composer キャッシュ効率化：まず composer.* だけコピー
+COPY composer.json composer.lock ./
+
+RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
+
+# アプリケーションコードをコピー
+COPY . .
+
+# Laravelのキャッシュを最適化
+RUN php artisan config:cache \
+    && php artisan route:cache
+
+# ===============================
+# Production stage: 必要最小限のパッケージのみを含む軽量イメージ
+# ===============================
+FROM php:8.2-fpm-alpine AS production
+
+WORKDIR /var/www/html
+
+# 必要なシステムパッケージのみインストール
+RUN apk --no-cache add \
+    bash \
+    curl \
+    zip \
+    libpng \
+    libjpeg-turbo \
+    freetype \
+    libzip \
+    icu \
+    libxml2 \
+    oniguruma \
+    postgresql-dev \
+    && docker-php-ext-install pdo pdo_pgsql \
+    && rm -rf /var/cache/apk/*
+
+# Build stageからファイルをコピー
+COPY --from=build /var/www/html /var/www/html
+
+# アプリケーションの権限設定
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+    # PHP-FPMを起動
+CMD ["php-fpm"]

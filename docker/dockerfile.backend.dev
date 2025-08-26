@@ -1,0 +1,42 @@
+# BuildSuite Laravel Backend Development Dockerfile
+FROM php:8.2-fpm-alpine
+
+# 必要なパッケージをインストール
+RUN apk --no-cache add \
+    bash \
+    git \
+    curl \
+    zip \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
+    icu-dev \
+    libxml2-dev \
+    oniguruma-dev \
+    g++ \
+    autoconf \
+    make \
+    postgresql-dev \
+    vim \
+    nano \
+    htop \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install \
+        pdo_pgsql \
+        gd \
+        intl \
+        mbstring \
+        xml \
+        zip \
+        opcache \
+    && rm -rf /var/cache/apk/*
+
+# ワークディレクトリを設定
+WORKDIR /var/www/html
+
+# Composer インストール
+RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
+
+# 開発環境用の設定
+CMD ["php-fpm"]
