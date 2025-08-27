@@ -15,6 +15,36 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
+                'name' => 'admin',
+                'display_name' => '管理者',
+                'description' => 'システム全体の管理権限を持つ',
+                'priority' => 10,
+                'is_system' => true,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+            [
+                'name' => 'manager',
+                'display_name' => 'マネージャー',
+                'description' => '部下の業務を管理監督する権限を持つ',
+                'priority' => 5,
+                'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+            [
+                'name' => 'user',
+                'display_name' => 'ユーザー',
+                'description' => '基本的な業務機能の利用権限',
+                'priority' => 1,
+                'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+            [
                 'name' => 'system_admin',
                 'display_name' => 'システム管理者',
                 'description' => 'システム全体の管理権限を持つ',

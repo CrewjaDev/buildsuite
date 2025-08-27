@@ -104,6 +104,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
+// GraphQL エンドポイント（承認フロー関連の複雑なクエリ用）
+Route::post('/graphql', function (Request $request) {
+    // GraphQL リクエストを処理
+    return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
+})->middleware('auth:sanctum');
+
 // ヘルスチェック
 Route::get('/health', function () {
     return response()->json([

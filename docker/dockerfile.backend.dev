@@ -38,5 +38,8 @@ WORKDIR /var/www/html
 # Composer インストール
 RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 
+# 権限設定
+RUN chown -R www-data:www-data /var/www/html
+
 # 開発環境用の設定
 CMD ["php-fpm"]

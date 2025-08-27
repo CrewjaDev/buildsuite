@@ -1,0 +1,653 @@
+# フロントエンド技術スタック
+
+## フレームワーク・ライブラリ
+- **Next.js 15.5.0** - Reactフレームワーク（App Router使用）
+- **React 19.1.0** - UIライブラリ
+- **TypeScript 5** - 型安全な開発（strict mode）
+
+## UI・スタイリング
+- **TanStack Table v8** - 高性能データテーブル
+  - @tanstack/react-table - コアテーブル機能
+  - @tanstack/react-virtual - 仮想化スクロール
+- **Shadcn/ui** - モダンUIコンポーネントライブラリ
+  - @radix-ui/react-* - アクセシブルなプリミティブ
+  - class-variance-authority - バリアント管理
+  - clsx/tailwind-merge - クラス名管理
+- **Tailwind CSS v4** - ユーティリティファーストCSS
+- **Lucide React** - モダンアイコンライブラリ
+
+## データフェッチング・状態管理
+- **TanStack Query v5** - サーバー状態管理
+  - キャッシュ戦略
+  - バックグラウンド更新
+  - エラーハンドリング
+- **Redux Toolkit v2.8.2** - グローバル状態管理
+- **React Redux v9.2.0** - ReduxとReactの連携
+- **Redux Persist v6.0.0** - 状態の永続化
+
+## フォーム・バリデーション
+- **React Hook Form v7.62.0** - フォーム管理
+- **Yup v1.7.0** - スキーマバリデーション
+- **@hookform/resolvers v5.2.1** - フォームリゾルバー
+
+## ユーティリティ
+- **Axios v1.11.0** - HTTPクライアント
+- **Day.js v1.11.13** - 日付操作
+- **Numeral.js v2.0.6** - 数値フォーマット
+- **React Toastify v11.0.5** - 通知
+
+## ファイル処理
+- **React Dropzone v14.3.8** - ファイルアップロード
+- **ExcelJS v4.4.0** - Excelファイル操作
+- **jsPDF v3.0.1** - PDF生成
+- **jspdf-autotable v5.0.2** - PDFテーブル生成
+- **@react-pdf/renderer v4.3.0** - PDFレンダリング
+
+## データ可視化
+- **Recharts v3.1.2** - チャート・グラフ
+
+## PWA
+- **Next PWA v5.6.0** - Progressive Web App対応
+
+## 開発ツール
+- **ESLint v9** - コード品質管理
+- **TypeScript v5** - 型チェック
+
+# プロジェクト構造
+
+## ディレクトリ構成
+```
+frontend/
+├── src/
+│ ├── app/ # Next.js App Router
+│ │ ├── (auth)/ # 認証関連ページ
+│ │ │ ├── login/
+│ │ │ └── register/
+│ │ ├── dashboard/ # ダッシュボード
+│ │ │ ├── page.tsx # メインダッシュボード
+│ │ │ ├── layout.tsx # ダッシュボードレイアウト
+│ │ │ └── components/ # ダッシュボード専用コンポーネント
+│ │ │ ├── DashboardStats.tsx
+│ │ │ ├── RecentActivity.tsx
+│ │ │ ├── ProjectSummary.tsx
+│ │ │ └── QuickActions.tsx
+│ │ ├── (management)/ # 管理機能
+│ │ │ ├── users/ # ユーザー管理
+│ │ │ ├── roles/ # 役割管理
+│ │ │ ├── departments/ # 部署管理
+│ │ │ ├── permissions/ # 権限管理
+│ │ │ ├── system-levels/ # システム権限レベル管理
+│ │ │ ├── customers/ # 顧客管理
+│ │ │ ├── projects/ # プロジェクト管理
+│ │ │ └── layout.tsx
+│ │ ├── (estimates)/ # 見積管理機能
+│ │ │ ├── estimates/ # 見積一覧
+│ │ │ ├── estimates/[id]/ # 見積詳細・編集
+│ │ │ ├── estimates/create/ # 見積作成
+│ │ │ ├── estimate-templates/ # 見積テンプレート
+│ │ │ └── layout.tsx
+│ │ ├── (budgets)/ # 実行予算管理機能
+│ │ │ ├── budgets/ # 予算一覧
+│ │ │ ├── budgets/[id]/ # 予算詳細・編集
+│ │ │ ├── budgets/create/ # 予算作成
+│ │ │ ├── budget-comparison/ # 予算実績比較
+│ │ │ └── layout.tsx
+│ │ ├── (orders)/ # 発注管理機能
+│ │ │ ├── orders/ # 発注一覧
+│ │ │ ├── orders/[id]/ # 発注詳細・編集
+│ │ │ ├── orders/create/ # 発注作成
+│ │ │ ├── order-templates/ # 発注テンプレート
+│ │ │ └── layout.tsx
+│ │ ├── (progress)/ # 出来高管理機能
+│ │ │ ├── progress/ # 出来高一覧
+│ │ │ ├── progress/[id]/ # 出来高詳細・編集
+│ │ │ ├── progress/create/ # 出来高入力
+│ │ │ ├── progress-reports/ # 出来高レポート
+│ │ │ └── layout.tsx
+│ │ ├── (payments)/ # 支払管理機能
+│ │ │ ├── payments/ # 支払一覧
+│ │ │ ├── payments/[id]/ # 支払詳細・編集
+│ │ │ ├── payments/create/ # 支払通知作成
+│ │ │ ├── payment-templates/ # 支払テンプレート
+│ │ │ └── layout.tsx
+│ │ ├── (approvals)/ # 承認フロー機能
+│ │ │ ├── approvals/ # 承認依頼一覧
+│ │ │ ├── approval-flows/ # 承認フロー設定
+│ │ │ ├── approval-conditions/ # 承認条件設定
+│ │ │ ├── approval-history/ # 承認履歴
+│ │ │ └── layout.tsx
+│ │ ├── (reports)/ # 帳票出力機能
+│ │ │ ├── reports/ # 帳票一覧
+│ │ │ ├── estimate-reports/ # 見積書出力
+│ │ │ ├── budget-reports/ # 予算書出力
+│ │ │ ├── order-reports/ # 発注書出力
+│ │ │ ├── progress-reports/ # 出来高レポート出力
+│ │ │ ├── payment-reports/ # 支払通知書出力
+│ │ │ └── layout.tsx
+│ │ ├── layout.tsx # ルートレイアウト
+│ │ ├── providers.tsx # プロバイダー設定
+│ │ └── globals.css # グローバルスタイル
+│ ├── components/ # 再利用可能なコンポーネント
+│ │ ├── ui/ # Shadcn/ui基本コンポーネント
+│ │ │ ├── button.tsx
+│ │ │ ├── table.tsx
+│ │ │ ├── select.tsx
+│ │ │ ├── badge.tsx
+│ │ │ ├── card.tsx
+│ │ │ ├── input.tsx
+│ │ │ ├── dialog.tsx
+│ │ │ ├── dropdown-menu.tsx
+│ │ │ ├── form.tsx
+│ │ │ ├── toast.tsx
+│ │ │ └── index.ts
+│ │ ├── common/ # 共通コンポーネント（全機能で使用）
+│ │ │ ├── layout/ # レイアウト関連
+│ │ │ │ ├── Navigation.tsx
+│ │ │ │ ├── Sidebar.tsx
+│ │ │ │ ├── Header.tsx
+│ │ │ │ ├── Footer.tsx
+│ │ │ │ └── Breadcrumb.tsx
+│ │ │ ├── data-display/ # データ表示関連
+│ │ │ │ ├── DataTable/ # 汎用データテーブル
+│ │ │ │ │ ├── index.tsx
+│ │ │ │ │ ├── StickyHeaderTable.tsx
+│ │ │ │ │ ├── SearchFilters.tsx
+│ │ │ │ │ ├── PaginationControls.tsx
+│ │ │ │ │ ├── ColumnResizer.tsx
+│ │ │ │ │ └── types.ts
+│ │ │ │ ├── StatusBadge.tsx
+│ │ │ │ ├── Avatar.tsx
+│ │ │ │ └── ProgressBar.tsx
+│ │ │ ├── forms/ # フォーム関連
+│ │ │ │ ├── FormField.tsx
+│ │ │ │ ├── FormSection.tsx
+│ │ │ │ ├── FormActions.tsx
+│ │ │ │ └── ValidationMessage.tsx
+│ │ │ ├── feedback/ # フィードバック関連
+│ │ │ │ ├── LoadingSpinner.tsx
+│ │ │ │ ├── ErrorBoundary.tsx
+│ │ │ │ ├── EmptyState.tsx
+│ │ │ │ └── ConfirmationDialog.tsx
+│ │ │ ├── navigation/ # ナビゲーション関連
+│ │ │ │ ├── TabNavigation.tsx
+│ │ │ │ ├── Pagination.tsx
+│ │ │ │ └── SearchInput.tsx
+│ │ │ ├── approval/ # 承認フロー関連
+│ │ │ │ ├── ApprovalFlow.tsx
+│ │ │ │ ├── ApprovalStep.tsx
+│ │ │ │ ├── ApprovalAction.tsx
+│ │ │ │ ├── ApprovalHistory.tsx
+│ │ │ │ └── ApprovalCondition.tsx
+│ │ │ ├── reports/ # 帳票出力関連
+│ │ │ │ ├── ReportGenerator.tsx
+│ │ │ │ ├── ReportPreview.tsx
+│ │ │ │ ├── ReportTemplate.tsx
+│ │ │ │ └── ReportDownload.tsx
+│ │ │ └── index.ts
+│ │ ├── features/ # 機能別コンポーネント
+│ │ │ ├── estimates/ # 見積管理機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── EstimateTable/
+│ │ │ │ │ ├── EstimateForm/
+│ │ │ │ │ ├── EstimateDetail/
+│ │ │ │ │ ├── EstimateTemplate/
+│ │ │ │ │ └── EstimateCalculator/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── budgets/ # 実行予算管理機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── BudgetTable/
+│ │ │ │ │ ├── BudgetForm/
+│ │ │ │ │ ├── BudgetDetail/
+│ │ │ │ │ ├── BudgetComparison/
+│ │ │ │ │ └── BudgetCalculator/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── orders/ # 発注管理機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── OrderTable/
+│ │ │ │ │ ├── OrderForm/
+│ │ │ │ │ ├── OrderDetail/
+│ │ │ │ │ ├── OrderTemplate/
+│ │ │ │ │ └── OrderCalculator/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── progress/ # 出来高管理機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── ProgressTable/
+│ │ │ │ │ ├── ProgressForm/
+│ │ │ │ │ ├── ProgressDetail/
+│ │ │ │ │ ├── ProgressReport/
+│ │ │ │ │ └── ProgressCalculator/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── payments/ # 支払管理機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── PaymentTable/
+│ │ │ │ │ ├── PaymentForm/
+│ │ │ │ │ ├── PaymentDetail/
+│ │ │ │ │ ├── PaymentTemplate/
+│ │ │ │ │ └── PaymentCalculator/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── approvals/ # 承認フロー機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── ApprovalRequestTable/
+│ │ │ │ │ ├── ApprovalFlowBuilder/
+│ │ │ │ │ ├── ApprovalConditionBuilder/
+│ │ │ │ │ ├── ApprovalHistoryView/
+│ │ │ │ │ └── ApprovalNotification/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ ├── reports/ # 帳票出力機能
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── ReportList/
+│ │ │ │ │ ├── ReportBuilder/
+│ │ │ │ │ ├── ReportPreview/
+│ │ │ │ │ ├── ReportTemplate/
+│ │ │ │ │ └── ReportDownload/
+│ │ │ │ ├── hooks/
+│ │ │ │ ├── types/
+│ │ │ │ └── utils/
+│ │ │ └── management/ # 管理機能
+│ │ │ ├── users/ # ユーザー管理
+│ │ │ ├── roles/ # 役割管理
+│ │ │ ├── departments/ # 部署管理
+│ │ │ ├── permissions/ # 権限管理
+│ │ │ ├── system-levels/ # システム権限レベル管理
+│ │ │ ├── customers/ # 顧客管理
+│ │ │ └── projects/ # プロジェクト管理
+│ │ └── index.ts
+│ ├── hooks/ # 共通カスタムフック
+│ │ ├── useDebouncedSearch.ts
+│ │ ├── useLocalStorage.ts
+│ │ ├── useMediaQuery.ts
+│ │ ├── useClickOutside.ts
+│ │ ├── useApprovalFlow.ts
+│ │ ├── useReportGeneration.ts
+│ │ └── index.ts
+│ ├── lib/ # ユーティリティ関数
+│ │ ├── api.ts # API設定
+│ │ ├── authService.ts # 認証サービス
+│ │ ├── estimateService.ts # 見積サービス
+│ │ ├── budgetService.ts # 予算サービス
+│ │ ├── orderService.ts # 発注サービス
+│ │ ├── progressService.ts # 出来高サービス
+│ │ ├── paymentService.ts # 支払サービス
+│ │ ├── approvalService.ts # 承認サービス
+│ │ ├── reportService.ts # 帳票サービス
+│ │ ├── userService.ts # ユーザーサービス
+│ │ ├── roleService.ts # 役割サービス
+│ │ ├── departmentService.ts # 部署サービス
+│ │ ├── permissionService.ts # 権限サービス
+│ │ ├── systemLevelService.ts # システム権限レベルサービス
+│ │ ├── customerService.ts # 顧客サービス
+│ │ ├── projectService.ts # プロジェクトサービス
+│ │ ├── hooks.ts # Reduxフック
+│ │ ├── utils.ts # 共通ユーティリティ
+│ │ ├── constants.ts # 定数定義
+│ │ ├── types.ts # 共通型定義
+│ │ ├── calculation.ts # 計算ユーティリティ
+│ │ ├── validation.ts # バリデーション
+│ │ └── formatters.ts # フォーマッター
+│ ├── store/ # Reduxストア
+│ │ ├── store.ts # ストア設定
+│ │ ├── authSlice.ts # 認証スライス
+│ │ ├── estimateSlice.ts # 見積スライス
+│ │ ├── budgetSlice.ts # 予算スライス
+│ │ ├── orderSlice.ts # 発注スライス
+│ │ ├── progressSlice.ts # 出来高スライス
+│ │ ├── paymentSlice.ts # 支払スライス
+│ │ ├── approvalSlice.ts # 承認スライス
+│ │ ├── reportSlice.ts # 帳票スライス
+│ │ ├── userSlice.ts # ユーザースライス
+│ │ ├── roleSlice.ts # 役割スライス
+│ │ ├── departmentSlice.ts # 部署スライス
+│ │ ├── permissionSlice.ts # 権限スライス
+│ │ ├── systemLevelSlice.ts # システム権限レベルスライス
+│ │ ├── customerSlice.ts # 顧客スライス
+│ │ ├── projectSlice.ts # プロジェクトスライス
+│ │ └── uiSlice.ts # UIスライス
+│ └── types/ # グローバル型定義
+│ ├── api.types.ts
+│ ├── common.types.ts
+│ ├── business.types.ts # 業務関連型定義
+│ ├── approval.types.ts # 承認フロー型定義
+│ ├── report.types.ts # 帳票型定義
+│ └── index.ts
+├── public/ # 静的ファイル
+├── .cursor/rules/ # Cursor設定
+└── README.md
+
+```
+
+### コンポーネント開発フロー
+
+#### 1. **新機能開発時**
+1. **機能分析**: 必要なコンポーネントを特定
+2. **再利用性検討**: 共通化できる部分を洗い出し
+3. **階層設計**: コンポーネントの親子関係を設計
+4. **実装**: 基本→共通→機能別の順で実装
+
+#### 2. **既存機能拡張時**
+1. **影響範囲確認**: 既存コンポーネントへの影響を確認
+2. **共通化検討**: 新機能で共通化できる部分がないか検討
+3. **リファクタリング**: 必要に応じて既存コンポーネントをリファクタリング
+
+#### 3. **保守・改善時**
+1. **重複コード確認**: 類似機能の重複を確認
+2. **共通化**: 重複部分を共通コンポーネントに抽出
+3. **型安全性向上**: TypeScriptの型定義を改善
+
+# 開発ルール
+
+## UI設計原則
+
+### TanStack Table + Shadcn/ui 採用理由
+- **高性能**: 仮想化スクロール、サーバーサイド処理対応
+- **軽量**: バンドルサイズが小さい
+- **TypeScript完全対応**: 型安全性が高い
+- **カスタマイズ性**: 自由度が高く、既存デザインに合わせやすい
+- **アクセシビリティ**: 標準でアクセシビリティ対応
+- **Laravel API連携**: サーバーサイド処理との親和性が高い
+
+### テーブル設計ガイドライン
+```typescript
+// カラム定義の基本構造
+export const userColumns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'employee_id',
+    header: '社員ID',
+    size: 120,
+    enableSorting: true,
+    enableColumnFilter: true,
+  },
+  {
+    accessorKey: 'name',
+    header: '名前',
+    size: 200,
+    cell: ({ row }) => <span className="font-medium">{row.getValue('name')}</span>,
+  },
+  {
+    accessorKey: 'status',
+    header: 'ステータス',
+    size: 100,
+    cell: ({ row }) => {
+      const status = row.getValue('status') as string
+      return (
+        <Badge variant={status === 'active' ? 'default' : 'secondary'}>
+          {status === 'active' ? 'アクティブ' : '非アクティブ'}
+        </Badge>
+      )
+    },
+  },
+]
+```
+
+### スティッキーヘッダー実装
+```tsx
+// スティッキーヘッダーの基本構造
+<div className="relative border rounded-lg overflow-hidden">
+  {/* スティッキーヘッダー */}
+  <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+    <Table>
+      <TableHeader>
+        {/* ヘッダー行 */}
+      </TableHeader>
+    </Table>
+  </div>
+
+  {/* スクロール可能なデータ行 */}
+  <div className="overflow-auto max-h-[600px]">
+    <Table>
+      <TableBody>
+        {/* データ行 */}
+      </TableBody>
+    </Table>
+  </div>
+</div>
+```
+
+### レスポンシブデザイン対応
+```tsx
+// レスポンシブ対応の基本構造
+const ResponsiveDataTable = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  if (isMobile) {
+    return <MobileUserList />;
+  }
+
+  return <DesktopDataTable />;
+};
+```
+
+### パフォーマンス最適化
+```typescript
+// React Query の最適化設定
+const { data, isLoading } = useQuery({
+  queryKey: ['users', searchParams],
+  queryFn: () => userService.getUsers(searchParams),
+  keepPreviousData: true, // ページ切り替え時のちらつき防止
+  staleTime: 30000, // 30秒間キャッシュ
+  cacheTime: 300000, // 5分間キャッシュ保持
+  refetchOnWindowFocus: false, // ウィンドウフォーカス時の再取得無効
+});
+
+// デバウンス検索
+const debouncedSearch = useDebouncedCallback(
+  (searchTerm: string) => {
+    setSearchParams({ search: searchTerm });
+  },
+  300
+);
+```
+
+## コンポーネント設計
+- **最大限のコンポーネント化**: 単一責任の原則に従い、再利用可能なコンポーネントを作成
+- **Shadcn/uiコンポーネントを優先使用**: 一貫したデザインシステムの維持
+- **TypeScriptで型安全な開発**: strict mode使用
+- **関数コンポーネントとフックを使用**: モダンなReact開発
+- **'use client'ディレクティブを適切に使用**: Next.js App Router対応
+- **コンポーネントの責務分離**: 表示・ロジック・データフェッチの分離
+
+## ファイル命名規則
+- **コンポーネント**: PascalCase (例: UserForm.tsx)
+- **ファイル名**: kebab-case (例: user-form.tsx)
+- **ディレクトリ**: kebab-case
+- **テーブル関連**: StickyHeaderTable.tsx, columns.tsx
+- **機能別ディレクトリ**: 業務機能名で分類 (例: users/, roles/, departments/)
+
+## コーディング規約
+- **ESLint設定に従う**: コード品質の維持
+- **TypeScript strict mode使用**: 型安全性の確保
+- **インポート順序**: 外部ライブラリ → 内部モジュール
+- **コンポーネントはPascalCase**: 一貫した命名規則
+- **ファイル名はkebab-case**: 読みやすさの向上
+- **TanStack Table**: カラム定義は別ファイルで管理
+- **エクスポート集約**: index.tsファイルによる管理
+
+## 状態管理方針
+- **ローカル状態**: useState, useReducer
+- **グローバル状態**: Redux Toolkit
+- **サーバー状態**: TanStack Query (SWRから移行)
+- **フォーム状態**: React Hook Form
+- **テーブル状態**: TanS
+
+## コンポーネント化と再利用性の管理
+
+### コンポーネント化の原則
+
+#### 1. **最大限のコンポーネント化**
+- **単一責任の原則**: 1つのコンポーネントは1つの責任のみ
+- **再利用性の最大化**: 汎用的なコンポーネントを優先作成
+- **階層構造の明確化**: 親子関係を明確に定義
+
+#### 2. **コンポーネント分類**
+```typescript
+// 1. UI基本コンポーネント (components/ui/)
+// - Shadcn/uiベース
+// - 最小限の機能
+// - 高い再利用性
+
+// 2. 共通コンポーネント (components/common/)
+// - 複数機能で使用
+// - ビジネスロジックを含む
+// - 中程度の再利用性
+
+// 3. 機能別コンポーネント (components/features/)
+// - 特定機能専用
+// - 複雑なビジネスロジック
+// - 低い再利用性
+```
+
+#### 3. **再利用性の管理**
+```typescript
+// エクスポート集約による管理
+// components/ui/index.ts
+export { Button } from './button'
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
+
+// components/common/index.ts
+export { DataTable } from './data-display/DataTable'
+export { StatusBadge } from './data-display/StatusBadge'
+export { FormField } from './forms/FormField'
+
+// components/features/index.ts
+export { UserTable } from './users/components/UserTable'
+export { RoleTable } from './roles/components/RoleTable'
+```
+
+### コンポーネント設計ガイドライン
+
+#### 1. **基本コンポーネント (UI)**
+```typescript
+// 最小限の機能、高い再利用性
+interface ButtonProps {
+  variant?: 'default' | 'outline' | 'ghost'
+  size?: 'sm' | 'md' | 'lg'
+  children: React.ReactNode
+  onClick?: () => void
+  disabled?: boolean
+}
+
+export const Button = ({ variant = 'default', size = 'md', children, ...props }: ButtonProps) => {
+  // 実装
+}
+```
+
+#### 2. **共通コンポーネント (Common)**
+```typescript
+// 複数機能で使用、中程度の再利用性
+interface DataTableProps<T> {
+  data: T[]
+  columns: ColumnDef<T>[]
+  isLoading?: boolean
+  onRowClick?: (row: T) => void
+  enableSorting?: boolean
+  enableFiltering?: boolean
+  enablePagination?: boolean
+}
+
+export const DataTable = <T,>({ data, columns, ...props }: DataTableProps<T>) => {
+  // 実装
+}
+```
+
+#### 3. **機能別コンポーネント (Features)**
+```typescript
+// 特定機能専用、低い再利用性
+interface UserTableProps {
+  users: User[]
+  onUserEdit: (user: User) => void
+  onUserDelete: (userId: number) => void
+}
+
+export const UserTable = ({ users, onUserEdit, onUserDelete }: UserTableProps) => {
+  // 実装
+}
+```
+
+### 再利用性の管理方法
+
+#### 1. **インデックスファイルによる集約**
+```typescript
+// 各ディレクトリにindex.tsを作成
+// components/ui/index.ts
+export * from './button'
+export * from './table'
+export * from './select'
+
+// 使用時
+import { Button, Table, Select } from '@/components/ui'
+```
+
+#### 2. **型定義の共有**
+```typescript
+// types/common.types.ts
+export interface BaseEntity {
+  id: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PaginationParams {
+  page?: number
+  pageSize?: number
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}
+
+// 各機能で使用
+import { BaseEntity, PaginationParams } from '@/types/common'
+```
+
+#### 3. **フックの共有**
+```typescript
+// hooks/useDebouncedSearch.ts
+export const useDebouncedSearch = (callback: (value: string) => void, delay = 300) => {
+  // 実装
+}
+
+// 各機能で使用
+import { useDebouncedSearch } from '@/hooks'
+```
+
+#### 4. **ユーティリティの共有**
+```typescript
+// lib/utils.ts
+export const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString('ja-JP')
+}
+
+export const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('ja-JP', {
+    style: 'currency',
+    currency: 'JPY'
+  }).format(amount)
+}
+
+// 各機能で使用
+import { formatDate, formatCurrency } from '@/lib/utils'
+```
+
+### コンポーネント命名規則
+
+#### 1. **ファイル命名**

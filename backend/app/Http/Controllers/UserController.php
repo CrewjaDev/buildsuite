@@ -19,75 +19,94 @@ class UserController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        try {
-            $query = User::with(['systemLevel', 'roles', 'departments']);
+        $query = User::with([
+            'systemLevel',
+            'roles',
+            'departments'
+        ]);
 
-            // 検索条件
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('name_kana', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%")
-                      ->orWhere('employee_id', 'like', "%{$search}%");
-                });
-            }
-
-            // システム権限レベルでフィルタ
-            if ($request->filled('system_level')) {
-                $query->where('system_level', $request->system_level);
-            }
-
-            // アクティブ状態でフィルタ
-            if ($request->filled('is_active')) {
-                $query->where('is_active', $request->boolean('is_active'));
-            }
-
-            // 管理者フラグでフィルタ
-            if ($request->filled('is_admin')) {
-                $query->where('is_admin', $request->boolean('is_admin'));
-            }
-
-            // 部署でフィルタ
-            if ($request->filled('department_id')) {
-                $query->whereHas('departments', function ($q) use ($request) {
-                    $q->where('departments.id', $request->department_id);
-                });
-            }
-
-            // 役割でフィルタ
-            if ($request->filled('role_id')) {
-                $query->whereHas('roles', function ($q) use ($request) {
-                    $q->where('roles.id', $request->role_id);
-                });
-            }
-
-            // ソート
-            $sortBy = $request->get('sort_by', 'created_at');
-            $sortDirection = $request->get('sort_direction', 'desc');
-            $query->orderBy($sortBy, $sortDirection);
-
-            // ページネーション
-            $perPage = $request->get('per_page', 15);
-            $users = $query->paginate($perPage);
-
-            // レスポンスデータを整形
-            $users->getCollection()->transform(function ($user) {
-                return $this->formatUserData($user);
+        // 検索条件
+        if ($request->filled('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('name_kana', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('employee_id', 'like', "%{$search}%");
             });
-
-            return response()->json([
-                'success' => true,
-                'data' => $users,
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'ユーザー一覧の取得中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
         }
+
+        // ステータスフィルタ
+        if ($request->filled('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        // システム権限レベルフィルタ
+        if ($request->filled('system_level')) {
+            $query->where('system_level', $request->get('system_level'));
+        }
+
+        // 部署フィルタ
+        if ($request->filled('department_id')) {
+            $query->whereHas('departments', function ($q) use ($request) {
+                $q->where('departments.id', $request->get('department_id'));
+            });
+        }
+
+        // 役割フィルタ
+        if ($request->filled('role_id')) {
+            $query->whereHas('roles', function ($q) use ($request) {
+                $q->where('roles.id', $request->get('role_id'));
+            });
+        }
+
+        // ロック状態フィルタ
+        if ($request->filled('is_locked')) {
+            if ($request->boolean('is_locked')) {
+                $query->whereNotNull('locked_at');
+            } else {
+                $query->whereNull('locked_at');
+            }
+        }
+
+        // ソート
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // ページネーション
+        $perPage = $request->get('pageSize', 10);
+        $page = $request->get('page', 1);
+        $users = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // レスポンスデータを整形
+        $users->getCollection()->transform(function ($user) {
+            // プライマリ部署を取得
+            $primaryDepartment = $user->departments()
+                ->wherePivot('is_primary', true)
+                ->first();
+
+            // アクティブな役割を取得
+            $activeRoles = $user->roles()
+                ->wherePivot('is_active', true)
+                ->get();
+
+            return [
+                'id' => $user->id,
+                'employee_id' => $user->employee_id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
+                'status' => $user->is_active ? 'active' : 'inactive',
+                'createdAt' => $user->created_at->toISOString(),
+                'updatedAt' => $user->updated_at->toISOString(),
+            ];
+        });
+
+        return response()->json([
+            'users' => $users->items(),
+            'totalCount' => $users->total(),
+        ]);
     }
 
     /**
@@ -95,29 +114,25 @@ class UserController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        try {
-            $user = User::with(['systemLevel', 'roles', 'departments'])
-                ->find($id);
+        $user = User::with([
+            'roles',
+            'departments',
+            'systemLevel',
+            'sessions',
+            'loginHistory'
+        ])->find($id);
 
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ユーザーが見つかりません',
-                ], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $this->formatUserData($user),
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'ユーザー情報の取得中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'ユーザーが見つかりません',
+            ], 404);
         }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatUserData($user),
+        ]);
     }
 
     /**
@@ -125,91 +140,53 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        try {
-            // バリデーション
-            $validator = Validator::make($request->all(), [
-                'employee_id' => 'required|string|max:50|unique:users,employee_id',
-                'name' => 'required|string|max:255',
-                'name_kana' => 'nullable|string|max:255',
-                'email' => 'required|email|unique:users,email',
-                'password' => 'required|string|min:8',
-                'birth_date' => 'nullable|date',
-                'gender' => 'nullable|string|max:10',
-                'phone' => 'nullable|string|max:20',
-                'mobile_phone' => 'nullable|string|max:20',
-                'postal_code' => 'nullable|string|max:10',
-                'prefecture' => 'nullable|string|max:50',
-                'address' => 'nullable|string',
-                'position' => 'nullable|string|max:100',
-                'job_title' => 'nullable|string|max:100',
-                'hire_date' => 'nullable|date',
-                'service_years' => 'nullable|integer|min:0',
-                'service_months' => 'nullable|integer|min:0|max:11',
-                'system_level' => 'required|string|exists:system_levels,code',
-                'is_active' => 'boolean',
-                'is_admin' => 'boolean',
-                'role_ids' => 'nullable|array',
-                'role_ids.*' => 'exists:roles,id',
-                'department_ids' => 'nullable|array',
-                'department_ids.*' => 'exists:departments,id',
-            ]);
+        $validator = Validator::make($request->all(), [
+            'employee_id' => 'required|string|max:50|unique:users',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|string|min:8',
+            'role' => 'required|in:admin,user,manager',
+        ]);
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'バリデーションエラー',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            // ユーザーを作成
-            $userData = $request->except(['role_ids', 'department_ids', 'password']);
-            $userData['password'] = Hash::make($request->password);
-            $userData['password_changed_at'] = now();
-            $userData['password_expires_at'] = now()->addMonths(3);
-
-            $user = User::create($userData);
-
-            // 役割を割り当て
-            if ($request->filled('role_ids')) {
-                $user->roles()->attach($request->role_ids, [
-                    'assigned_at' => now(),
-                    'assigned_by' => auth()->id(),
-                    'is_active' => true,
-                ]);
-            }
-
-            // 部署を割り当て
-            if ($request->filled('department_ids')) {
-                $departmentData = [];
-                foreach ($request->department_ids as $index => $departmentId) {
-                    $departmentData[$departmentId] = [
-                        'position' => $request->input("department_positions.{$index}"),
-                        'is_primary' => $index === 0, // 最初の部署をプライマリに設定
-                        'assigned_at' => now(),
-                        'assigned_by' => auth()->id(),
-                        'is_active' => true,
-                    ];
-                }
-                $user->departments()->attach($departmentData);
-            }
-
-            // 作成されたユーザーを取得
-            $user->load(['systemLevel', 'roles', 'departments']);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ユーザーが正常に作成されました',
-                'data' => $this->formatUserData($user),
-            ], 201);
-
-        } catch (\Exception $e) {
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'ユーザーの作成中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'バリデーションエラー',
+                'errors' => $validator->errors(),
+            ], 422);
         }
+
+        $userData = $validator->validated();
+        $userData['password'] = Hash::make($userData['password']);
+        $userData['is_active'] = true;
+
+        $user = User::create($userData);
+
+        // 役割を割り当て
+        $role = Role::where('name', $userData['role'])->first();
+        if ($role) {
+            $user->roles()->attach($role->id, [
+                'assigned_at' => now(),
+                'assigned_by' => auth()->id() ?? 1,
+                'is_active' => true,
+            ]);
+        }
+
+        $user->load(['roles']);
+
+        // フロントエンドが期待する形式でレスポンス
+        $activeRoles = $user->roles()->wherePivot('is_active', true)->get();
+        
+        return response()->json([
+            'id' => $user->id,
+            'employee_id' => $user->employee_id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
+            'status' => $user->is_active ? 'active' : 'inactive',
+            'createdAt' => $user->created_at->toISOString(),
+            'updatedAt' => $user->updated_at->toISOString(),
+        ], 201);
     }
 
     /**
@@ -217,286 +194,195 @@ class UserController extends Controller
      */
     public function update(Request $request, int $id): JsonResponse
     {
-        try {
-            $user = User::find($id);
+        $user = User::find($id);
 
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ユーザーが見つかりません',
-                ], 404);
-            }
-
-            // バリデーション
-            $validator = Validator::make($request->all(), [
-                'employee_id' => [
-                    'required',
-                    'string',
-                    'max:50',
-                    Rule::unique('users', 'employee_id')->ignore($id),
-                ],
-                'name' => 'required|string|max:255',
-                'name_kana' => 'nullable|string|max:255',
-                'email' => [
-                    'required',
-                    'email',
-                    Rule::unique('users', 'email')->ignore($id),
-                ],
-                'password' => 'nullable|string|min:8',
-                'birth_date' => 'nullable|date',
-                'gender' => 'nullable|string|max:10',
-                'phone' => 'nullable|string|max:20',
-                'mobile_phone' => 'nullable|string|max:20',
-                'postal_code' => 'nullable|string|max:10',
-                'prefecture' => 'nullable|string|max:50',
-                'address' => 'nullable|string',
-                'position' => 'nullable|string|max:100',
-                'job_title' => 'nullable|string|max:100',
-                'hire_date' => 'nullable|date',
-                'service_years' => 'nullable|integer|min:0',
-                'service_months' => 'nullable|integer|min:0|max:11',
-                'system_level' => 'required|string|exists:system_levels,code',
-                'is_active' => 'boolean',
-                'is_admin' => 'boolean',
-                'role_ids' => 'nullable|array',
-                'role_ids.*' => 'exists:roles,id',
-                'department_ids' => 'nullable|array',
-                'department_ids.*' => 'exists:departments,id',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'バリデーションエラー',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            // ユーザー情報を更新
-            $userData = $request->except(['role_ids', 'department_ids', 'password']);
-            
-            // パスワードが提供された場合のみ更新
-            if ($request->filled('password')) {
-                $userData['password'] = Hash::make($request->password);
-                $userData['password_changed_at'] = now();
-                $userData['password_expires_at'] = now()->addMonths(3);
-            }
-
-            $user->update($userData);
-
-            // 役割を更新
-            if ($request->has('role_ids')) {
-                $user->roles()->detach();
-                if (!empty($request->role_ids)) {
-                    $user->roles()->attach($request->role_ids, [
-                        'assigned_at' => now(),
-                        'assigned_by' => auth()->id(),
-                        'is_active' => true,
-                    ]);
-                }
-            }
-
-            // 部署を更新
-            if ($request->has('department_ids')) {
-                $user->departments()->detach();
-                if (!empty($request->department_ids)) {
-                    $departmentData = [];
-                    foreach ($request->department_ids as $index => $departmentId) {
-                        $departmentData[$departmentId] = [
-                            'position' => $request->input("department_positions.{$index}"),
-                            'is_primary' => $index === 0,
-                            'assigned_at' => now(),
-                            'assigned_by' => auth()->id(),
-                            'is_active' => true,
-                        ];
-                    }
-                    $user->departments()->attach($departmentData);
-                }
-            }
-
-            // 更新されたユーザーを取得
-            $user->load(['systemLevel', 'roles', 'departments']);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ユーザーが正常に更新されました',
-                'data' => $this->formatUserData($user),
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'ユーザーの更新中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'ユーザーが見つかりません',
+            ], 404);
         }
+
+        $validator = Validator::make($request->all(), [
+            'employee_id' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('users')->ignore($id),
+            ],
+            'name' => 'nullable|string|max:255',
+            'email' => [
+                'nullable',
+                'email',
+                Rule::unique('users')->ignore($id),
+            ],
+            'role' => 'nullable|in:admin,user,manager',
+            'status' => 'nullable|in:active,inactive,pending',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'バリデーションエラー',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $userData = $validator->validated();
+
+        // ステータスを変換
+        if (isset($userData['status'])) {
+            $userData['is_active'] = $userData['status'] === 'active';
+        }
+
+        $user->update($userData);
+
+        // 役割を更新
+        if (isset($userData['role'])) {
+            $role = Role::where('name', $userData['role'])->first();
+            if ($role) {
+                $user->roles()->sync([$role->id => [
+                    'assigned_at' => now(),
+                    'assigned_by' => auth()->id() ?? 1,
+                    'is_active' => true,
+                ]]);
+            }
+        }
+
+        $user->load(['roles']);
+
+        // フロントエンドが期待する形式でレスポンス
+        $activeRoles = $user->roles()->wherePivot('is_active', true)->get();
+        
+        return response()->json([
+            'id' => $user->id,
+            'employee_id' => $user->employee_id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
+            'status' => $user->is_active ? 'active' : 'inactive',
+            'createdAt' => $user->created_at->toISOString(),
+            'updatedAt' => $user->updated_at->toISOString(),
+        ]);
     }
 
     /**
-     * ユーザーを削除（ソフトデリート）
+     * ユーザーを削除
      */
     public function destroy(int $id): JsonResponse
     {
-        try {
-            $user = User::find($id);
+        $user = User::find($id);
 
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ユーザーが見つかりません',
-                ], 404);
-            }
-
-            // 自分自身を削除できないようにする
-            if ($user->id === auth()->id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => '自分自身を削除することはできません',
-                ], 400);
-            }
-
-            $user->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ユーザーが正常に削除されました',
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'ユーザーの削除中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'ユーザーが見つかりません',
+            ], 404);
         }
+
+        $user->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ユーザーが正常に削除されました',
+        ]);
     }
 
     /**
-     * ユーザーのアカウントをロック/アンロック
+     * アカウントロック状態を切り替え
      */
     public function toggleLock(int $id): JsonResponse
     {
-        try {
-            $user = User::find($id);
+        $user = User::find($id);
 
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ユーザーが見つかりません',
-                ], 404);
-            }
-
-            if ($user->isLocked()) {
-                // アンロック
-                $user->update([
-                    'locked_at' => null,
-                    'failed_login_attempts' => 0,
-                ]);
-                $message = 'ユーザーのアカウントがアンロックされました';
-            } else {
-                // ロック
-                $user->update(['locked_at' => now()]);
-                $message = 'ユーザーのアカウントがロックされました';
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'data' => [
-                    'is_locked' => $user->isLocked(),
-                ],
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'アカウントロック状態の変更中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'ユーザーが見つかりません',
+            ], 404);
         }
+
+        if ($user->isLocked()) {
+            $user->update([
+                'locked_at' => null,
+                'failed_login_attempts' => 0,
+            ]);
+            $message = 'アカウントのロックが解除されました';
+        } else {
+            $user->update(['locked_at' => now()]);
+            $message = 'アカウントがロックされました';
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => [
+                'is_locked' => $user->isLocked(),
+            ],
+        ]);
     }
 
     /**
-     * ユーザーのパスワードをリセット
+     * パスワードをリセット
      */
     public function resetPassword(Request $request, int $id): JsonResponse
     {
-        try {
-            $user = User::find($id);
+        $user = User::find($id);
 
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ユーザーが見つかりません',
-                ], 404);
-            }
-
-            // バリデーション
-            $validator = Validator::make($request->all(), [
-                'new_password' => 'required|string|min:8',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'バリデーションエラー',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            // パスワードをリセット
-            $user->update([
-                'password' => Hash::make($request->new_password),
-                'password_changed_at' => now(),
-                'password_expires_at' => now()->addMonths(3),
-                'failed_login_attempts' => 0,
-                'locked_at' => null,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'パスワードが正常にリセットされました',
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'パスワードリセット中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'message' => 'ユーザーが見つかりません',
+            ], 404);
         }
+
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'バリデーションエラー',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+            'password_changed_at' => now(),
+            'password_expires_at' => now()->addDays(90),
+            'locked_at' => null,
+            'failed_login_attempts' => 0,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'パスワードが正常にリセットされました',
+        ]);
     }
 
     /**
-     * ユーザー作成・編集用の選択肢データを取得
+     * ユーザー作成・編集用のオプションデータを取得
      */
     public function getOptions(): JsonResponse
     {
-        try {
-            $systemLevels = SystemLevel::active()->orderByPriority()->get();
-            $roles = Role::active()->orderByPriority()->get();
-            $departments = Department::active()->orderBySort()->get();
+        $roles = Role::where('is_active', true)->get();
+        $departments = Department::where('is_active', true)->get();
+        $systemLevels = SystemLevel::where('is_active', true)->get();
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'system_levels' => $systemLevels,
-                    'roles' => $roles,
-                    'departments' => $departments,
-                ],
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => '選択肢データの取得中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'roles' => $roles,
+                'departments' => $departments,
+                'system_levels' => $systemLevels,
+            ],
+        ]);
     }
 
     /**
-     * ユーザーデータを整形
+     * ユーザーデータをフォーマット
      */
     private function formatUserData(User $user): array
     {
@@ -522,35 +408,16 @@ class UserController extends Controller
             'is_active' => $user->is_active,
             'is_admin' => $user->is_admin,
             'last_login_at' => $user->last_login_at,
+            'password_changed_at' => $user->password_changed_at,
+            'password_expires_at' => $user->password_expires_at,
+            'failed_login_attempts' => $user->failed_login_attempts,
+            'locked_at' => $user->locked_at,
             'is_locked' => $user->isLocked(),
             'is_password_expired' => $user->isPasswordExpired(),
-            'system_level_info' => $user->systemLevel ? [
-                'code' => $user->systemLevel->code,
-                'name' => $user->systemLevel->name,
-                'display_name' => $user->systemLevel->display_name,
-                'priority' => $user->systemLevel->priority,
-            ] : null,
-            'roles' => $user->roles->map(function ($role) {
-                return [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                    'display_name' => $role->display_name,
-                    'priority' => $role->priority,
-                    'assigned_at' => $role->pivot->assigned_at,
-                    'is_active' => $role->pivot->is_active,
-                ];
-            }),
-            'departments' => $user->departments->map(function ($department) {
-                return [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                    'code' => $department->code,
-                    'position' => $department->pivot->position,
-                    'is_primary' => $department->pivot->is_primary,
-                    'assigned_at' => $department->pivot->assigned_at,
-                    'is_active' => $department->pivot->is_active,
-                ];
-            }),
+            'roles' => $user->roles,
+            'departments' => $user->departments,
+            'system_level_info' => $user->systemLevel,
+            'primary_department' => $user->primaryDepartment(),
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];

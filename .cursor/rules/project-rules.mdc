@@ -44,51 +44,10 @@
 ```
 buildsuite/
 ├── backend/                 # Laravel API アプリケーション
-│   ├── app/                # アプリケーションロジック
-│   │   ├── Http/           # コントローラー
-│   │   ├── Models/         # Eloquentモデル
-│   │   ├── Services/       # ビジネスロジック
-│   │   └── Exports/        # 帳票出力クラス
-│   ├── database/           # マイグレーション・シーダー
-│   ├── routes/             # API ルート定義
-│   ├── tests/              # テストコード
-│   └── composer.json       # PHP依存関係
 ├── frontend/               # Next.js 14 アプリケーション
-│   ├── src/                # ソースコード
-│   │   ├── app/            # App Router (Next.js 14)
-│   │   │   ├── (auth)/     # 認証関連ページ
-│   │   │   ├── (dashboard)/ # ダッシュボード
-│   │   │   ├── (management)/ # 管理画面
-│   │   │   ├── (estimates)/ # 見積管理
-│   │   │   ├── (budgets)/   # 予算管理
-│   │   │   ├── (orders)/    # 発注管理
-│   │   │   ├── (progress)/  # 出来高管理
-│   │   │   ├── (payments)/  # 支払管理
-│   │   │   ├── (approvals)/ # 承認フロー
-│   │   │   ├── (reports)/   # 帳票出力
-│   │   │   └── api/         # API Routes
-│   │   ├── components/      # React コンポーネント
-│   │   ├── hooks/           # カスタムフック
-│   │   ├── services/        # API サービス
-│   │   ├── store/           # Redux ストア
-│   │   ├── types/           # TypeScript 型定義
-│   │   └── utils/           # ユーティリティ関数
-│   ├── public/              # 静的ファイル
-│   ├── package.json         # Node.js依存関係
-│   ├── next.config.js       # Next.js設定
-│   └── tailwind.config.js   # Tailwind CSS設定
 ├── nginx/                  # Nginx設定
-│   ├── conf.d/             # サイト設定
-│   ├── ssl/                # SSL証明書
-│   └── nginx.conf          # メイン設定
 ├── docker/                 # Docker関連ファイル
-│   ├── docker-compose.yml  # 開発環境設定
-│   ├── Dockerfile.*        # 各サービスのDockerfile
-│   └── Makefile           # 開発コマンド
 ├── docs/                   # ドキュメント
-│   ├── database-design.md  # データベース設計書
-│   ├── api-documentation.md # API仕様書
-│   └── deployment-guide.md # デプロイメントガイド
 └── README.md              # プロジェクト概要
 ```
 
