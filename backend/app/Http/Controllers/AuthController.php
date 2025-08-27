@@ -93,21 +93,21 @@ class AuthController extends Controller
             $user->resetFailedLoginAttempts();
             $user->updateLastLogin();
 
-            // セッションを作成
-            $session = $this->createUserSession($user, $request);
+            // Sanctumトークンを生成
+            $token = $user->createToken('web-token')->plainTextToken;
 
             // ユーザー情報を取得（権限情報を含む）
             $userData = $this->getUserData($user);
 
-            $this->logLoginAttempt($request, 'success', null, $user, $session->session_id);
+            $this->logLoginAttempt($request, 'success', null, $user);
 
             return response()->json([
                 'success' => true,
                 'message' => 'ログインに成功しました',
                 'data' => [
                     'user' => $userData,
-                    'token' => $session->session_id,
-                    'expires_at' => $session->expires_at,
+                    'token' => $token,
+                    'token_type' => 'Bearer',
                 ],
             ], 200);
 
@@ -126,23 +126,17 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-            $sessionId = $request->header('X-Session-ID');
+            $user = Auth::guard('sanctum')->user();
 
-            if ($user && $sessionId) {
-                // セッションを無効化
-                UserSession::where('session_id', $sessionId)
-                    ->where('user_id', $user->id)
-                    ->update(['is_active' => false]);
-
-                // ログアウト履歴を記録
-                UserLoginHistory::where('session_id', $sessionId)
-                    ->where('user_id', $user->id)
-                    ->whereNull('logout_at')
-                    ->update(['logout_at' => now()]);
+            if ($user) {
+                // 現在のトークンを削除
+                $user->currentAccessToken()->delete();
+                
+                // ログアウト履歴を記録（オプション）
+                $this->logLogoutAttempt($request, $user);
             }
 
-            Auth::logout();
+            // Auth::logout()を削除 - Sanctumでは不要
 
             return response()->json([
                 'success' => true,
@@ -164,7 +158,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
+            $user = Auth::guard('sanctum')->user();  // ← sanctumガードを明示的に指定
 
             if (!$user) {
                 return response()->json([
@@ -363,6 +357,22 @@ class AuthController extends Controller
             'session_id' => $sessionId,
             'status' => $status,
             'failure_reason' => $failureReason,
+        ]);
+    }
+
+    /**
+     * ログアウト試行を記録
+     */
+    private function logLogoutAttempt(Request $request, User $user): void
+    {
+        UserLoginHistory::create([
+            'user_id' => $user->id,
+            'login_at' => now(),
+            'logout_at' => now(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'status' => 'logout',
+            'failure_reason' => null,
         ]);
     }
 

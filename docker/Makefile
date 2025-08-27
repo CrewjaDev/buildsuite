@@ -282,6 +282,10 @@ shell-backend: ## バックエンドコンテナにシェルで接続
 shell-frontend: ## フロントエンドコンテナにシェルで接続
 	docker exec -it buildsuite-frontend-container sh
 
+.PHONY: shell-nginx
+shell-nginx: ## Nginxコンテナにシェルで接続
+	docker exec -it buildsuite-nginx-container sh
+
 .PHONY: shell-postgres
 shell-postgres: ## PostgreSQLコンテナにシェルで接続
 	docker exec -it postgres_container bash

@@ -105,3 +105,7 @@ Thumbs.db
 
 # Documentation build
 docs/_build/
+
+# PWA自動生成ファイル
+frontend/public/workbox-*.js
+frontend/public/sw.js

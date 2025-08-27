@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withPWA from 'next-pwa'
 
 const nextConfig: NextConfig = {
   webpack: (config) => {
@@ -16,6 +17,34 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: ['@mui/material', '@mui/icons-material']
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  }
 };
 
-export default nextConfig;
+// 開発環境ではPWAを完全に無効化
+export default process.env.NODE_ENV === 'development' 
+  ? nextConfig 
+  : withPWA({
+      dest: 'public',
+      register: true,
+      skipWaiting: true,
+      disable: false,
+      runtimeCaching: [
+        {
+          urlPattern: /^https?:\/\/.*\/api\//,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'api-cache',
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 * 24
+            }
+          }
+        }
+      ]
+    } as Parameters<typeof withPWA>[0])(nextConfig);
