@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Column } from '@tanstack/react-table'
 import { GripVertical } from 'lucide-react'
 
 interface ColumnResizerProps {
-  column: Column<unknown>
+  column: unknown
   className?: string
 }
 
@@ -18,14 +17,39 @@ export const ColumnResizer = ({ column, className }: ColumnResizerProps) => {
     setIsResizing(true)
     
     const startX = e.pageX
-    const startWidth = column.getSize()
+    const startWidth = (column as { getSize: () => number }).getSize()
+    let isDragging = true
     
     const handleMouseMove = (e: MouseEvent) => {
-      if (isResizing) {
+      if (isDragging) {
         const deltaX = e.pageX - startX
-        const newWidth = Math.max(50, startWidth + deltaX) // 最小幅50px
+        const columnInstance = column as unknown as { 
+          setSize?: (size: number) => void; 
+          columnDef?: { size?: number; minSize?: number };
+          getSize: () => number;
+        }
+        const minSize = columnInstance.columnDef?.minSize || 50
+        const newWidth = Math.max(minSize, startWidth + deltaX)
+        console.log('列幅調整中:', { startWidth, deltaX, newWidth })
         try {
-          ;(column as unknown as { setSize: (size: number) => void }).setSize(newWidth)
+          // TanStack Table v8での列幅設定方法
+          const columnId = (column as unknown as { id: string }).id
+          
+          // 列幅を設定
+          if (columnInstance.setSize) {
+            columnInstance.setSize(newWidth)
+          } else if (columnInstance.columnDef) {
+            columnInstance.columnDef.size = newWidth
+          }
+          
+          // テーブルの状態を直接更新
+          const table = (column as unknown as { table?: { setColumnSizing: (sizing: Record<string, number>) => void } }).table
+          if (table?.setColumnSizing) {
+            table.setColumnSizing({ [columnId]: newWidth })
+          }
+          
+          // デバッグ情報
+          console.log('列幅設定完了:', { columnId, newWidth, columnInstance })
         } catch (error) {
           console.log('列幅調整エラー:', error)
         }
@@ -33,6 +57,7 @@ export const ColumnResizer = ({ column, className }: ColumnResizerProps) => {
     }
     
     const handleMouseUp = () => {
+      isDragging = false
       setIsResizing(false)
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
@@ -44,7 +69,7 @@ export const ColumnResizer = ({ column, className }: ColumnResizerProps) => {
 
   return (
     <div
-      className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none ${
+      className={`absolute right-0 top-0 h-full w-2 cursor-col-resize select-none touch-none z-10 ${
         isResizing ? 'bg-blue-500' : 'bg-gray-300 hover:bg-gray-400'
       } ${className || ''}`}
       onMouseDown={handleMouseDown}

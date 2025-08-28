@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/common/data-display/DataTable'
 import { useUsers } from '@/hooks/useUsers'
@@ -10,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Plus, Edit, Trash2 } from 'lucide-react'
 
 export default function UsersPage() {
+  const router = useRouter()
+  
   // 状態管理
   const [searchValue, setSearchValue] = useState('')
   const [filters, setFilters] = useState<Record<string, string | number | boolean | null | undefined>>({})
@@ -27,40 +30,122 @@ export default function UsersPage() {
   // データ取得
   const { data, isLoading, error } = useUsers(searchParams)
 
+  // イベントハンドラー
+  const handleEditUser = useCallback((user: User) => {
+    console.log('編集:', user)
+    // 詳細ページの編集モードに遷移
+    router.push(`/users/${user.id}?mode=edit`)
+  }, [router])
+
+  const handleDeleteUser = useCallback((user: User) => {
+    console.log('削除:', user)
+    // TODO: 削除確認モーダルを開く
+  }, [])
+
+  const handleRowClick = useCallback((user: User) => {
+    console.log('行クリック:', user)
+    // 詳細ページに遷移
+    router.push(`/users/${user.id}`)
+  }, [router])
+
+  // デバッグ用：データをコンソールに出力
+  console.log('Users data:', data)
+
   // カラム定義
   const columns: ColumnDef<User>[] = useMemo(() => [
     {
       accessorKey: 'employee_id',
       header: '社員ID',
       size: 120,
+      minSize: 120,
       enableSorting: true,
       enableColumnFilter: true,
     },
     {
       accessorKey: 'name',
-      header: '氏名',
+      header: '社員名',
+      size: 200,
+      minSize: 200,
+      enableSorting: true,
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const name = row.getValue('name') as string
+        const nameKana = row.original.name_kana as string
+        return (
+          <div>
+            <div className="font-medium">{name}</div>
+            <div className="text-sm text-gray-500">{nameKana}</div>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'gender',
+      header: '性別',
+      size: 80,
+      minSize: 80,
+      enableSorting: true,
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const gender = row.original.gender as string
+        return gender === 'male' ? '男性' : gender === 'female' ? '女性' : 'その他'
+      },
+    },
+    {
+      accessorKey: 'department',
+      header: '所属部門',
       size: 150,
+      minSize: 150,
       enableSorting: true,
       enableColumnFilter: true,
+      cell: ({ row }) => {
+        const department = row.original.department as { name?: string } | null
+        return department?.name || '未設定'
+      },
     },
     {
-      accessorKey: 'email',
-      header: 'メールアドレス',
-      size: 250,
+      accessorKey: 'position',
+      header: '職位',
+      size: 120,
+      minSize: 120,
       enableSorting: true,
       enableColumnFilter: true,
+      cell: ({ row }) => {
+        const position = row.original.position as { display_name?: string; name?: string } | null
+        return position?.display_name || position?.name || '未設定'
+      },
     },
     {
-      accessorKey: 'role',
+      accessorKey: 'job_title',
       header: '役職',
       size: 120,
+      minSize: 120,
       enableSorting: true,
       enableColumnFilter: true,
+      cell: ({ row }) => {
+        const jobTitle = row.original.job_title as string
+        return jobTitle || '未設定'
+      },
+    },
+    {
+      accessorKey: 'hire_date',
+      header: '入社年月日',
+      size: 120,
+      minSize: 120,
+      enableSorting: true,
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const hireDate = row.original.hire_date as string
+        if (!hireDate) return '未設定'
+        const date = new Date(hireDate)
+        return date.toLocaleDateString('ja-JP')
+      },
     },
     {
       accessorKey: 'status',
       header: 'ステータス',
-      size: 100,
+      size: 120,
+      minSize: 120,
       enableSorting: true,
       enableColumnFilter: true,
       filterFn: (row, id, value) => {
@@ -75,32 +160,6 @@ export default function UsersPage() {
             {status === 'active' ? '有効' : '無効'}
           </Badge>
         )
-      },
-    },
-    {
-      accessorKey: 'createdAt',
-      header: '作成日',
-      size: 120,
-      enableSorting: true,
-      enableColumnFilter: true,
-      filterFn: (row, id, value) => {
-        if (!value || (!value.from && !value.to)) return true
-        const date = new Date(row.getValue(id) as string)
-        const fromDate = value.from ? new Date(value.from) : null
-        const toDate = value.to ? new Date(value.to) : null
-        
-        if (fromDate && toDate) {
-          return date >= fromDate && date <= toDate
-        } else if (fromDate) {
-          return date >= fromDate
-        } else if (toDate) {
-          return date <= toDate
-        }
-        return true
-      },
-      cell: ({ row }) => {
-        const date = new Date(row.getValue('createdAt'))
-        return date.toLocaleDateString('ja-JP')
       },
     },
     {
@@ -129,7 +188,7 @@ export default function UsersPage() {
         )
       },
     },
-  ], [])
+  ], [handleEditUser, handleDeleteUser])
 
   // フィルターオプション
   const filterOptions = [
@@ -142,31 +201,26 @@ export default function UsersPage() {
       ],
     },
     {
-      key: 'role',
-      label: '役職',
+      key: 'position',
+      label: '職位',
       options: [
-        { value: 'admin', label: '管理者' },
-        { value: 'manager', label: 'マネージャー' },
-        { value: 'employee', label: '一般社員' },
+        { value: 'director', label: '取締役' },
+        { value: 'department_manager', label: '部長' },
+        { value: 'section_chief', label: '課長' },
+        { value: 'staff', label: '担当' },
+        { value: 'employee', label: '社員' },
+      ],
+    },
+    {
+      key: 'gender',
+      label: '性別',
+      options: [
+        { value: 'male', label: '男性' },
+        { value: 'female', label: '女性' },
+        { value: 'other', label: 'その他' },
       ],
     },
   ]
-
-  // イベントハンドラー
-  const handleEditUser = (user: User) => {
-    console.log('編集:', user)
-    // TODO: 編集モーダルを開く
-  }
-
-  const handleDeleteUser = (user: User) => {
-    console.log('削除:', user)
-    // TODO: 削除確認モーダルを開く
-  }
-
-  const handleRowClick = (user: User) => {
-    console.log('行クリック:', user)
-    // TODO: 詳細ページに遷移
-  }
 
   const handlePageSizeChange = (newPageSize: number) => {
     console.log('ページサイズ変更:', newPageSize)

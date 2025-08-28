@@ -118,4 +118,31 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* スクロールバーを常に表示してレイアウトブレを防ぐ */
+  html {
+    overflow-y: scroll;
+  }
+  
+  /* Webkit系ブラウザ（Chrome, Safari, Edge）のスクロールバースタイル */
+  ::-webkit-scrollbar {
+    width: 16px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 8px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+
+
+
 }

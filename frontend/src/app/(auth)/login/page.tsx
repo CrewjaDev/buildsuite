@@ -1,32 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppDispatch, useAppSelector } from '@/lib/hooks'
 import { setCredentials, setLoading } from '@/store/authSlice'
 import { authService } from '@/lib/authService'
-import { useRefresh } from '@/hooks/useRefresh'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
   const dispatch = useAppDispatch()
   const loading = useAppSelector((state) => state.auth.loading)
-  
-  // 認証状態の確認（ログインページでは最小限の使用）
-  const { data: authStatus, refresh: refreshAuthStatus } = useRefresh('/api/auth/status', {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false
-  })
-
-  // 既にログイン済みの場合はリダイレクト
-  useEffect(() => {
-    if (authStatus?.isAuthenticated) {
-      router.push('/dashboard')
-    }
-  }, [authStatus, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,12 +20,11 @@ export default function LoginPage() {
     dispatch(setLoading(true))
 
     try {
-      const response = await authService.login({ email, password })
+      const response = await authService.login({ login_id: loginId, password })
       dispatch(setCredentials(response))
       localStorage.setItem('token', response.token)
       
-      // ログイン成功後、認証状態を更新
-      refreshAuthStatus()
+      // ログイン成功後、ダッシュボードにリダイレクト
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
@@ -53,10 +38,7 @@ export default function LoginPage() {
     }
   }
 
-  // 既にログイン済みの場合は何も表示しない
-  if (authStatus?.isAuthenticated) {
-    return <div>リダイレクト中...</div>
-  }
+
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-md" suppressHydrationWarning>
@@ -71,12 +53,12 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            メールアドレス
+            ログインID
           </label>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-black"
             required
             suppressHydrationWarning

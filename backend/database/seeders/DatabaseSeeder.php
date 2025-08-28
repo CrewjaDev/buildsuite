@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
         // システムレベルを先に作成
         $this->call([
             SystemLevelSeeder::class,
+            DepartmentSeeder::class,
+            PositionSeeder::class,
             RoleSeeder::class,
             PermissionSeeder::class,
             UserSeeder::class,

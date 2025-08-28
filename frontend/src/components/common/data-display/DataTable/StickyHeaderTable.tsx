@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender, Column, SortingState, ColumnFiltersState, ColumnOrderState } from '@tanstack/react-table'
+import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender, Column, SortingState, ColumnFiltersState, ColumnOrderState, ColumnSizingState } from '@tanstack/react-table'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -37,10 +37,12 @@ const SortableTableHead = ({ header, children, ...props }: { header: unknown; ch
       {...props}
     >
       <div className="flex items-center gap-2">
-        <div {...attributes} {...listeners} className="cursor-move p-1 hover:bg-gray-100 rounded">
+        <div {...attributes} {...listeners} className="cursor-move p-1 hover:bg-gray-100 rounded flex-shrink-0">
           <span>⋮⋮</span>
         </div>
-        {children}
+        <div className="flex-1 min-w-0">
+          {children}
+        </div>
       </div>
     </TableHead>
   )
@@ -60,6 +62,7 @@ export const StickyHeaderTable = <T,>({
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([])
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({})
 
   const table = useReactTable({
     data,
@@ -70,10 +73,12 @@ export const StickyHeaderTable = <T,>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: setColumnOrder,
+    onColumnSizingChange: setColumnSizing,
     state: {
       sorting,
       columnFilters,
       columnOrder,
+      columnSizing,
     },
     enableColumnResizing,
     columnResizeMode: 'onChange',
@@ -147,7 +152,9 @@ export const StickyHeaderTable = <T,>({
                     header={header}
                     className="bg-gray-50 font-semibold text-gray-900 select-none relative"
                     style={{ 
-                      width: header.getSize()
+                      width: header.getSize(),
+                      minWidth: header.getSize(),
+                      maxWidth: header.getSize()
                     }}
                   >
                     <div className="flex items-center justify-between">
@@ -282,7 +289,9 @@ export const StickyHeaderTable = <T,>({
                   <TableCell 
                     key={cell.id}
                     style={{ 
-                      width: cell.column.getSize()
+                      width: cell.column.getSize(),
+                      minWidth: cell.column.getSize(),
+                      maxWidth: cell.column.getSize()
                     }}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

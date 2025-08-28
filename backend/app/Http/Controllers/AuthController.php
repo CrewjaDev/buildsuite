@@ -23,7 +23,7 @@ class AuthController extends Controller
         try {
             // バリデーション
             $validator = Validator::make($request->all(), [
-                'email' => 'required|email',
+                'login_id' => 'required|string',
                 'password' => 'required|string',
                 'remember' => 'boolean',
             ]);
@@ -36,17 +36,17 @@ class AuthController extends Controller
                 ], 422);
             }
 
-            $credentials = $request->only(['email', 'password']);
+            $credentials = $request->only(['login_id', 'password']);
             $remember = $request->boolean('remember', false);
 
             // ユーザーを検索
-            $user = User::where('email', $credentials['email'])->first();
+            $user = User::where('login_id', $credentials['login_id'])->first();
 
             if (!$user) {
                 $this->logLoginAttempt($request, 'failed', 'ユーザーが見つかりません');
                 return response()->json([
                     'success' => false,
-                    'message' => 'メールアドレスまたはパスワードが正しくありません',
+                    'message' => 'ログインIDまたはパスワードが正しくありません',
                 ], 401);
             }
 
@@ -77,17 +77,20 @@ class AuthController extends Controller
                 ], 423);
             }
 
-            // 認証を試行
-            if (!Auth::attempt($credentials, $remember)) {
+            // パスワードを検証
+            if (!Hash::check($credentials['password'], $user->password)) {
                 // ログイン失敗回数を増加
                 $user->incrementFailedLoginAttempts();
                 $this->logLoginAttempt($request, 'failed', 'パスワードが正しくありません', $user);
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'メールアドレスまたはパスワードが正しくありません',
+                    'message' => 'ログインIDまたはパスワードが正しくありません',
                 ], 401);
             }
+
+            // 手動でログイン
+            Auth::login($user, $remember);
 
             // ログイン成功
             $user->resetFailedLoginAttempts();

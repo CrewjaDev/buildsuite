@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Role;
 use App\Models\Department;
 use App\Models\SystemLevel;
+use App\Models\Position;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -22,7 +23,8 @@ class UserController extends Controller
         $query = User::with([
             'systemLevel',
             'roles',
-            'departments'
+            'departments',
+            'position'
         ]);
 
         // 検索条件
@@ -81,22 +83,31 @@ class UserController extends Controller
 
         // レスポンスデータを整形
         $users->getCollection()->transform(function ($user) {
-            // プライマリ部署を取得
-            $primaryDepartment = $user->departments()
-                ->wherePivot('is_primary', true)
-                ->first();
+            // プライマリ部署を取得（既に読み込まれたリレーションから）
+            $primaryDepartment = $user->departments->where('pivot.is_primary', true)->first();
 
-            // アクティブな役割を取得
-            $activeRoles = $user->roles()
-                ->wherePivot('is_active', true)
-                ->get();
+            // デバッグ用ログ
+            \Log::info('User data:', [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'gender' => $user->gender,
+                'position_id' => $user->position_id,
+                'position' => $user->position,
+                'departments_count' => $user->departments->count(),
+                'primary_department' => $primaryDepartment,
+            ]);
 
             return [
                 'id' => $user->id,
+                'login_id' => $user->login_id,
                 'employee_id' => $user->employee_id,
                 'name' => $user->name,
-                'email' => $user->email,
-                'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
+                'name_kana' => $user->name_kana,
+                'gender' => $user->gender,
+                'department' => $primaryDepartment,
+                'position' => $user->position,
+                'job_title' => $user->job_title,
+                'hire_date' => $user->hire_date ? $user->hire_date->toISOString() : null,
                 'status' => $user->is_active ? 'active' : 'inactive',
                 'createdAt' => $user->created_at->toISOString(),
                 'updatedAt' => $user->updated_at->toISOString(),
@@ -211,13 +222,29 @@ class UserController extends Controller
                 Rule::unique('users')->ignore($id),
             ],
             'name' => 'nullable|string|max:255',
+            'name_kana' => 'nullable|string|max:255',
             'email' => [
                 'nullable',
                 'email',
                 Rule::unique('users')->ignore($id),
             ],
-            'role' => 'nullable|in:admin,user,manager',
-            'status' => 'nullable|in:active,inactive,pending',
+            'birth_date' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'phone' => 'nullable|string|max:20',
+            'mobile_phone' => 'nullable|string|max:20',
+            'postal_code' => 'nullable|string|max:10',
+            'prefecture' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:500',
+            'job_title' => 'nullable|string|max:100',
+            'hire_date' => 'nullable|date',
+            'is_active' => 'nullable|boolean',
+            'is_admin' => 'nullable|boolean',
+            'system_level' => 'nullable|string|max:50',
+            'position_id' => 'nullable|exists:positions,id',
+            'role_ids' => 'nullable|array',
+            'role_ids.*' => 'exists:roles,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'exists:departments,id',
         ]);
 
         if ($validator->fails()) {
@@ -230,39 +257,44 @@ class UserController extends Controller
 
         $userData = $validator->validated();
 
-        // ステータスを変換
-        if (isset($userData['status'])) {
-            $userData['is_active'] = $userData['status'] === 'active';
-        }
-
+        // 基本情報を更新
         $user->update($userData);
 
         // 役割を更新
-        if (isset($userData['role'])) {
-            $role = Role::where('name', $userData['role'])->first();
-            if ($role) {
-                $user->roles()->sync([$role->id => [
+        if (isset($userData['role_ids'])) {
+            $roleData = [];
+            foreach ($userData['role_ids'] as $roleId) {
+                $roleData[$roleId] = [
                     'assigned_at' => now(),
                     'assigned_by' => auth()->id() ?? 1,
                     'is_active' => true,
-                ]]);
+                ];
             }
+            $user->roles()->sync($roleData);
         }
 
-        $user->load(['roles']);
+        // 部署を更新
+        if (isset($userData['department_ids'])) {
+            $departmentData = [];
+            foreach ($userData['department_ids'] as $index => $departmentId) {
+                $departmentData[$departmentId] = [
+                    'assigned_at' => now(),
+                    'assigned_by' => auth()->id() ?? 1,
+                    'is_primary' => $index === 0, // 最初の部署をプライマリに設定
+                    'is_active' => true,
+                ];
+            }
+            $user->departments()->sync($departmentData);
+        }
+
+        // 関連データを読み込み
+        $user->load(['roles', 'departments', 'position', 'systemLevel']);
 
         // フロントエンドが期待する形式でレスポンス
-        $activeRoles = $user->roles()->wherePivot('is_active', true)->get();
-        
         return response()->json([
-            'id' => $user->id,
-            'employee_id' => $user->employee_id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
-            'status' => $user->is_active ? 'active' : 'inactive',
-            'createdAt' => $user->created_at->toISOString(),
-            'updatedAt' => $user->updated_at->toISOString(),
+            'success' => true,
+            'message' => 'ユーザーが正常に更新されました',
+            'data' => $this->formatUserData($user),
         ]);
     }
 
@@ -370,6 +402,7 @@ class UserController extends Controller
         $roles = Role::where('is_active', true)->get();
         $departments = Department::where('is_active', true)->get();
         $systemLevels = SystemLevel::where('is_active', true)->get();
+        $positions = Position::where('is_active', true)->orderBy('level')->get();
 
         return response()->json([
             'success' => true,
@@ -377,6 +410,7 @@ class UserController extends Controller
                 'roles' => $roles,
                 'departments' => $departments,
                 'system_levels' => $systemLevels,
+                'positions' => $positions,
             ],
         ]);
     }
@@ -388,6 +422,7 @@ class UserController extends Controller
     {
         return [
             'id' => $user->id,
+            'login_id' => $user->login_id,
             'employee_id' => $user->employee_id,
             'name' => $user->name,
             'name_kana' => $user->name_kana,

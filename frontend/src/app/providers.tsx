@@ -5,6 +5,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { store, persistor } from '@/store/store'
+import { ToastProvider } from '@/components/ui/toast'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -28,7 +29,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </PersistGate>
       </Provider>
       <ReactQueryDevtools initialIsOpen={false} />

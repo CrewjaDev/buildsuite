@@ -1,7 +1,7 @@
 import api from './api'
 
 export interface LoginCredentials {
-  email: string
+  login_id: string
   password: string
 }
 

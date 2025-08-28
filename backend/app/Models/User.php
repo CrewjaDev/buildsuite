@@ -8,8 +8,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Position;
 
 class User extends Authenticatable
 {
@@ -22,6 +24,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'login_id',
         'employee_id',
         'name',
         'name_kana',
@@ -35,6 +38,7 @@ class User extends Authenticatable
         'prefecture',
         'address',
         'position',
+        'position_id',
         'job_title',
         'hire_date',
         'service_years',
@@ -117,6 +121,14 @@ class User extends Authenticatable
     public function loginHistory(): HasMany
     {
         return $this->hasMany(UserLoginHistory::class);
+    }
+
+    /**
+     * 職位とのリレーション
+     */
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(Position::class, 'position_id', 'id');
     }
 
     /**
