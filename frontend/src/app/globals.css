@@ -2,6 +2,137 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* スクロールバー非表示クラス */
+.scrollbar-hidden {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+  overflow-x: auto;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none !important; /* Safari/Chrome */
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-thumb {
+  display: none !important;
+}
+
+/* ヘッダー専用スクロールバー完全非表示 */
+.header-scroll-hidden {
+  overflow: hidden !important;     /* 全方向のスクロール無効化 */
+  overflow-x: hidden !important;   /* 横スクロール完全無効化 */
+  overflow-y: hidden !important;   /* 縦スクロールも無効化 */
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.header-scroll-hidden::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+.header-scroll-hidden::-webkit-scrollbar-track {
+  display: none !important;
+  background: transparent !important;
+}
+
+.header-scroll-hidden::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
+}
+
+.header-scroll-hidden::-webkit-scrollbar-corner {
+  display: none !important;
+}
+
+/* ページ全体のスクロールバー幅固定 */
+html {
+  overflow-y: scroll; /* 常にスクロールバー領域を確保 */
+}
+
+/* コンテナ要素の幅制御 */
+.container {
+  box-sizing: border-box;
+}
+
+/* Selectドロップダウンのポジショニング改善 */
+[data-radix-popper-content-wrapper] {
+  transform: translateZ(0); /* ハードウェアアクセラレーション */
+  will-change: transform; /* アニメーション最適化 */
+}
+
+/* PopoverSearchFilter方式では不要（削除済み） */
+
+/* Popover+検索方式では data-scroll-locked が発生しないため、関連設定は不要 */
+
+/* ページ幅いっぱいに広がるテーブル */
+.table-fixed {
+  table-layout: fixed !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 100% !important;
+  transition: all 0.2s ease-out;
+}
+
+.table-fixed th,
+.table-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: width 0.2s ease-out;
+}
+
+/* テーブルコンテナを強制的に100%幅に */
+.table-container-full-width {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* 列リサイズ対応テーブル（横スクロール対応） */
+.table-fixed-with-min-width {
+  table-layout: fixed;
+  /* width と min-width はインラインスタイルで動的設定 */
+  transition: none; /* リサイズ時のちらつきを防止 */
+}
+
+/* ユーザーリサイズ時のテーブル（制限解除モード） */
+.table-resizing-mode {
+  table-layout: fixed;
+  /* width と min-width はインラインスタイルで動的設定 */
+  transition: none; /* リサイズ時のちらつきを防止 */
+}
+
+/* テーブルが最小幅を下回る場合のスクロール処理 */
+.table-fixed-with-min-width th,
+.table-fixed-with-min-width td,
+.table-resizing-mode th,
+.table-resizing-mode td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: width 0.2s ease-out;
+}
+
+/* 列の最小幅が保たれるよう、テーブル全体の最小幅を計算 */
+@media (max-width: 768px) {
+  .table-fixed-with-min-width {
+    min-width: max-content; /* コンテンツに基づいた最小幅 */
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -142,7 +273,42 @@
     background: #a8a8a8;
   }
 
+  /* スクロールバー非表示クラス */
+  .scrollbar-hidden {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 
+  /* テーブルヘッダーのスクロールバー完全無効化 */
+  .table-header-no-scroll {
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+  
+  .table-header-no-scroll::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 
+  /* ネストした要素にも適用 */
+  .table-header-no-scroll * {
+    overflow-x: hidden !important;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+
+  .table-header-no-scroll *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 
 }

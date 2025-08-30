@@ -64,41 +64,48 @@ export const DataTable = <T,>({
   className = ''
 }: DataTableWithControlsProps<T>) => {
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-4 table-container-full-width ${className}`}>
       {/* 検索・フィルターエリア */}
       {showSearch && (onSearchChange || onFilterChange) && (
-        <SearchFilters
-          searchValue={searchValue}
-          onSearchChange={onSearchChange}
-          filters={filters}
-          onFilterChange={onFilterChange}
-          placeholder={searchPlaceholder}
-          filterOptions={filterOptions}
-        />
+        <div className="w-full">
+          <SearchFilters
+            searchValue={searchValue}
+            onSearchChange={onSearchChange}
+            filters={filters}
+            onFilterChange={onFilterChange}
+            placeholder={searchPlaceholder}
+            filterOptions={filterOptions}
+          />
+        </div>
       )}
 
       {/* テーブル */}
-      <StickyHeaderTable
-        data={data}
-        columns={columns}
-        isLoading={isLoading}
-        error={error}
-        enableColumnResizing={enableColumnResizing}
-        enableSorting={enableSorting}
-        enableColumnFilters={enableColumnFilters}
-        onRowClick={onRowClick}
-      />
+      <div className="table-container-full-width">
+        <StickyHeaderTable
+          data={data}
+          columns={columns}
+          isLoading={isLoading}
+          error={error}
+          enableColumnResizing={enableColumnResizing}
+          enableSorting={enableSorting}
+          enableColumnFilters={enableColumnFilters}
+          onRowClick={onRowClick}
+          className="table-container-full-width"
+        />
+      </div>
 
       {/* ページネーション */}
       {showPagination && onPageChange && (
-        <PaginationControls
-          currentPage={currentPage}
-          totalCount={totalCount}
-          pageSize={pageSize}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-          pageSizeOptions={pageSizeOptions}
-        />
+        <div className="w-full">
+          <PaginationControls
+            currentPage={currentPage}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            pageSizeOptions={pageSizeOptions}
+          />
+        </div>
       )}
     </div>
   );
@@ -107,6 +114,7 @@ export const DataTable = <T,>({
 // 個別コンポーネントのエクスポート
 export { StickyHeaderTable } from './StickyHeaderTable'
 export { SearchFilters } from './SearchFilters'
+export { PopoverSearchFilter } from './PopoverSearchFilter'
 export { PaginationControls } from './PaginationControls'
 export { ColumnResizer } from './ColumnResizer'
 export type { DataTableProps } from './types'

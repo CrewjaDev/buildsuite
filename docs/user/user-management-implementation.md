@@ -16,7 +16,7 @@
 - [x] Shadcn/uiコンポーネントの追加（shadcn@latest使用）
 - [x] sonnerコンポーネントの追加（toastの代替）
 - [x] components.jsonファイル作成
-- [ ] インストール確認と動作テスト
+- [x] インストール確認と動作テスト
 
 #### 1.2 基本ファイル構造の作成
 - [x] `lib/userService.ts` - ユーザーAPIサービス
@@ -27,12 +27,12 @@
 - [x] `app/(management)/users/page.tsx` - ユーザー一覧ページ
 
 #### 1.3 実装順序
-1. [ ] ユーザーサービス (`lib/userService.ts`)
-2. [ ] 型定義 (`lib/types.ts`)
-3. [ ] React Queryフック (`hooks/useUsers.ts`)
-4. [ ] 基本UIコンポーネント (`components/ui/`)
-5. [ ] 汎用データテーブル (`components/common/data-display/DataTable/`)
-6. [ ] ユーザー管理ページ (`app/(management)/users/page.tsx`)
+1. [x] ユーザーサービス (`lib/userService.ts`)
+2. [x] 型定義 (`lib/types.ts`)
+3. [x] React Queryフック (`hooks/useUsers.ts`)
+4. [x] 基本UIコンポーネント (`components/ui/`)
+5. [x] 汎用データテーブル (`components/common/data-display/DataTable/`)
+6. [x] ユーザー管理ページ (`app/(management)/users/page.tsx`)
 
 **Phase 1 完了条件**: ユーザー一覧が表示され、基本的なAPI通信が動作すること
 
@@ -51,10 +51,10 @@
 - [x] レスポンシブ対応
 
 #### 2.2 実装順序
-1. [ ] ユーザーテーブルコンポーネント (`components/features/users/components/UserTable/`)
-2. [ ] 検索・フィルターコンポーネント (`components/features/users/components/SearchFilters/`)
-3. [ ] ページネーションコンポーネント (`components/common/data-display/PaginationControls/`)
-4. [ ] メインページ統合
+1. [x] ユーザーテーブルコンポーネント (`components/features/users/components/UserTable/`)
+2. [x] 検索・フィルターコンポーネント (`components/features/users/components/SearchFilters/`)
+3. [x] ページネーションコンポーネント (`components/common/data-display/PaginationControls/`)
+4. [x] メインページ統合
 
 **Phase 2 完了条件**: 検索、フィルター、ページネーションが正常に動作すること
 
@@ -64,11 +64,11 @@
 **目標**: ユーザー詳細、編集、作成、削除機能
 
 #### 3.1 実装する機能
-- [ ] ユーザー詳細表示（照会・編集タブ方式）
-- [ ] ユーザー編集
-- [ ] ユーザー作成
-- [ ] ユーザー削除
-- [ ] 役割・部署の割り当て
+- [x] ユーザー詳細表示（照会・編集タブ方式）
+- [x] ユーザー編集
+- [x] ユーザー作成
+- [x] ユーザー削除
+- [x] 役割・部署の割り当て
 
 #### 3.2 ユーザー詳細ページ実装順序
 1. [x] 詳細ページ基本レイアウト (`app/(management)/users/[id]/page.tsx`)
@@ -80,16 +80,21 @@
    - [x] 所属情報カード (`UserDepartmentCard.tsx`)
    - [x] 権限・役割カード (`UserRoleCard.tsx`)
    - [x] 履歴カード (`UserHistoryCard.tsx`)
+   - [x] 連絡先情報カード (`UserContactCard.tsx`)
+   - [x] メタ情報カード (`UserMetaCard.tsx`)
 6. [x] ヘッダーコンポーネント (`UserDetailHeader.tsx`)
 7. [x] タブ切り替え機能の実装
-8. [ ] 権限管理の実装
+8. [x] パスワード設定タブの実装
+9. [x] 横ぶれ問題の解決（HTMLの`<select>`要素に置き換え）
+10. [x] APIエラーの解決（ログファイル権限修正）
+11. [ ] 権限管理の実装
 
 #### 3.3 その他の実装順序
-9. [ ] ユーザーフォームコンポーネント (`components/features/users/components/UserForm/`)
-10. [ ] ダイアログコンポーネント (`components/features/users/components/UserDialog/`)
-11. [ ] ページ統合
+9. [x] ユーザーフォームコンポーネント（編集モードに統合済み）
+10. [x] ダイアログコンポーネント（トースト通知システムで代替）
+11. [x] ページ統合
 
-**Phase 3 完了条件**: ユーザー詳細ページの照会・編集機能が正常に動作すること
+**Phase 3 完了条件**: ユーザー詳細ページの照会・編集機能が正常に動作すること ✅ **完了**
 
 ---
 
@@ -124,13 +129,13 @@
 ## 進捗管理
 
 ### 現在の状況
-- **開始日**: 2024年8月28日
-- **現在のPhase**: Phase 3（ユーザー詳細ページ実装）
-- **完了率**: Phase 1: 100%, Phase 2: 100%, Phase 3: 40%
+- **開始日**: 2025年8月28日
+- **現在のPhase**: Phase 4（高度な機能実装）
+- **完了率**: Phase 1: 100%, Phase 2: 100%, Phase 3: 100%
 
 ### 進捗ログ
 
-#### 2024年8月28日 - Phase 3開始（ユーザー詳細ページ実装）
+#### 2025年8月28日 - Phase 3開始（ユーザー詳細ページ実装）
 - ✅ ユーザー詳細ページ設計仕様の策定完了
 - ✅ タブ方式（照会・編集統合）の設計決定
 - ✅ 基本履歴情報の定義完了
@@ -193,9 +198,12 @@
   - ✅ バリデーション機能（パスワード確認、最小文字数）
   - ✅ ヘッダーコンポーネントからのパスワードリセット機能削除
   - ✅ タブ構成: 照会・編集・パスワード設定
-- 🎯 **次のアクション**: 権限管理の実装開始
+- ✅ **横ぶれ問題の解決**: Radix UIのSelectContentをHTMLの`<select>`要素に置き換え
+- ✅ **APIエラーの解決**: ログファイルの権限問題を修正
+- ✅ **Phase 3完了**: ユーザー詳細ページの照会・編集機能が正常に動作
+- 🎯 **次のアクション**: Phase 4（高度な機能実装）開始
 
-#### 2024年8月28日 - Phase 2完了
+#### 2025年8月28日 - Phase 2完了
 - ✅ ユーザー一覧表示機能の完全実装
 - ✅ 検索、フィルター、ページネーション機能実装
 - ✅ 列移動機能実装
@@ -204,7 +212,7 @@
 - ✅ 職位データの正しい表示実装
 - ⚠️ **課題**: 列幅調整機能が動作しない（TanStack Table v8での実装方法の調査が必要）
 
-#### 2024年8月28日 - Phase 1完了
+#### 2025年8月28日 - Phase 1完了
 - ✅ 汎用データテーブルコンポーネントの実装完了
 - ✅ ユーザー管理ページの実装完了
 - ✅ 基本的なユーザー一覧表示機能が動作
@@ -212,7 +220,7 @@
 - ✅ スティッキーヘッダー、列移動機能実装
 - ⚠️ **課題**: 列幅調整機能が動作しない（TanStack Table v8での実装方法の調査が必要）
 
-#### 2024年12月19日 Phase 1 開始
+#### 2025年12月19日 Phase 1 開始
 - **実施内容**: タスク管理ファイル作成、実装計画策定、依存関係インストール開始
 - **完了項目**: プロジェクト計画策定、TanStack Table/React Queryインストール、Shadcn/uiコンポーネント追加
 - **課題・問題**: shadcn-uiがdeprecated、toastコンポーネントもdeprecated、sonnerコンポーネントに移行が必要
@@ -392,6 +400,6 @@ frontend/src/
 
 ---
 
-**最終更新日**: 2024年12月19日
+**最終更新日**: 2025年12月19日（進捗状況更新）
 **更新者**: 開発チーム
-**次回更新予定**: 2024年12月20日
+**次回更新予定**: 2025年12月20日

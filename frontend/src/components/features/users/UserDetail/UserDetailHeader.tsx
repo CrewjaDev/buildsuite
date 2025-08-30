@@ -123,7 +123,7 @@ export function UserDetailHeader({
           className="flex items-center space-x-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>一覧に戻る</span>
+          <span>戻る</span>
         </Button>
 
         <div className="h-6 w-px bg-gray-300" />

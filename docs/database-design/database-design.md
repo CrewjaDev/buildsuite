@@ -434,68 +434,27 @@ CREATE INDEX idx_customers_created_by ON customers(created_by);
 
 ### estimates テーブル
 **概要**: 見積書の基本情報を管理するテーブルです。見積番号、顧客情報、金額計算、ステータス管理、有効期限、承認フローなどの見積書作成から承認までの全プロセスを管理します。
-```sql
-CREATE TABLE estimates (
-    id BIGSERIAL PRIMARY KEY,
-    estimate_number VARCHAR(50) UNIQUE NOT NULL,
-    customer_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT NULL,
-    status VARCHAR(50) DEFAULT 'draft', -- draft, sent, accepted, rejected, expired
-    issue_date DATE NOT NULL,
-    expiry_date DATE NOT NULL,
-    subtotal DECIMAL(12,2) DEFAULT 0,
-    tax_rate DECIMAL(5,2) DEFAULT 0.10,
-    tax_amount DECIMAL(12,2) DEFAULT 0,
-    total_amount DECIMAL(12,2) DEFAULT 0,
-    currency VARCHAR(3) DEFAULT 'JPY',
-    notes TEXT NULL,
-    terms_conditions TEXT NULL,
-    created_by BIGINT NOT NULL,
-    approved_by BIGINT NULL,
-    approved_at TIMESTAMP WITH TIME ZONE NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP WITH TIME ZONE NULL,
-    
-    CONSTRAINT fk_estimates_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
-    CONSTRAINT fk_estimates_created_by FOREIGN KEY (created_by) REFERENCES users(id),
-    CONSTRAINT fk_estimates_approved_by FOREIGN KEY (approved_by) REFERENCES users(id)
-);
 
--- インデックス
-CREATE INDEX idx_estimates_estimate_number ON estimates(estimate_number);
-CREATE INDEX idx_estimates_customer_id ON estimates(customer_id);
-CREATE INDEX idx_estimates_status ON estimates(status);
-CREATE INDEX idx_estimates_issue_date ON estimates(issue_date);
-CREATE INDEX idx_estimates_expiry_date ON estimates(expiry_date);
-CREATE INDEX idx_estimates_created_by ON estimates(created_by);
-```
+詳細なテーブル設計については、[見積管理機能 詳細仕様書](../estimate/estimate-management.md#41-見積テーブル基盤テーブル)を参照してください。
+
+**主要な特徴**:
+- 建設業向けに特化した見積管理
+- 工事種別、工事期間、工事場所の管理
+- 各種経費（一般管理費、原価経費、材料経費）の計算
+- 利益率・利益額の管理
+- 支払条件、納期条件、保証期間の管理
 
 ### estimate_items テーブル
-**概要**: 見積書の明細項目を管理するテーブルです。商品・サービスの詳細、数量、単価、小計などの明細情報を格納し、見積書の内訳計算に使用します。estimatesテーブルと1対多の関係で管理されます。
-```sql
-CREATE TABLE estimate_items (
-    id BIGSERIAL PRIMARY KEY,
-    estimate_id BIGINT NOT NULL,
-    item_order INTEGER NOT NULL,
-    description TEXT NOT NULL,
-    quantity DECIMAL(10,2) NOT NULL DEFAULT 1,
-    unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
-    total_price DECIMAL(12,2) NOT NULL DEFAULT 0,
-    unit VARCHAR(50) DEFAULT '個',
-    notes TEXT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP WITH TIME ZONE NULL,
-    
-    CONSTRAINT fk_estimate_items_estimate_id FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE CASCADE
-);
+**概要**: 見積書の明細項目を管理するテーブルです。階層構造を持つ明細項目（大内訳・中内訳・小内訳・明細行）を1つのテーブルで管理し、柔軟な階層構造と金額計算をサポートします。estimatesテーブルと1対多の関係で管理されます。
 
--- インデックス
-CREATE INDEX idx_estimate_items_estimate_id ON estimate_items(estimate_id);
-CREATE INDEX idx_estimate_items_item_order ON estimate_items(estimate_id, item_order);
-```
+詳細なテーブル設計については、[見積管理機能 詳細仕様書](../estimate/estimate-management.md#42-見積明細テーブル階層構造対応)を参照してください。
+
+**主要な特徴**:
+- 1テーブル階層構造による柔軟な明細管理
+- 自己参照キー（parent_id）による階層関係
+- 明細種別（large/medium/small/detail）による階層レベル管理
+- 階層構造の動的変更に対応
+- 自動金額計算機能
 
 ## システム管理
 

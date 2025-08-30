@@ -1,9 +1,9 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Filter, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PopoverSearchFilter } from './PopoverSearchFilter'
 
 interface SearchFiltersProps {
   searchValue?: string
@@ -30,7 +30,7 @@ export const SearchFilters = ({
 }: SearchFiltersProps) => {
   const handleFilterChange = (key: string, value: string) => {
     const newFilters = { ...filters }
-    if (value === 'all') {
+    if (value === '' || value === 'all') {
       delete newFilters[key]
     } else {
       newFilters[key] = value
@@ -61,23 +61,13 @@ export const SearchFilters = ({
       {/* フィルターオプション */}
       {filterOptions.map((option) => (
         <div key={option.key} className="min-w-[150px]">
-          <Select
-            value={String(filters[option.key] || 'all')}
+          <PopoverSearchFilter
+            value={String(filters[option.key] || '')}
             onValueChange={(value) => handleFilterChange(option.key, value)}
-          >
-            <SelectTrigger>
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder={option.label} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべて</SelectItem>
-              {option.options.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={option.options}
+            placeholder={option.label}
+            className="w-full"
+          />
         </div>
       ))}
 

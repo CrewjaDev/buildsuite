@@ -2,79 +2,65 @@
 
 import { useState } from 'react'
 import { GripVertical } from 'lucide-react'
+import { Header } from '@tanstack/react-table'
 
-interface ColumnResizerProps {
-  column: unknown
+interface ColumnResizerProps<T = unknown> {
+  header: Header<T, unknown>
   className?: string
 }
 
-export const ColumnResizer = ({ column, className }: ColumnResizerProps) => {
+export const ColumnResizer = <T = unknown,>({ header, className }: ColumnResizerProps<T>) => {
   const [isResizing, setIsResizing] = useState(false)
+  const { getSize } = header
+  const table = header.getContext().table
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!header.column.getCanResize()) return
+    
     e.preventDefault()
     e.stopPropagation()
     setIsResizing(true)
-    
-    const startX = e.pageX
-    const startWidth = (column as { getSize: () => number }).getSize()
-    let isDragging = true
-    
+
+    const startX = e.clientX
+    const startSize = getSize()
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        const deltaX = e.pageX - startX
-        const columnInstance = column as unknown as { 
-          setSize?: (size: number) => void; 
-          columnDef?: { size?: number; minSize?: number };
-          getSize: () => number;
-        }
-        const minSize = columnInstance.columnDef?.minSize || 50
-        const newWidth = Math.max(minSize, startWidth + deltaX)
-        console.log('列幅調整中:', { startWidth, deltaX, newWidth })
-        try {
-          // TanStack Table v8での列幅設定方法
-          const columnId = (column as unknown as { id: string }).id
-          
-          // 列幅を設定
-          if (columnInstance.setSize) {
-            columnInstance.setSize(newWidth)
-          } else if (columnInstance.columnDef) {
-            columnInstance.columnDef.size = newWidth
-          }
-          
-          // テーブルの状態を直接更新
-          const table = (column as unknown as { table?: { setColumnSizing: (sizing: Record<string, number>) => void } }).table
-          if (table?.setColumnSizing) {
-            table.setColumnSizing({ [columnId]: newWidth })
-          }
-          
-          // デバッグ情報
-          console.log('列幅設定完了:', { columnId, newWidth, columnInstance })
-        } catch (error) {
-          console.log('列幅調整エラー:', error)
-        }
-      }
+      const deltaX = e.clientX - startX
+      const newSize = Math.max(60, startSize + deltaX)
+      
+      // 列幅を直接更新
+      table.setColumnSizing(prev => ({
+        ...prev,
+        [header.column.id]: newSize
+      }))
+      
+      console.log('Resizing column:', header.column.id, 'to', newSize)
     }
-    
+
     const handleMouseUp = () => {
-      isDragging = false
       setIsResizing(false)
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      console.log('Resize completed for column:', header.column.id)
     }
-    
+
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  if (!header.column.getCanResize()) {
+    return null
   }
 
   return (
     <div
       className={`absolute right-0 top-0 h-full w-2 cursor-col-resize select-none touch-none z-10 ${
-        isResizing ? 'bg-blue-500' : 'bg-gray-300 hover:bg-gray-400'
+        isResizing ? 'bg-blue-500' : 'bg-transparent hover:bg-gray-200'
       } ${className || ''}`}
       onMouseDown={handleMouseDown}
+      title="列幅を調整"
     >
-      <GripVertical className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+      <GripVertical className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-300 hover:text-gray-500" />
     </div>
   )
 }

@@ -1,0 +1,357 @@
+# フロントエンド技術実装ガイド
+
+このファイルは、技術的な実装詳細とベストプラクティスを記録します。
+
+---
+
+## 動的スティッキーヘッダー実装
+
+### 実装概要
+- **目的**: 上スクロール時にテーブルヘッダーをブラウザ上部に固定
+- **方法**: CSS `position: sticky` + 適切な z-index 設定
+
+### CSS実装
+```css
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: white;
+  border-bottom: 2px solid #e5e7eb;
+}
+```
+
+### React実装
+```typescript
+<div 
+  className="sticky top-0 z-50 bg-white border border-b-2 w-full rounded-t-lg"
+  style={{
+    position: 'sticky',
+    top: '0px',
+    zIndex: 50,
+    backgroundColor: 'white',
+    borderBottom: '2px solid #e5e7eb',
+    WebkitPosition: '-webkit-sticky' // Safari対応
+  } as React.CSSProperties}
+>
+```
+
+### ブラウザ対応
+- **Chrome/Edge**: 標準対応
+- **Firefox**: 標準対応
+- **Safari**: `-webkit-sticky` が必要な場合あり
+
+### 注意点
+```typescript
+// ❌ 親要素に overflow: hidden があると動作しない
+<div style={{ overflow: 'hidden' }}>
+  <div className="sticky top-0"> {/* 動作しない */}
+
+// ✅ 親要素の overflow を適切に設定
+<div style={{ overflow: 'visible' }}>
+  <div className="sticky top-0"> {/* 正常動作 */}
+```
+
+### トラブルシューティング
+```
+1. z-index が適切に設定されているか
+2. 親要素に overflow: hidden がないか
+3. height が明示的に固定されていないか
+4. position の競合がないか
+5. top 値が正しく設定されているか
+```
+
+### 使用例
+```typescript
+// ユーザー管理テーブルでの実装例
+export const StickyHeaderTable = <T,>({ data, columns, ...props }) => {
+  return (
+    <div className="w-full">
+      {/* 動的スティッキーヘッダー */}
+      <div className="sticky top-0 z-50 bg-white border border-b-2 shadow-lg w-full rounded-t-lg">
+        <Table className="w-full min-w-full">
+          <TableHeader>
+            {/* ヘッダー定義 */}
+          </TableHeader>
+        </Table>
+      </div>
+
+      {/* データ行 */}
+      <div className="w-full border rounded-lg border-t-0">
+        <Table className="w-full min-w-full">
+          <TableBody>
+            {/* データ行定義 */}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+```
+
+---
+
+## スクロールバーによるレイアウトシフト対策
+
+### 問題
+- ドロップダウン開閉時に縦スクロールバーが出現
+- ページ全体が左右にブレる（レイアウトシフト）
+
+### 解決方法: CSSスクロールバー制御
+
+#### **1. スクロールバー非表示**
+```css
+.scrollbar-hidden {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;     /* Firefox */
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;             /* Safari and Chrome */
+}
+```
+
+#### **2. ページ全体のスクロールバー領域確保**
+```css
+html {
+  overflow-y: scroll; /* 常にスクロールバー領域を確保 */
+}
+```
+
+#### **3. Radix UI Popover最適化**
+```css
+[data-radix-popper-content-wrapper] {
+  will-change: transform; /* アニメーション最適化 */
+}
+```
+
+---
+
+## 動的スクロールバー幅計算とCSS変数設定
+
+### JavaScriptによるスクロールバー幅検出
+```typescript
+// layout.tsx での実装
+<script dangerouslySetInnerHTML={{
+  __html: `
+    (function() {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.documentElement.style.setProperty('--scrollbar-width', scrollbarWidth + 'px');
+    })();
+  `
+}} />
+```
+
+### CSS変数を使用した動的調整
+```css
+body[data-scroll-locked] {
+  padding-right: var(--scrollbar-width);
+  overflow: hidden;
+}
+```
+
+### 利点
+- 環境ごとのスクロールバー幅に自動対応
+- OSやブラウザ設定による差異を吸収
+- より精密なレイアウト制御
+
+---
+
+## Popover+検索機能による横ブレ完全解決
+
+### PopoverSearchFilterコンポーネント設計
+
+#### **核心機能**
+```typescript
+<Popover modal={false}> {/* 重要: modal={false} */}
+  <PopoverTrigger asChild>
+    <Button variant="outline">
+      {selectedLabel} <ChevronDown className="ml-2 h-4 w-4" />
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent>
+    <Input 
+      placeholder="検索..."
+      value={searchValue}
+      onChange={(e) => setSearchValue(e.target.value)}
+    />
+    <div className="max-h-[200px] overflow-y-auto scrollbar-hidden">
+      {filteredOptions.map(option => (
+        <Button key={option.value} onClick={() => onSelect(option.value)}>
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  </PopoverContent>
+</Popover>
+```
+
+### 主要な技術ポイント
+
+#### **1. modal={false}**
+- `data-scroll-locked` 属性が付与されない
+- ページスクロールが無効化されない
+- 横ブレの根本原因を解決
+
+#### **2. リアルタイム検索**
+```typescript
+const filteredOptions = useMemo(() => {
+  return options.filter(option =>
+    option.label.toLowerCase().includes(searchValue.toLowerCase())
+  );
+}, [options, searchValue]);
+```
+
+#### **3. スクロールバー非表示**
+```css
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+```
+
+### ドロップダウン実装方式比較
+
+| 方式 | 横ブレ | 検索機能 | 実装コスト | 推奨度 |
+|------|--------|----------|-----------|--------|
+| Select + CSS調整 | ❌ 発生 | ❌ なし | 中 | ❌ |
+| Select + JS動的調整 | ⚠️ 軽減 | ❌ なし | 高 | ⚠️ |
+| **PopoverSearchFilter** | ✅ **解決** | ✅ **あり** | 低 | ✅ **推奨** |
+
+---
+
+## 今後の開発方針
+
+### ドロップダウンリスト標準化
+1. **新規実装**: 必ず `PopoverSearchFilter` を使用
+2. **既存コンポーネント**: 段階的に `PopoverSearchFilter` に移行
+3. **品質基準**: 横ブレなし、検索機能あり、UX優先
+
+### 新規実装ガイドライン
+```typescript
+// ✅ 推奨: PopoverSearchFilter使用
+import { PopoverSearchFilter } from '@/components/common/data-display/DataTable';
+
+<PopoverSearchFilter
+  options={[
+    { value: 'all', label: 'すべて' },
+    { value: 'active', label: '有効' },
+    { value: 'inactive', label: '無効' }
+  ]}
+  value={filterValue}
+  onSelect={setFilterValue}
+  placeholder="ステータス"
+/>
+```
+
+### 既存コンポーネント移行計画
+```typescript
+// ❌ 非推奨: Select使用（横ブレ問題あり）
+<Select onValueChange={...}>
+  <SelectContent> {/* スクロールロック発生 */}
+
+// ✅ 推奨: PopoverSearchFilterに変更
+<PopoverSearchFilter {...props} />
+```
+
+#### **3. カスタムドロップダウンが必要な場合**
+```typescript
+// Popoverベースで独自実装
+<Popover modal={false}> {/* 必須: modal={false} */}
+  <PopoverTrigger>カスタムトリガー</PopoverTrigger>
+  <PopoverContent>
+    {/* カスタムコンテンツ */}
+  </PopoverContent>
+</Popover>
+```
+
+## コード整理実施済み
+
+### 非推奨コンポーネント削除
+- `Select`、`SelectContent`、`SelectItem` 関連のコード削除完了
+- 混乱回避のため、旧コンポーネント定義を整理
+
+### レスポンシブテーブル実装
+
+#### **CSS Transition使用**
+```css
+.fluid-table {
+  transition: all 0.2s ease-out;
+}
+```
+
+#### **動的列幅計算**
+```typescript
+const getResponsiveColumnWidth = useCallback((baseWidth: number) => {
+  const scaleFactor = Math.min(Math.max(containerWidth / 1200, 0.7), 1.3);
+  return Math.max(baseWidth * scaleFactor, 60);
+}, [containerWidth]);
+```
+
+#### **Debounced Resize Handler**
+```typescript
+useEffect(() => {
+  const handleResize = debounce(() => {
+    setContainerWidth(containerRef.current?.offsetWidth || 1200);
+  }, 150);
+  
+  window.addEventListener('resize', handleResize);
+  return () => window.removeEventListener('resize', handleResize);
+}, []);
+```
+
+#### **ブレークポイント対応**
+```css
+/* Container Query 使用 */
+@container (max-width: 768px) {
+  .table-cell {
+    font-size: 0.875rem;
+    padding: 0.5rem;
+  }
+}
+```
+
+### 修正済み項目
+- UI要素表示乱れ（枠が歪む・テキストがはみ出る）
+- パフォーマンス問題（動作速度改善）
+- ヘッダー位置が不安定
+
+---
+
+## ページ幅いっぱいテーブル実装
+
+### 実装概要
+- **目的**: テーブル要素をページ幅いっぱいに常に広げる
+- **方法**: `table-layout: fixed` + パーセンテージベースの列幅
+
+### CSS実装
+```css
+.table-fixed {
+  table-layout: fixed;
+  width: 100%;
+  transition: all 0.2s ease-out;
+}
+
+.table-fixed th,
+.table-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: width 0.2s ease-out;
+}
+```
+
+### 列幅計算
+```typescript
+// パーセンテージベースの列幅設定
+width: `${(header.getSize() / table.getCenterTotalSize()) * 100}%`
+minWidth: '60px'
+```
+
+### 効果
+- ✅ ページ幅いっぱいにテーブルが拡張
+- ✅ ブラウザリサイズに連動してスムーズに拡縮
+- ✅ 列幅の比率を維持
+- ✅ 長いテキストは省略表示（...）

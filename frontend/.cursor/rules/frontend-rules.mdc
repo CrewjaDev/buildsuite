@@ -523,7 +523,7 @@ const debouncedSearch = useDebouncedCallback(
 // components/ui/index.ts
 export { Button } from './button'
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
-export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
+export { PopoverSearchFilter } from './popover-search-filter'
 
 // components/common/index.ts
 export { DataTable } from './data-display/DataTable'
@@ -647,6 +647,23 @@ export const formatCurrency = (amount: number) => {
 // 各機能で使用
 import { formatDate, formatCurrency } from '@/lib/utils'
 ```
+
+## 技術実装ガイド
+
+詳細な技術実装については、以下の専用ファイルを参照してください：
+
+- **[technical-implementations.mdc](./technical-implementations.mdc)** - 具体的な技術実装方法とベストプラクティス
+
+### ドロップダウンリスト実装標準
+**重要**: 新規ドロップダウンリストは必ず `PopoverSearchFilter` コンポーネントを使用すること
+- 横ブレ問題の根本解決
+- 検索機能による UX 向上  
+- Shadcn/ui 公式推奨パターン準拠
+
+**❌ 非推奨**: `Select`、`SelectContent`、`SelectItem` コンポーネントの使用
+- スクロールバーによる横ブレ問題が発生
+- 検索機能なしでユーザビリティが低い
+- 既存の Select 使用箇所は段階的に `PopoverSearchFilter` に移行すること
 
 ### コンポーネント命名規則
 
