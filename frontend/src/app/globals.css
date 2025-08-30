@@ -94,11 +94,13 @@ html {
 }
 
 /* テーブルコンテナを強制的に100%幅に */
+/* テーブルコンテナの幅設定（スティッキーヘッダー対応） */
 .table-container-full-width {
   width: 100% !important;
   max-width: none !important;
   min-width: 100% !important;
   box-sizing: border-box;
+  overflow: visible !important;
 }
 
 /* 列リサイズ対応テーブル（横スクロール対応） */

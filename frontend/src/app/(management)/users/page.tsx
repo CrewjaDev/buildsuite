@@ -271,8 +271,8 @@ export default function UsersPage() {
   }, [])
 
   return (
-    <div className="w-full bg-gray-50 min-h-screen" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
-      <div className="w-full max-w-none px-4 py-6 space-y-6" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
+    <div className="w-full bg-gray-50 min-h-screen" style={{ overflow: 'visible' }}>
+      <div className="w-full max-w-none px-4 py-6 space-y-6" style={{ overflow: 'visible' }}>
         {/* ページヘッダー */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg shadow-sm">
           <div>
@@ -286,7 +286,7 @@ export default function UsersPage() {
         </div>
 
         {/* データテーブル */}
-        <div className="w-full" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
+        <div className="w-full" style={{ overflow: 'visible' }}>
           <DataTable
             data={data?.users || []}
             columns={columns}

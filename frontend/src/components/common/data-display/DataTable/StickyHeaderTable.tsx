@@ -117,6 +117,7 @@ export const StickyHeaderTable = <T,>({
 
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const bodyScrollRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const handleColumnSizingChange = (updater: Updater<ColumnSizingState>) => {
     setColumnSizing(updater)
@@ -199,20 +200,20 @@ export const StickyHeaderTable = <T,>({
     }, {} as Record<string, number>)
   }, [table])
 
-  // 現在の列幅を取得（動的幅が設定されていれば使用、なければ初期幅）
-  const getCurrentColumnWidths = () => {
+  // 現在の列幅を取得（固定値px、制限なし）
+  const getCurrentColumnWidths = useCallback(() => {
     const headers = table.getHeaderGroups()[0]?.headers || []
     return headers.reduce((acc, header) => {
       acc[header.id] = dynamicColumnWidths[header.id] || initialColumnWidths[header.id] || 120
       return acc
     }, {} as Record<string, number>)
-  }
+  }, [table, dynamicColumnWidths, initialColumnWidths])
 
-  const currentColumnWidths = getCurrentColumnWidths()
+  const currentColumnWidths = useMemo(() => getCurrentColumnWidths(), [getCurrentColumnWidths])
 
   // テーブル全体の幅を計算
   const totalTableWidth = Object.values(currentColumnWidths).reduce((sum: number, width: number) => sum + width, 0)
-
+  
   useEffect(() => {
     if (data.length > 0) {
       setColumnSizing({})
@@ -222,8 +223,7 @@ export const StickyHeaderTable = <T,>({
   // 列幅変更ハンドラー
   const handleColumnResize = useCallback((columnId: string, newWidth: number) => {
     const minWidth = 60 // 最小幅
-    const maxWidth = 400 // 最大幅
-    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+    const clampedWidth = Math.max(minWidth, newWidth) // 最大幅制限を削除
     
     setDynamicColumnWidths(prev => ({
       ...prev,
@@ -275,10 +275,10 @@ export const StickyHeaderTable = <T,>({
   }
 
   return (
-    <div className={`table-container-full-width ${className}`}>
-      {/* ページレベルスティッキーヘッダー */}
+    <div ref={containerRef} className="w-full">
+      {/* 独立したスティッキーヘッダー */}
       <div 
-        className="sticky top-0 z-50 bg-white border-b-2 border-gray-200"
+        className="sticky top-0 z-50 bg-white border-b-2 border-gray-200 shadow-sm"
         style={{
           position: 'sticky',
           top: '0px',
@@ -389,12 +389,13 @@ export const StickyHeaderTable = <T,>({
     </div>
 
       {/* データ行（動的幅） */}
+      <div className={`w-full ${className}`} style={{ overflow: 'visible' }}>
       <div 
         ref={bodyScrollRef}
         className="w-full border rounded-lg border-t-0 scrollbar-hidden"
         style={{
           width: `${totalTableWidth}px`,
-          overflow: 'hidden',
+          overflow: 'visible',
           overflowX: 'hidden',
           overflowY: 'visible',
           msOverflowStyle: 'none',
@@ -436,6 +437,8 @@ export const StickyHeaderTable = <T,>({
           </TableBody>
         </Table>
       </div>
+      </div>
     </div>
   );
 };
+

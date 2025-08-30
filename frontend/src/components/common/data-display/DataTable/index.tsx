@@ -64,7 +64,7 @@ export const DataTable = <T,>({
   className = ''
 }: DataTableWithControlsProps<T>) => {
   return (
-    <div className={`space-y-4 table-container-full-width ${className}`}>
+    <div className={`space-y-4 w-full ${className}`} style={{ overflow: 'visible' }}>
       {/* 検索・フィルターエリア */}
       {showSearch && (onSearchChange || onFilterChange) && (
         <div className="w-full">
@@ -80,7 +80,7 @@ export const DataTable = <T,>({
       )}
 
       {/* テーブル */}
-      <div className="table-container-full-width">
+      <div className="w-full" style={{ overflow: 'visible' }}>
         <StickyHeaderTable
           data={data}
           columns={columns}
@@ -90,7 +90,7 @@ export const DataTable = <T,>({
           enableSorting={enableSorting}
           enableColumnFilters={enableColumnFilters}
           onRowClick={onRowClick}
-          className="table-container-full-width"
+          className="w-full"
         />
       </div>
 
