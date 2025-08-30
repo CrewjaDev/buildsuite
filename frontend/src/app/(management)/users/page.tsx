@@ -84,9 +84,9 @@ export default function UsersPage() {
     {
       accessorKey: 'gender',
       header: '性別',
-      size: 80,
-      minSize: 60,
-      maxSize: 100,
+      size: 120,
+      minSize: 90,
+      maxSize: 150,
       enableSorting: true,
       enableColumnFilter: true,
       cell: ({ row }) => {
@@ -148,8 +148,8 @@ export default function UsersPage() {
     {
       accessorKey: 'hire_date',
       header: '入社年月日',
-      size: 120,
-      minSize: 100,
+      size: 150,
+      minSize: 120,
       maxSize: 150,
       enableSorting: true,
       enableColumnFilter: true,
@@ -163,8 +163,8 @@ export default function UsersPage() {
     {
       accessorKey: 'status',
       header: 'ステータス',
-      size: 120,
-      minSize: 100,
+      size: 130,
+      minSize: 120,
       maxSize: 150,
       enableSorting: true,
       enableColumnFilter: true,

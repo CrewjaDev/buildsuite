@@ -171,7 +171,7 @@ export const StickyHeaderTable = <T,>({
           width = 200
           break
         case 'gender':
-          width = 80
+          width = 120
           break
         case 'department':
           width = 150
@@ -183,10 +183,10 @@ export const StickyHeaderTable = <T,>({
           width = 120
           break
         case 'hire_date':
-          width = 120
+          width = 150
           break
         case 'status':
-          width = 100
+          width = 130
           break
         case 'actions':
           width = 120
@@ -278,7 +278,7 @@ export const StickyHeaderTable = <T,>({
     <div ref={containerRef} className="w-full">
       {/* 独立したスティッキーヘッダー */}
       <div 
-        className="sticky top-0 z-50 bg-white border-b-2 border-gray-200 shadow-sm"
+        className="sticky top-0 z-50 bg-white border-b-2 border-gray-200"
         style={{
           position: 'sticky',
           top: '0px',
@@ -319,7 +319,7 @@ export const StickyHeaderTable = <T,>({
                       <SortableTableHead 
                         key={header.id}
                         header={header}
-                        className="bg-gray-50 select-none relative p-2"
+                        className="bg-gray-50 select-none relative p-1"
                         style={{ 
                               width: `${currentColumnWidths[header.id] || 120}px`,
                               minWidth: `${currentColumnWidths[header.id] || 120}px`,
@@ -328,7 +328,7 @@ export const StickyHeaderTable = <T,>({
                       >
                         <div className="flex items-center justify-between h-full w-full">
                           <div 
-                            className={`flex items-center gap-2 flex-1 ${enableSorting && header.column.getCanSort() ? 'cursor-pointer select-none hover:bg-gray-100 p-1 rounded' : ''}`}
+                            className={`flex items-center gap-1 flex-1 ${enableSorting && header.column.getCanSort() ? 'cursor-pointer select-none hover:bg-gray-100 p-0.5 rounded' : ''}`}
                             onClick={header.column.getCanSort() ? () => header.column.toggleSorting() : undefined}
                           >
                             <span className="font-semibold text-gray-900">{flexRender(header.column.columnDef.header, header.getContext())}</span>
@@ -348,7 +348,7 @@ export const StickyHeaderTable = <T,>({
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className={`h-6 w-6 p-0 ${header.column.getFilterValue() ? 'text-blue-600' : 'text-gray-400'}`}
+                                    className={`h-5 w-5 p-0 ${header.column.getFilterValue() ? 'text-blue-600' : 'text-gray-400'}`}
                                   >
                                     <Search className="h-3 w-3" />
                                   </Button>

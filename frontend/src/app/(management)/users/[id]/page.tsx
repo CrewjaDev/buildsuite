@@ -14,11 +14,19 @@ export default function UserDetailPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const userId = Number(params.id)
+  
+  // 初期モードの決定: modeパラメータが指定されていない場合は照会モード
   const initialMode = searchParams.get('mode') === 'edit' ? 'edit' : searchParams.get('mode') === 'password' ? 'password' : 'view'
   const [mode, setMode] = useState<'view' | 'edit' | 'password'>(initialMode)
 
   // データ取得
   const { data: user, isLoading, error } = useUserDetail(userId)
+  
+  // ページ初期表示時のスクロール位置調整
+  useEffect(() => {
+    // ページの先頭にスクロール
+    window.scrollTo(0, 0)
+  }, [])
   
   // URLのmodeパラメータと内部状態を同期
   useEffect(() => {

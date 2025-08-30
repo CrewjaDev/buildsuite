@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { PopoverSearchFilter } from '@/components/common/data-display/DataTable/PopoverSearchFilter'
 import { UserDetail, useUpdateUserDetail } from './hooks/useUserDetail'
 import { useUserOptions } from './hooks/useUserOptions'
 import { format } from 'date-fns'
@@ -63,7 +64,23 @@ const prefectureOptions = [
   '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県',
   '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県',
   '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'
+].map(prefecture => ({ value: prefecture, label: prefecture }))
+
+// アカウント状態オプション
+const accountStatusOptions = [
+  { value: 'true', label: '有効' },
+  { value: 'false', label: '無効' },
 ]
+
+// 選択欄の幅設定
+const SELECT_WIDTHS = {
+  gender: '200px',           // 性別（短い）
+  prefecture: '200px',       // 都道府県（短い）
+  department: '300px',       // 所属部署（中程度）
+  position: '300px',         // 職位（中程度）
+  systemLevel: '350px',      // システム権限レベル（長い）
+  accountStatus: '200px',    // アカウント状態（短い）
+} as const
 
 export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -104,7 +121,21 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
     },
   })
 
+  // 動的オプションの生成
+  const departmentOptions = userOptions?.departments?.map(dept => ({
+    value: dept.id.toString(),
+    label: dept.name
+  })) || []
 
+  const positionOptions = userOptions?.positions?.map(pos => ({
+    value: pos.id.toString(),
+    label: pos.display_name
+  })) || []
+
+  const systemLevelOptions = userOptions?.system_levels?.map(level => ({
+    value: level.code,
+    label: level.display_name
+  })) || []
 
   const onSubmit = async (data: UserEditFormData) => {
     setIsSubmitting(true)
@@ -187,20 +218,14 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="gender">性別</Label>
-              <select
-                id="gender"
+              <Label>性別</Label>
+              <PopoverSearchFilter
                 value={watch('gender') || ''}
-                onChange={(e) => setValue('gender', e.target.value as 'male' | 'female' | 'other', { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">性別を選択</option>
-                {genderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setValue('gender', value as 'male' | 'female' | 'other', { shouldDirty: true })}
+                options={genderOptions}
+                placeholder="性別を選択"
+                width={SELECT_WIDTHS.gender}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="birth_date">生年月日</Label>
@@ -259,20 +284,14 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="prefecture">都道府県</Label>
-              <select
-                id="prefecture"
+              <Label>都道府県</Label>
+              <PopoverSearchFilter
                 value={watch('prefecture') || ''}
-                onChange={(e) => setValue('prefecture', e.target.value, { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">都道府県を選択</option>
-                {prefectureOptions.map((prefecture) => (
-                  <option key={prefecture} value={prefecture}>
-                    {prefecture}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setValue('prefecture', value, { shouldDirty: true })}
+                options={prefectureOptions}
+                placeholder="都道府県を選択"
+                width={SELECT_WIDTHS.prefecture}
+              />
             </div>
           </div>
           <div className="space-y-2">
@@ -295,20 +314,14 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="primary_department_id">所属部署</Label>
-              <select
-                id="primary_department_id"
+              <Label>所属部署</Label>
+              <PopoverSearchFilter
                 value={watch('primary_department_id')?.toString() || ''}
-                onChange={(e) => setValue('primary_department_id', e.target.value ? Number(e.target.value) : undefined, { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">所属部署を選択</option>
-                {userOptions?.departments?.map((department) => (
-                  <option key={department.id} value={department.id.toString()}>
-                    {department.name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setValue('primary_department_id', value ? Number(value) : undefined, { shouldDirty: true })}
+                options={departmentOptions}
+                placeholder="所属部署を選択"
+                width={SELECT_WIDTHS.department}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="job_title">役職</Label>
@@ -319,20 +332,14 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="position_id">職位</Label>
-              <select
-                id="position_id"
+              <Label>職位</Label>
+              <PopoverSearchFilter
                 value={watch('position_id')?.toString() || ''}
-                onChange={(e) => setValue('position_id', e.target.value ? Number(e.target.value) : undefined, { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">職位を選択</option>
-                {userOptions?.positions?.map((position) => (
-                  <option key={position.id} value={position.id.toString()}>
-                    {position.display_name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setValue('position_id', value ? Number(value) : undefined, { shouldDirty: true })}
+                options={positionOptions}
+                placeholder="職位を選択"
+                width={SELECT_WIDTHS.position}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="hire_date">入社年月日</Label>
@@ -367,32 +374,24 @@ export function UserDetailEdit({ user, onCancel, onSuccess }: UserDetailEditProp
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="system_level">システム権限レベル</Label>
-              <select
-                id="system_level"
+              <Label>システム権限レベル</Label>
+              <PopoverSearchFilter
                 value={watch('system_level') || ''}
-                onChange={(e) => setValue('system_level', e.target.value, { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">システム権限レベルを選択</option>
-                {userOptions?.system_levels?.map((level) => (
-                  <option key={level.code} value={level.code}>
-                    {level.display_name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setValue('system_level', value, { shouldDirty: true })}
+                options={systemLevelOptions}
+                placeholder="システム権限レベルを選択"
+                width={SELECT_WIDTHS.systemLevel}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="is_active">アカウント状態</Label>
-              <select
-                id="is_active"
+              <Label>アカウント状態</Label>
+              <PopoverSearchFilter
                 value={watch('is_active') ? 'true' : 'false'}
-                onChange={(e) => setValue('is_active', e.target.value === 'true', { shouldDirty: true })}
-                className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="true">有効</option>
-                <option value="false">無効</option>
-              </select>
+                onValueChange={(value) => setValue('is_active', value === 'true', { shouldDirty: true })}
+                options={accountStatusOptions}
+                placeholder="アカウント状態を選択"
+                width={SELECT_WIDTHS.accountStatus}
+              />
             </div>
           </div>
           <div className="space-y-2">

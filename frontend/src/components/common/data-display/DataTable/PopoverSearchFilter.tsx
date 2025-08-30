@@ -19,6 +19,7 @@ interface PopoverSearchFilterProps {
   placeholder?: string
   emptyMessage?: string
   className?: string
+  width?: string
 }
 
 export const PopoverSearchFilter = ({
@@ -27,7 +28,8 @@ export const PopoverSearchFilter = ({
   options,
   placeholder = 'フィルターを選択...',
   emptyMessage = '該当する項目がありません',
-  className
+  className,
+  width = '300px'
 }: PopoverSearchFilterProps) => {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -63,7 +65,7 @@ export const PopoverSearchFilter = ({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="p-0" style={{ width }} align="start">
         <div className="flex flex-col">
           {/* 検索入力 */}
           <div className="flex items-center border-b px-3 py-2">
@@ -88,11 +90,11 @@ export const PopoverSearchFilter = ({
             >
               <Check
                 className={cn(
-                  "mr-2 h-4 w-4",
+                  "mr-2 h-4 w-4 shrink-0",
                   !value ? "opacity-100" : "opacity-0"
                 )}
               />
-              すべて
+              <span className="truncate">すべて</span>
             </div>
 
             {/* フィルタリングされたオプション */}
@@ -108,11 +110,11 @@ export const PopoverSearchFilter = ({
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mr-2 h-4 w-4 shrink-0",
                       value === option.value ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {option.label}
+                  <span className="truncate">{option.label}</span>
                 </div>
               ))
             ) : (
