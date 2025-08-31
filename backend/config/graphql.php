@@ -12,9 +12,9 @@ return [
     'route' => [
         'uri' => 'graphql',
         'name' => 'graphql',
-        'middleware' => [
-            'auth:sanctum',
-        ],
+        // 'middleware' => [
+        //     'auth:sanctum',
+        // ],
     ],
 
     /*
@@ -43,6 +43,8 @@ return [
                 'roles' => \App\GraphQL\Queries\RolesQuery::class,
                 'departments' => \App\GraphQL\Queries\DepartmentsQuery::class,
                 'approvalRequests' => \App\GraphQL\Queries\ApprovalRequestsQuery::class,
+                'approvalFlows' => \App\GraphQL\Queries\ApprovalFlowsQuery::class,
+                'approvalRequestsByApprover' => \App\GraphQL\Queries\ApprovalRequestsByApproverQuery::class,
                 'userPermissions' => \App\GraphQL\Queries\UserPermissionsQuery::class,
             ],
             'mutation' => [
@@ -51,10 +53,21 @@ return [
                 'deleteUser' => \App\GraphQL\Mutations\DeleteUserMutation::class,
                 'approveRequest' => \App\GraphQL\Mutations\ApproveRequestMutation::class,
                 'rejectRequest' => \App\GraphQL\Mutations\RejectRequestMutation::class,
+                'returnRequest' => \App\GraphQL\Mutations\ReturnRequestMutation::class,
+                'cancelRequest' => \App\GraphQL\Mutations\CancelRequestMutation::class,
+                'createApprovalFlow' => \App\GraphQL\Mutations\CreateApprovalFlowMutation::class,
+                'updateApprovalFlow' => \App\GraphQL\Mutations\UpdateApprovalFlowMutation::class,
+                'deleteApprovalFlow' => \App\GraphQL\Mutations\DeleteApprovalFlowMutation::class,
+                'getApprovalFlow' => \App\GraphQL\Mutations\GetApprovalFlowMutation::class,
+                'createApprovalRequest' => \App\GraphQL\Mutations\CreateApprovalRequestMutation::class,
+                'updateApprovalRequest' => \App\GraphQL\Mutations\UpdateApprovalRequestMutation::class,
+                'deleteApprovalRequest' => \App\GraphQL\Mutations\DeleteApprovalRequestMutation::class,
+                'getApprovalRequest' => \App\GraphQL\Mutations\GetApprovalRequestMutation::class,
+                'createApprovalStep' => \App\GraphQL\Mutations\CreateApprovalStepMutation::class,
             ],
-            'middleware' => [
-                'auth:sanctum',
-            ],
+            // 'middleware' => [
+            //     'auth:sanctum',
+            // ],
         ],
     ],
 

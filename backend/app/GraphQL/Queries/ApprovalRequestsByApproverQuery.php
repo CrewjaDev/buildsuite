@@ -3,15 +3,16 @@
 namespace App\GraphQL\Queries;
 
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalStep;
 use GraphQL\Type\Definition\Type;
 use Rebing\GraphQL\Support\Query;
 use Illuminate\Support\Facades\Auth;
 
-class ApprovalRequestsQuery extends Query
+class ApprovalRequestsByApproverQuery extends Query
 {
     protected $attributes = [
-        'name' => 'approvalRequests',
-        'description' => '承認依頼一覧を取得',
+        'name' => 'approvalRequestsByApprover',
+        'description' => '承認者別承認依頼一覧を取得',
     ];
 
     public function type(): Type
@@ -22,6 +23,11 @@ class ApprovalRequestsQuery extends Query
     public function args(): array
     {
         return [
+            'approver_id' => [
+                'name' => 'approver_id',
+                'type' => Type::int(),
+                'description' => '承認者ID（指定しない場合は現在のユーザー）',
+            ],
             'status' => [
                 'name' => 'status',
                 'type' => Type::string(),
@@ -36,16 +42,6 @@ class ApprovalRequestsQuery extends Query
                 'name' => 'priority',
                 'type' => Type::string(),
                 'description' => '優先度',
-            ],
-            'requested_by' => [
-                'name' => 'requested_by',
-                'type' => Type::int(),
-                'description' => '依頼者ID',
-            ],
-            'approval_flow_id' => [
-                'name' => 'approval_flow_id',
-                'type' => Type::int(),
-                'description' => '承認フローID',
             ],
             'is_expired' => [
                 'name' => 'is_expired',
@@ -74,7 +70,48 @@ class ApprovalRequestsQuery extends Query
         //     throw new \Exception('認証が必要です');
         // }
 
-        $query = ApprovalRequest::with(['requester', 'flow']);
+        // テスト用のダミーユーザー（実際の環境では削除）
+        $user = \App\Models\User::first();
+        if (!$user) {
+            throw new \Exception('テスト用ユーザーが見つかりません');
+        }
+
+        $approverId = $args['approver_id'] ?? $user->id;
+
+        // 承認者に関連する承認ステップを取得
+        $approvalStepIds = ApprovalStep::where(function ($query) use ($user) {
+            // 直接指定された承認者
+            $query->where('approver_type', 'user')
+                  ->where('approver_id', $user->id);
+            
+            // 役割による承認者（role_idが設定されている場合）
+            if ($user->role_id) {
+                $query->orWhere(function ($q) use ($user) {
+                    $q->where('approver_type', 'role')
+                      ->where('approver_id', $user->role_id);
+                });
+            }
+            
+            // 部署による承認者（department_idが設定されている場合）
+            if ($user->department_id) {
+                $query->orWhere(function ($q) use ($user) {
+                    $q->where('approver_type', 'department')
+                      ->where('approver_id', $user->department_id);
+                });
+            }
+            
+            // システム権限レベルによる承認者（system_levelが設定されている場合）
+            if ($user->system_level) {
+                $query->orWhere(function ($q) use ($user) {
+                    $q->where('approver_type', 'system_level')
+                      ->whereRaw("approver_condition->>'system_level' = ?", [$user->system_level]);
+                });
+            }
+        })->pluck('id');
+
+        $query = ApprovalRequest::with(['requester', 'flow', 'currentStepInfo'])
+            ->whereIn('current_step', $approvalStepIds)
+            ->where('status', 'pending');
 
         // ステータスでフィルタ
         if (isset($args['status'])) {
@@ -89,16 +126,6 @@ class ApprovalRequestsQuery extends Query
         // 優先度でフィルタ
         if (isset($args['priority'])) {
             $query->where('priority', $args['priority']);
-        }
-
-        // 依頼者でフィルタ
-        if (isset($args['requested_by'])) {
-            $query->where('requested_by', $args['requested_by']);
-        }
-
-        // 承認フローでフィルタ
-        if (isset($args['approval_flow_id'])) {
-            $query->where('approval_flow_id', $args['approval_flow_id']);
         }
 
         // 期限切れでフィルタ
