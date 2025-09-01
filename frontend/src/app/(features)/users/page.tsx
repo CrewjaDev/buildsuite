@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUsers } from '@/hooks/useUsers'
 import { UserDetail } from '@/types/user'
+import { UserManagementUser } from '@/types/userManagement'
 import { UserListHeader } from '@/components/features/users/UserList/UserListHeader'
 import { UserSearchFilters } from '@/components/features/users/UserList/UserSearchFilters'
 import { UserTable } from '@/components/features/users/UserList/UserTable'
@@ -113,11 +114,11 @@ export default function UsersPage() {
     setCurrentPage(1)
   }, [])
 
-  const [sortField, setSortField] = useState<keyof UserDetail | undefined>()
+  const [sortField, setSortField] = useState<keyof UserManagementUser | undefined>()
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
 
-  const handleSort = useCallback((field: keyof UserDetail) => {
+  const handleSort = useCallback((field: keyof UserManagementUser) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -153,7 +154,7 @@ export default function UsersPage() {
         {/* データテーブル */}
         <div className="w-full">
           <UserTable
-            data={data?.users || []}
+            data={data?.users as unknown as UserManagementUser[] || []}
             isLoading={isLoading}
             error={error}
             onEdit={handleEditUser}

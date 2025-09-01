@@ -5,7 +5,7 @@ export interface UserDetail {
   login_id: string
   employee_id: string
   name: string
-  email: string
+  email?: string
   name_kana?: string
   birth_date?: string
   gender?: string
@@ -27,16 +27,16 @@ export interface UserDetail {
   service_months?: number
   
   // システム情報
-  system_level: string
-  is_active: boolean
-  is_admin: boolean
+  system_level?: string
+  is_active?: boolean
+  is_admin?: boolean
   last_login_at?: string
   password_changed_at?: string
   password_expires_at?: string
-  failed_login_attempts: number
+  failed_login_attempts?: number
   locked_at?: string
-  is_locked: boolean
-  is_password_expired: boolean
+  is_locked?: boolean
+  is_password_expired?: boolean
   
   // リレーション情報
   position?: {
@@ -46,24 +46,32 @@ export interface UserDetail {
     display_name: string
     level: number
   }
-  roles: Array<{
+  roles?: Array<{
     id: number
     name: string
     display_name: string
     priority: number
   }>
-  departments: Array<{
+  departments?: Array<{
     id: number
     name: string
     code: string
     position?: string
     is_primary: boolean
   }>
-  system_level_info?: {
+  systemLevel?: {
+    id: number
     code: string
     name: string
     display_name: string
     priority: number
+  }
+  department?: {  // バックエンドのレスポンスに合わせて変更
+    id: number
+    name: string
+    code: string
+    position?: string
+    is_primary: boolean
   }
   primary_department?: {
     id: number
@@ -74,8 +82,8 @@ export interface UserDetail {
   }
   
   // タイムスタンプ
-  created_at: string
-  updated_at: string
+  createdAt?: string  // バックエンドのレスポンスに合わせて変更
+  updatedAt?: string  // バックエンドのレスポンスに合わせて変更
   deleted_at?: string
 }
 
@@ -85,7 +93,7 @@ export interface HeaderUser {
   name: string
   email?: string
   avatar?: string
-  is_admin: boolean
+  is_admin?: boolean
   system_level?: string
   primary_department?: {
     id: number
@@ -95,7 +103,7 @@ export interface HeaderUser {
     is_primary: boolean
   }
   last_login_at?: string
-  is_active: boolean
+  is_active?: boolean
 }
 
 // ユーザーオプション型

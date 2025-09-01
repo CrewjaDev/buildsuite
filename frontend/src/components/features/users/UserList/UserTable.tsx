@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { UserDetail } from '@/types/user'
+import { UserManagementUser } from '@/types/userManagement'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,21 +57,21 @@ function CustomColumnResizer({ currentWidth, onResize }: CustomColumnResizerProp
 }
 
 interface UserTableProps {
-  data: UserDetail[]
+  data: UserManagementUser[]
   isLoading: boolean
   error: Error | null
-  onEdit: (user: UserDetail) => void
-  onDelete: (user: UserDetail) => void
-  onView: (user: UserDetail) => void
-  onRowClick: (user: UserDetail) => void
+  onEdit: (user: UserManagementUser) => void
+  onDelete: (user: UserManagementUser) => void
+  onView: (user: UserManagementUser) => void
+  onRowClick: (user: UserManagementUser) => void
   onPageSizeChange: (pageSize: number) => void
   onPageChange: (page: number) => void
   currentPage?: number
   totalCount?: number
   pageSize?: number
-  sortField?: keyof UserDetail
+  sortField?: keyof UserManagementUser
   sortDirection?: 'asc' | 'desc'
-  onSort?: (field: keyof UserDetail) => void
+  onSort?: (field: keyof UserManagementUser) => void
   columnFilters?: Record<string, string>
   onColumnFilterChange?: (filters: Record<string, string>) => void
 }
@@ -116,7 +116,7 @@ export function UserTable({
   const totalTableWidth = Object.values(columnWidths).reduce((sum, width) => sum + width, 0)
 
   // ソートアイコン取得
-  const getSortIcon = (field: keyof UserDetail) => {
+  const getSortIcon = (field: keyof UserManagementUser) => {
     if (sortField !== field) return '↕'
     return sortDirection === 'asc' ? '↑' : '↓'
   }
@@ -135,7 +135,7 @@ export function UserTable({
   }, [columnFilters, onColumnFilterChange])
 
   // ソートハンドラー
-  const handleSort = useCallback((field: keyof UserDetail) => {
+  const handleSort = useCallback((field: keyof UserManagementUser) => {
     if (onSort) {
       onSort(field)
     }
