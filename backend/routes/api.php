@@ -8,6 +8,8 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\SystemLevelController;
+use App\Http\Controllers\EstimateController;
+use App\Http\Controllers\PartnerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -102,6 +104,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/usage', [SystemLevelController::class, 'usage']);
         Route::post('/update-priorities', [SystemLevelController::class, 'updatePriorities']);
     });
+
+    // 見積管理
+    Route::prefix('estimates')->group(function () {
+        Route::get('/', [EstimateController::class, 'index']);
+        Route::post('/', [EstimateController::class, 'store']);
+        Route::get('/{id}', [EstimateController::class, 'show']);
+        Route::put('/{id}', [EstimateController::class, 'update']);
+        Route::delete('/{id}', [EstimateController::class, 'destroy']);
+        Route::patch('/{id}/status', [EstimateController::class, 'updateStatus']);
+        Route::post('/{id}/duplicate', [EstimateController::class, 'duplicate']);
+    });
+
+    // 取引先管理
+    Route::prefix('partners')->group(function () {
+        Route::get('/', [PartnerController::class, 'index']);
+        Route::get('/options', [PartnerController::class, 'getOptions']);
+        Route::post('/', [PartnerController::class, 'store']);
+        Route::get('/{id}', [PartnerController::class, 'show']);
+        Route::put('/{id}', [PartnerController::class, 'update']);
+        Route::delete('/{id}', [PartnerController::class, 'destroy']);
+        Route::post('/{id}/toggle-active', [PartnerController::class, 'toggleActive']);
+    });
 });
 
 // GraphQL エンドポイント（承認フロー関連の複雑なクエリ用）
@@ -109,6 +133,12 @@ Route::post('/graphql', function (Request $request) {
     // GraphQL リクエストを処理
     return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
 })->middleware('auth:sanctum');
+
+// テスト用GraphQLエンドポイント（認証不要）
+Route::post('/graphql-test', function (Request $request) {
+    // GraphQL リクエストを処理
+    return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
+});
 
 // ヘルスチェック
 Route::get('/health', function () {

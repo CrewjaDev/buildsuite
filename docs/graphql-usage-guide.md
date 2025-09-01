@@ -2,12 +2,12 @@
 
 ## 概要
 
-BuildSuiteシステムでは、RESTful APIとGraphQLを併用して、用途に応じて最適なAPIを選択できるようにしています。
+BuildSuiteシステムでは、**承認フロー関連の複雑なクエリのみ**でGraphQLを使用し、各業務機能ではRESTful APIを使用する方針に変更しました。
 
 ## API選択基準
 
 ### RESTful API（推奨）
-- **用途**: 基本的なCRUD操作、シンプルなデータ取得
+- **用途**: 基本的なCRUD操作、シンプルなデータ取得、各業務機能
 - **エンドポイント**: `/api/v1/*`
 - **認証**: Laravel Sanctum
 - **特徴**: 
@@ -15,270 +15,133 @@ BuildSuiteシステムでは、RESTful APIとGraphQLを併用して、用途に�
   - 既存のコントローラーが充実
   - キャッシュが効きやすい
   - 既存システムとの統合が容易
+  - フロントエンドとの一貫性が保てる
 
-### GraphQL（特定用途）
-- **用途**: 複雑なデータ取得、承認フロー関連、柔軟なクエリ
+### GraphQL（承認フロー専用）
+- **用途**: 承認フロー関連の複雑な権限チェック・データ取得のみ
 - **エンドポイント**: `/graphql`
 - **認証**: Laravel Sanctum
 - **特徴**:
   - 複数テーブルの結合クエリ
-  - フロントエンドの柔軟なデータ要求
-  - オーバーフェッチ・アンダーフェッチの解決
+  - 複雑な権限チェックロジック
+  - 承認者判定の柔軟な実装
   - 型安全性
 
-## GraphQLの適用場面
+## GraphQLの適用場面（限定）
 
-### 1. 承認フロー関連の複雑なクエリ
+### 1. 承認フロー関連の複雑なクエリのみ
 
 ```graphql
 query UserPermissions($userId: Int!) {
-  userPermissions(userId: $userId) {
+  user(id: $userId) {
     id
     name
-    email
-    system_level_info {
-      code
+    approval_permissions
+    systemLevel {
+      id
       name
-      priority
+      permissions {
+        id
+        name
+      }
     }
     roles {
       id
       name
-      display_name
-      priority
+      permissions {
+        id
+        name
+      }
     }
     departments {
       id
       name
-      code
-      position
-      is_primary
-      parent {
+      permissions {
         id
         name
-        code
-      }
-      children {
-        id
-        name
-        code
-      }
-    }
-    approval_permissions {
-      can_approve_all
-      can_reject_all
-      can_return_all
-      approval_limit
-      approval_conditions {
-        type
-        department_id
-        department_name
-        position
-      }
-    }
-    department_hierarchy {
-      id
-      name
-      code
-      level
-      position
-      is_primary
-      parent {
-        id
-        name
-        code
-      }
-      ancestors {
-        id
-        name
-        code
-        level
-      }
-      descendants {
-        id
-        name
-        code
-        level
       }
     }
   }
 }
 ```
 
-### 2. ユーザー一覧（柔軟なフィルタリング）
+### 2. 承認依頼の複雑な検索・フィルタリング
 
 ```graphql
-query Users(
-  $search: String
-  $systemLevel: String
-  $isActive: Boolean
-  $departmentId: Int
-  $roleId: Int
-  $limit: Int
-  $offset: Int
-) {
-  users(
-    search: $search
-    system_level: $systemLevel
-    is_active: $isActive
-    department_id: $departmentId
-    role_id: $roleId
-    limit: $limit
-    offset: $offset
-  ) {
+query ApprovalRequests($filters: ApprovalRequestFilters!) {
+  approvalRequests(filters: $filters) {
     id
-    employee_id
-    name
-    email
-    system_level
-    is_active
-    is_admin
-    last_login_at
-    is_locked
-    is_password_expired
-    system_level_info {
-      code
-      name
-      display_name
-      priority
-    }
-    roles {
+    title
+    status
+    requester {
       id
       name
-      display_name
-      priority
     }
-    departments {
+    approvers {
       id
       name
-      code
-      position
-      is_primary
+      approval_status
     }
-  }
-}
-```
-
-## 実装例
-
-### フロントエンドでの使用例
-
-```typescript
-// GraphQL クライアント設定
-import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
-import { setContext } from '@apollo/client/link/context';
-
-const httpLink = createHttpLink({
-  uri: '/api/graphql',
-});
-
-const authLink = setContext((_, { headers }) => {
-  const token = localStorage.getItem('auth_token');
-  return {
-    headers: {
-      ...headers,
-      authorization: token ? `Bearer ${token}` : "",
-    }
-  }
-});
-
-export const client = new ApolloClient({
-  link: authLink.concat(httpLink),
-  cache: new InMemoryCache()
-});
-
-// 承認フロー用の権限取得
-import { gql, useQuery } from '@apollo/client';
-
-const GET_USER_PERMISSIONS = gql`
-  query UserPermissions($userId: Int!) {
-    userPermissions(userId: $userId) {
+    approvalFlow {
       id
       name
-      approval_permissions {
-        can_approve_all
-        can_reject_all
-        can_return_all
-        approval_limit
-        approval_conditions {
+      steps {
+        id
+        name
+        conditions {
+          id
           type
-          department_id
-          department_name
-          position
+          value
         }
       }
     }
   }
-`;
-
-function ApprovalComponent({ userId }: { userId: number }) {
-  const { loading, error, data } = useQuery(GET_USER_PERMISSIONS, {
-    variables: { userId }
-  });
-
-  if (loading) return <div>読み込み中...</div>;
-  if (error) return <div>エラーが発生しました</div>;
-
-  const { approval_permissions } = data.userPermissions;
-
-  return (
-    <div>
-      <h2>承認権限</h2>
-      <p>承認可能: {approval_permissions.can_approve_all ? 'はい' : 'いいえ'}</p>
-      <p>却下可能: {approval_permissions.can_reject_all ? 'はい' : 'いいえ'}</p>
-      <p>差し戻し可能: {approval_permissions.can_return_all ? 'はい' : 'いいえ'}</p>
-      <p>承認上限: {approval_permissions.approval_limit ? 
-        `${approval_permissions.approval_limit.toLocaleString()}円` : '制限なし'}</p>
-    </div>
-  );
 }
 ```
 
-### バックエンドでの実装
+## 削除対象のGraphQL API
 
-```php
-// GraphQL Type定義
-class UserType extends GraphQLType
-{
-    public function fields(): array
-    {
-        return [
-            'id' => [
-                'type' => Type::nonNull(Type::int()),
-                'description' => 'ユーザーID',
-            ],
-            'approval_permissions' => [
-                'type' => Type::string(),
-                'description' => '承認権限情報',
-                'resolve' => function ($root) {
-                    return $this->getApprovalPermissions($root);
-                },
-            ],
-            // ... その他のフィールド
-        ];
-    }
-}
+以下の業務機能関連のGraphQL APIは削除し、RESTful APIに統一します：
 
-// 複雑なクエリの実装
-class UserPermissionsQuery extends Query
-{
-    public function resolve($root, $args, SelectFields $fields, $context)
-    {
-        $user = User::with([
-            'systemLevel',
-            'roles.permissions',
-            'departments.permissions',
-            'departments.parent',
-            'departments.children',
-        ])->find($args['user_id']);
+### 見積管理機能
+- `estimates` Query
+- `estimateItems` Query
+- `createEstimate` Mutation
+- `updateEstimate` Mutation
+- `deleteEstimate` Mutation
+- `Estimate` Type
+- `EstimateItem` Type
 
-        // 承認フロー用の権限情報を追加
-        $user->approval_permissions = $this->getApprovalPermissions($user);
-        
-        return $user;
-    }
-}
-```
+### マスタデータ
+- `partners` Query
+- `projectTypes` Query
+- `constructionClassifications` Query
+- `Partner` Type
+- `ProjectType` Type
+- `ConstructionClassification` Type
+
+### 原価計画機能
+- `costPlans` Query
+- `costPlanItems` Query
+- `createCostPlan` Mutation
+- `updateCostPlan` Mutation
+- `deleteCostPlan` Mutation
+- `CostPlan` Type
+- `CostPlanItem` Type
+
+## 移行計画
+
+### Phase 1: 設定ファイルの更新 ✅
+- GraphQL設定ファイルから業務機能関連のAPIを無効化
+- 承認フロー関連のAPIのみ有効化
+
+### Phase 2: フロントエンドの確認 ✅
+- フロントエンドは既にRESTful APIを使用済み
+- GraphQL APIへの依存がないことを確認
+
+### Phase 3: 不要ファイルの削除（予定）
+- 業務機能関連のGraphQLファイルを削除
+- 承認フロー関連のファイルのみ保持
 
 ## セキュリティ考慮事項
 
@@ -311,42 +174,12 @@ class UserPermissionsQuery extends Query
 
 ## 開発時の注意点
 
-### 1. 段階的な導入
-- 既存のRESTful APIを維持
-- 新機能からGraphQLを導入
-- 段階的な移行計画
+### 1. 承認フロー専用の使用
+- 新機能は原則RESTful APIで実装
+- 承認フロー関連のみGraphQLを使用
+- 複雑な権限チェックが必要な場合のみ検討
 
 ### 2. ドキュメント化
 - GraphQLスキーマの文書化
 - 使用例の提供
-- チーム内での共有
-
-### 3. テスト戦略
-- GraphQLクエリのテスト
-- 権限チェックのテスト
-- パフォーマンステスト
-
-## 今後の拡張予定
-
-### 1. リアルタイム更新
-- GraphQL Subscriptions
-- WebSocket対応
-
-### 2. 承認フロー機能
-- 承認ステータスのリアルタイム更新
-- 承認履歴の詳細取得
-
-### 3. レポート機能
-- 複雑な集計クエリ
-- 動的なレポート生成
-
-## まとめ
-
-GraphQLは以下の場面で特に有効です：
-
-1. **承認フロー関連**: 複雑な権限チェックと部署階層
-2. **ダッシュボード**: 複数のデータソースからの情報取得
-3. **レポート機能**: 柔軟なデータ集計と出力
-4. **管理画面**: 詳細なユーザー・権限情報の表示
-
-基本的なCRUD操作は引き続きRESTful APIを使用し、複雑なデータ取得が必要な場面でGraphQLを活用することで、システム全体の保守性とパフォーマンスを最適化できます。
+- 承認フロー関連のAPI仕様書

@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { userService, UserSearchParams, User } from '@/lib/userService'
+import { userService, UserSearchParams, UsersResponse } from '@/services/features/users/userService'
+import { HeaderUser } from '@/types/user'
 
 export const useUsers = (params: UserSearchParams) => {
-  return useQuery({
+  return useQuery<UsersResponse>({
     queryKey: ['users', params],
     queryFn: () => userService.getUsers(params),
     placeholderData: (previousData) => previousData,
@@ -33,7 +34,7 @@ export const useUpdateUser = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<User> }) =>
+    mutationFn: ({ id, data }: { id: number; data: Partial<HeaderUser> }) =>
       userService.updateUser(id, data),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })

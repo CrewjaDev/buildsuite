@@ -419,6 +419,15 @@ class AuthController extends Controller
                     'is_primary' => $department->pivot->is_primary,
                 ];
             }),
+            'primary_department' => $user->activeDepartments()
+                ->wherePivot('is_primary', true)
+                ->first() ? [
+                    'id' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->id,
+                    'name' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->name,
+                    'code' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->code,
+                    'position' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->pivot->position,
+                    'is_primary' => true,
+                ] : null,
             'permissions' => $this->getUserPermissions($user),
         ];
     }

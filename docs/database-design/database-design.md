@@ -397,37 +397,78 @@ CREATE TABLE personal_access_tokens (
 CREATE INDEX idx_personal_access_tokens_tokenable_type_tokenable_id ON personal_access_tokens(tokenable_type, tokenable_id);
 ```
 
-## 顧客管理
+## 取引先管理
 
-### customers テーブル
-**概要**: 見積対象となる顧客企業の情報を管理するテーブルです。企業名、担当者情報、連絡先、住所などの基本情報を格納し、見積書作成時の顧客選択に使用します。
+### partners テーブル
+**概要**: 得意先・仕入先を統合管理する取引先マスタテーブルです。企業基本情報、連絡先、住所、入金・支払情報、銀行情報などを一元管理し、見積書作成時の顧客選択や発注先管理に使用します。
 ```sql
-CREATE TABLE customers (
-    id BIGSERIAL PRIMARY KEY,
-    company_name VARCHAR(255) NOT NULL,
-    contact_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NULL,
-    address TEXT NULL,
-    postal_code VARCHAR(10) NULL,
-    city VARCHAR(100) NULL,
-    country VARCHAR(100) DEFAULT 'Japan',
-    tax_id VARCHAR(50) NULL,
-    notes TEXT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_by BIGINT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP WITH TIME ZONE NULL,
+CREATE TABLE partners (
+    id BIGSERIAL PRIMARY KEY,                                    -- 主キーID
+    partner_code VARCHAR(50) UNIQUE NOT NULL,                    -- 取引先コード
+    partner_name VARCHAR(255) NOT NULL,                          -- 取引先名
+    partner_name_print VARCHAR(255) NULL,                        -- 取引先名（印刷用）
+    partner_name_kana VARCHAR(255) NULL,                         -- 取引先名フリガナ
+    partner_type VARCHAR(20) NOT NULL,                           -- 取引先区分（customer/supplier/both）
+    representative VARCHAR(255) NULL,                            -- 代表者
+    representative_kana VARCHAR(255) NULL,                       -- 代表者名フリガナ
+    branch_name VARCHAR(255) NULL,                               -- 支店・営業所名
+    postal_code VARCHAR(10) NULL,                                -- 郵便番号
+    address TEXT NULL,                                           -- 住所
+    building_name VARCHAR(255) NULL,                             -- 建物名
+    phone VARCHAR(50) NULL,                                      -- 電話番号
+    fax VARCHAR(50) NULL,                                        -- FAX番号
+    invoice_number VARCHAR(50) NULL,                             -- インボイス登録番号
+    email VARCHAR(255) NULL,                                     -- メールアドレス
+    is_subcontractor BOOLEAN DEFAULT false,                      -- 外注フラグ
     
-    CONSTRAINT fk_customers_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+    -- 入金情報（得意先向け）
+    closing_date INTEGER NULL,                                   -- 締日（99:月末）
+    deposit_terms VARCHAR(50) NULL,                              -- 入金サイト
+    deposit_date INTEGER NULL,                                   -- 入金日（99:月末）
+    deposit_method VARCHAR(50) NULL,                             -- 入金方法区分
+    cash_allocation DECIMAL(5, 2) NULL,                          -- 現金配分
+    bill_allocation DECIMAL(5, 2) NULL,                          -- 手形配分
+    
+    -- 支払情報（仕入先向け）
+    payment_date INTEGER NULL,                                   -- 支払日（99:月末）
+    payment_method VARCHAR(50) NULL,                             -- 支払方法区分
+    payment_cash_allocation DECIMAL(5, 2) NULL,                  -- 支払現金配分
+    payment_bill_allocation DECIMAL(5, 2) NULL,                  -- 支払手形配分
+    
+    -- 企業情報
+    establishment_date DATE NULL,                                -- 設立年月日
+    capital_stock BIGINT NULL,                                   -- 資本金（千円）
+    previous_sales BIGINT NULL,                                  -- 昨期売上高（千円）
+    employee_count INTEGER NULL,                                 -- 従業員数（名）
+    business_description TEXT NULL,                              -- 事業内容
+    
+    -- 銀行情報
+    bank_name VARCHAR(255) NULL,                                 -- 銀行名
+    branch_name_bank VARCHAR(255) NULL,                          -- 支店名
+    account_type VARCHAR(20) NULL,                               -- 口座種別（savings/current）
+    account_number VARCHAR(50) NULL,                             -- 口座番号
+    account_holder VARCHAR(255) NULL,                            -- 口座名義
+
+    -- システム情報
+    login_id VARCHAR(100) NULL,                                  -- ログインID
+    journal_code VARCHAR(50) NULL,                               -- 仕訳CD
+    is_active BOOLEAN DEFAULT true,                              -- アクティブ状態
+    created_by BIGINT NOT NULL,                                  -- 作成者ID
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 更新日時
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,                     -- 削除日時（ソフトデリート）
+    
+    CONSTRAINT fk_partners_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 -- インデックス
-CREATE INDEX idx_customers_company_name ON customers(company_name);
-CREATE INDEX idx_customers_email ON customers(email);
-CREATE INDEX idx_customers_is_active ON customers(is_active);
-CREATE INDEX idx_customers_created_by ON customers(created_by);
+CREATE INDEX idx_partners_partner_code ON partners(partner_code);
+CREATE INDEX idx_partners_partner_name ON partners(partner_name);
+CREATE INDEX idx_partners_partner_type ON partners(partner_type);
+CREATE INDEX idx_partners_is_active ON partners(is_active);
+CREATE INDEX idx_partners_created_by ON partners(created_by);
+CREATE INDEX idx_partners_email ON partners(email);
+CREATE INDEX idx_partners_phone ON partners(phone);
 ```
 
 ## 見積管理

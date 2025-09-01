@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('construction_classifications', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+        Schema::table('estimate_items', function (Blueprint $table) {
+            $table->foreign('parent_id')->references('id')->on('estimate_items')->onDelete('set null');
         });
     }
 
@@ -22,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('construction_classifications');
+        Schema::table('estimate_items', function (Blueprint $table) {
+            $table->dropForeign(['parent_id']);
+        });
     }
 };

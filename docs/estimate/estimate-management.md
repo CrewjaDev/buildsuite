@@ -38,7 +38,7 @@ interface EstimateHierarchy {
 interface Estimate {
   id: number;                             // 見積ID
   estimate_number: string;                // 見積番号
-  customer_id: number;                    // 顧客ID
+  partner_id: number;                     // 取引先ID
   project_type_id: number;                // 工事種別ID
   project_name: string;                   // 工事名称
   project_location?: string;              // 工事場所
@@ -89,7 +89,7 @@ interface EstimateItem {
   unit_price: number;                     // 単価（顧客提示用）
   amount: number;                         // 金額（顧客提示用）
   estimated_cost: number;                 // 予想原価（社内用）
-      supplier?: string;                      // 発注先
+      supplier_id?: number;                   // 発注先（取引先ID）
     construction_method?: string;           // 工法
     construction_classification_id?: string; // 工事分類ID
     remarks?: string;                       // 備考
@@ -271,7 +271,7 @@ interface HierarchyTableColumns {
   unit_price: number;                     // 単価
   amount: number;                         // 金額
   estimated_cost: number;                 // 予想原価
-  supplier?: string;                      // 発注先
+  supplier_id?: number;                   // 発注先（取引先ID）
   construction_classification?: string;   // 工事分類
   actions: string[];                      // 操作ボタン
 }
@@ -286,7 +286,7 @@ interface FlatTableColumns {
   unit_price: number;                     // 単価
   amount: number;                         // 金額
   estimated_cost: number;                 // 予想原価
-  supplier?: string;                      // 発注先
+  supplier_id?: number;                   // 発注先（取引先ID）
   construction_classification?: string;   // 工事分類
   actions: string[];                      // 操作ボタン
 }
@@ -350,7 +350,7 @@ interface DetailTableColumns {
   amount: number;                         // 金額
   estimated_cost: number;                 // 予想原価
   remarks?: string;                       // 備考
-  supplier?: string;                      // 発注先
+  supplier_id?: number;                   // 発注先（取引先ID）
   actions: string[];                      // 操作ボタン
 }
 ```
@@ -391,7 +391,7 @@ interface GroupedItems {
 CREATE TABLE estimates (
     id BIGSERIAL PRIMARY KEY,                                    -- 見積ID
     estimate_number VARCHAR(50) UNIQUE NOT NULL,                 -- 見積番号
-    customer_id BIGINT REFERENCES customers(id),                 -- 顧客ID
+    partner_id BIGINT REFERENCES partners(id),                   -- 取引先ID
     project_type_id BIGINT REFERENCES project_types(id),         -- 工事種別ID
     project_name VARCHAR(255) NOT NULL,                          -- 工事名称
     project_location TEXT,                                       -- 工事場所
@@ -429,7 +429,7 @@ CREATE TABLE estimates (
 );
 
 -- 見積テーブルのインデックス
-CREATE INDEX idx_estimates_customer_id ON estimates(customer_id);
+CREATE INDEX idx_estimates_partner_id ON estimates(partner_id);
 CREATE INDEX idx_estimates_project_type_id ON estimates(project_type_id);
 CREATE INDEX idx_estimates_status ON estimates(status);
 CREATE INDEX idx_estimates_created_by ON estimates(created_by);
@@ -452,7 +452,7 @@ CREATE TABLE estimate_items (
     unit_price BIGINT DEFAULT 0,                                -- 単価（顧客提示用）
     amount BIGINT DEFAULT 0,                                    -- 金額（顧客提示用）
     estimated_cost BIGINT DEFAULT 0,                            -- 予想原価（社内用）
-    supplier VARCHAR(255),                                      -- 発注先
+    supplier_id BIGINT REFERENCES partners(id),                 -- 発注先（取引先ID）
     construction_method VARCHAR(255),                           -- 工法
     construction_classification_id UUID REFERENCES construction_classifications(id), -- 工事分類ID
     remarks TEXT,                                               -- 備考
@@ -470,6 +470,7 @@ CREATE INDEX idx_estimate_items_type ON estimate_items(item_type);
 CREATE INDEX idx_estimate_items_order ON estimate_items(display_order);
 CREATE INDEX idx_estimate_items_active ON estimate_items(is_active);
 CREATE INDEX idx_estimate_items_classification ON estimate_items(construction_classification_id);
+CREATE INDEX idx_estimate_items_supplier_id ON estimate_items(supplier_id);
 ```
 
 #### 4.3 原価計画テーブル
@@ -502,7 +503,7 @@ CREATE TABLE cost_plan_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),              -- 原価計画明細ID
     cost_plan_id UUID REFERENCES cost_plans(id) ON DELETE CASCADE, -- 原価計画ID
     estimate_item_id UUID REFERENCES estimate_items(id),        -- 見積明細ID
-    supplier VARCHAR(255),                                      -- 発注先
+    supplier_id BIGINT REFERENCES partners(id),                 -- 発注先（取引先ID）
     estimated_cost BIGINT DEFAULT 0,                            -- 予想原価
     remarks TEXT,                                               -- 備考
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
@@ -623,7 +624,7 @@ interface EstimateItem {
   unit_price: number;
   amount: number;
   estimated_cost: number;
-  supplier?: string;
+  supplier_id?: number;
   construction_method?: string;
   work_classification?: string;
   remarks?: string;

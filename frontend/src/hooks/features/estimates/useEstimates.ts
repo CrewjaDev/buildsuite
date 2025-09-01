@@ -1,0 +1,131 @@
+// 見積基本情報のReact Queryフック
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { estimateService } from '@/services/features/estimates/estimateService'
+import {
+  CreateEstimateRequest,
+  UpdateEstimateRequest,
+  EstimateSearchParams,
+} from '@/types/features/estimates/estimate'
+
+// 見積一覧取得フック
+export const useEstimates = (params: EstimateSearchParams = {}) => {
+  return useQuery({
+    queryKey: ['estimates', params],
+    queryFn: () => estimateService.getEstimates(params),
+    staleTime: 5 * 60 * 1000, // 5分間キャッシュ
+    placeholderData: (previousData) => previousData, // ページネーション時に前のデータを保持
+  })
+}
+
+// 見積詳細取得フック
+export const useEstimate = (id: number) => {
+  return useQuery({
+    queryKey: ['estimate', id],
+    queryFn: () => estimateService.getEstimate(id),
+    enabled: !!id, // idが存在する時のみ実行
+    staleTime: 10 * 60 * 1000, // 10分間キャッシュ
+  })
+}
+
+// 見積作成フック
+export const useCreateEstimate = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (data: CreateEstimateRequest) => estimateService.createEstimate(data),
+    onSuccess: (newEstimate) => {
+      // 見積一覧のキャッシュを無効化して再取得
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      // 見積統計のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+      // 新しく作成された見積のキャッシュを設定
+      queryClient.setQueryData(['estimate', newEstimate.id], newEstimate)
+    },
+  })
+}
+
+// 見積更新フック
+export const useUpdateEstimate = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateEstimateRequest }) => 
+      estimateService.updateEstimate(id, data),
+    onSuccess: (updatedEstimate) => {
+      // 見積詳細のキャッシュを更新
+      queryClient.setQueryData(['estimate', updatedEstimate.id], updatedEstimate)
+      // 見積一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      // 見積統計のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+    },
+  })
+}
+
+// 見積削除フック
+export const useDeleteEstimate = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: number) => estimateService.deleteEstimate(id),
+    onSuccess: (_, deletedId) => {
+      // 見積詳細のキャッシュを削除
+      queryClient.removeQueries({ queryKey: ['estimate', deletedId] })
+      // 見積一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      // 見積統計のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+    },
+  })
+}
+
+// 見積統計取得フック
+export const useEstimateStats = () => {
+  return useQuery({
+    queryKey: ['estimate-stats'],
+    queryFn: () => estimateService.getEstimateStats(),
+    staleTime: 10 * 60 * 1000, // 10分間キャッシュ
+  })
+}
+
+// 見積番号生成フック
+export const useGenerateEstimateNumber = () => {
+  return useMutation({
+    mutationFn: () => estimateService.generateEstimateNumber(),
+  })
+}
+
+// 見積複製フック
+export const useDuplicateEstimate = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: number) => estimateService.duplicateEstimate(id),
+    onSuccess: (duplicatedEstimate) => {
+      // 見積一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      // 見積統計のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+      // 複製された見積のキャッシュを設定
+      queryClient.setQueryData(['estimate', duplicatedEstimate.id], duplicatedEstimate)
+    },
+  })
+}
+
+// 見積ステータス更新フック
+export const useUpdateEstimateStatus = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) => 
+      estimateService.updateEstimateStatus(id, status),
+    onSuccess: (updatedEstimate) => {
+      // 見積詳細のキャッシュを更新
+      queryClient.setQueryData(['estimate', updatedEstimate.id], updatedEstimate)
+      // 見積一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      // 見積統計のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+    },
+  })
+}

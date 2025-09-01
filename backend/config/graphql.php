@@ -46,6 +46,8 @@ return [
                 'approvalFlows' => \App\GraphQL\Queries\ApprovalFlowsQuery::class,
                 'approvalRequestsByApprover' => \App\GraphQL\Queries\ApprovalRequestsByApproverQuery::class,
                 'userPermissions' => \App\GraphQL\Queries\UserPermissionsQuery::class,
+
+                'test' => \App\GraphQL\Queries\TestQuery::class,
             ],
             'mutation' => [
                 'createUser' => \App\GraphQL\Mutations\CreateUserMutation::class,
@@ -64,6 +66,7 @@ return [
                 'deleteApprovalRequest' => \App\GraphQL\Mutations\DeleteApprovalRequestMutation::class,
                 'getApprovalRequest' => \App\GraphQL\Mutations\GetApprovalRequestMutation::class,
                 'createApprovalStep' => \App\GraphQL\Mutations\CreateApprovalStepMutation::class,
+
             ],
             // 'middleware' => [
             //     'auth:sanctum',
@@ -90,6 +93,7 @@ return [
         'ApprovalCondition' => \App\GraphQL\Types\ApprovalConditionType::class,
         'ApprovalRequest' => \App\GraphQL\Types\ApprovalRequestType::class,
         'ApprovalHistory' => \App\GraphQL\Types\ApprovalHistoryType::class,
+
     ],
 
     /*

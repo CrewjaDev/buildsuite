@@ -1,4 +1,5 @@
 import api from './api'
+import { UserDetail } from '@/types/user'
 
 export interface LoginCredentials {
   login_id: string
@@ -6,11 +7,7 @@ export interface LoginCredentials {
 }
 
 export interface LoginResponse {
-  user: {
-    id: number
-    name: string
-    email: string
-  }
+  user: UserDetail
   token: string
 }
 
@@ -45,7 +42,7 @@ export const authService = {
     }
   },
 
-  async me(): Promise<LoginResponse['user']> {
+  async me(): Promise<UserDetail> {
     try {
       const response = await api.get('/auth/me')
       

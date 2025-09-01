@@ -106,7 +106,8 @@ export default function UserDetailPage() {
             onCancel={() => setMode('view')}
             onSuccess={() => {
               setMode('view')
-              // 成功メッセージを表示する場合はここでトースト通知を追加
+              // 編集完了後、照会タブに遷移
+              // 一覧ページに戻る際はrefresh=trueパラメータを付けて遷移
             }}
           />
         </TabsContent>

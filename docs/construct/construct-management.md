@@ -24,9 +24,9 @@ BuildSuiteシステムの工事管理機能に関する業務要件と設計書�
 ### 1. 全体の業務フロー構造
 
 ```
-見積管理 → 工事管理 → 発注管理 → 支払管理
-    ↓           ↓           ↓           ↓
-  見積データ → 工事データ → 発注データ → 支払データ
+見積管理 → 工事管理 → 発注管理 → 出来高管理 → 支払管理
+    ↓           ↓           ↓           ↓           ↓
+  見積データ → 工事データ → 発注データ → 出来高データ → 支払データ
 ```
 
 ### 2. データの独立管理方針
@@ -63,7 +63,7 @@ CREATE TABLE constructions (
     project_location TEXT,                                       -- 工事場所
     construction_period_start DATE,                              -- 工期開始日
     construction_period_end DATE,                                -- 工期終了日
-    customer_id UUID REFERENCES customers(id),                   -- 受注先（顧客ID）
+    partner_id UUID REFERENCES partners(id),                     -- 受注先（取引先ID）
     person_in_charge VARCHAR(100),                               -- 担当者
     department_id UUID REFERENCES departments(id),               -- 部門ID
     order_amount_excluding_tax DECIMAL(12,2) DEFAULT 0,         -- 税抜受注金額
@@ -176,15 +176,26 @@ CREATE TABLE construction_items (
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     construction_id UUID REFERENCES constructions(id) ON DELETE CASCADE,
-    supplier_id UUID REFERENCES suppliers(id),                   -- 発注先
-    order_number VARCHAR(50) UNIQUE NOT NULL,                    -- 発注番号
-    order_date DATE NOT NULL,                                    -- 発注日
+    partner_id UUID REFERENCES partners(id),                     -- 発注先（取引先ID）
+    order_number VARCHAR(50) UNIQUE NOT NULL,                    -- 発注番号（注文書番号）
+    order_date DATE NOT NULL,                                    -- 発注日（注文日）
     delivery_date DATE,                                          -- 納期
-    total_amount BIGINT DEFAULT 0,                               -- 発注合計金額
-    status VARCHAR(50) DEFAULT 'draft',                          -- 発注ステータス
-    payment_terms TEXT,                                          -- 支払条件
-    delivery_terms TEXT,                                         -- 納期条件
+    person_in_charge VARCHAR(100),                               -- 担当者
+    department_id UUID REFERENCES departments(id),               -- 部門ID
+    construction_classification_id UUID REFERENCES construction_classifications(id), -- 工事分類ID
     remarks TEXT,                                                -- 備考
+    
+    -- 支払情報
+    cash_ratio INTEGER DEFAULT 0,                                -- 現金比率
+    bill_ratio INTEGER DEFAULT 0,                                -- 手形比率
+    payment_terms TEXT,                                          -- 支払サイト（支払条件）
+    order_amount_excluding_tax BIGINT DEFAULT 0,                -- 税抜発注金額
+    tax_rate DECIMAL(5,2) DEFAULT 0.10,                          -- 消費税率
+    tax_amount BIGINT DEFAULT 0,                                 -- 消費税額
+    total_amount BIGINT DEFAULT 0,                               -- 合計金額
+    
+    -- システム管理
+    status VARCHAR(50) DEFAULT 'draft',                          -- 発注ステータス
     created_by UUID REFERENCES users(id),                        -- 作成者
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -201,15 +212,11 @@ CREATE TABLE order_items (
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
     construction_item_id UUID REFERENCES construction_items(id), -- 実行予算明細ID（元データ）
     display_order INTEGER NOT NULL DEFAULT 0,                    -- 表示順序
-    item_name VARCHAR(500) NOT NULL,                             -- 発注時の品名・仕様
-    description TEXT,                                            -- 発注時の詳細説明
-    quantity DECIMAL(12,2) NOT NULL,                             -- 発注数量
-    unit VARCHAR(50) NOT NULL,                                   -- 発注単位
-    unit_price BIGINT NOT NULL,                                  -- 発注単価
-    amount BIGINT NOT NULL,                                      -- 発注金額
-    delivery_date DATE,                                          -- 納期
-    construction_method VARCHAR(255),                            -- 発注時の工法
-    construction_classification_id UUID REFERENCES construction_classifications(id), -- 工事分類ID
+    construction_method VARCHAR(255),                            -- 工法/摘要
+    unit_price BIGINT NOT NULL,                                  -- 単価
+    quantity DECIMAL(12,2) NOT NULL,                             -- 数量
+    unit VARCHAR(50) NOT NULL,                                   -- 単位
+    amount BIGINT NOT NULL,                                      -- 金額
     remarks TEXT,                                                -- 備考
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -224,7 +231,7 @@ CREATE TABLE order_items (
 CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,       -- 発注との連携
-    supplier_id UUID REFERENCES suppliers(id),                   -- 支払先
+    partner_id UUID REFERENCES partners(id),                     -- 支払先（取引先ID）
     payment_number VARCHAR(50) UNIQUE NOT NULL,                  -- 支払番号
     payment_date DATE NOT NULL,                                  -- 支払日
     total_amount BIGINT DEFAULT 0,                               -- 支払合計金額
@@ -238,7 +245,25 @@ CREATE TABLE payments (
 );
 ```
 
-### 10. 支払明細テーブル（発注明細とのみ連携）
+### 10. 出来高管理テーブル（発注に対する納品分記録）
+
+```sql
+-- 出来高管理テーブル（納品分記録）
+CREATE TABLE construction_achievements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,        -- 発注ID
+    achievement_date DATE NOT NULL,                              -- 出来高日
+    quantity DECIMAL(12,2) NOT NULL,                             -- 今回出来高数量
+    amount BIGINT NOT NULL,                                      -- 今回出来高金額
+    remarks TEXT,                                                -- 備考
+    created_by UUID REFERENCES users(id),                        -- 作成者
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE NULL
+);
+```
+
+### 11. 支払明細テーブル（発注明細とのみ連携）
 
 ```sql
 -- 支払明細テーブル（発注明細とのみ連携）
@@ -267,7 +292,7 @@ CREATE TABLE payment_items (
 -- 工事基本情報のインデックス
 CREATE INDEX idx_constructions_number ON constructions(construction_number);
 CREATE INDEX idx_constructions_estimate_number ON constructions(estimate_number);
-CREATE INDEX idx_constructions_customer_id ON constructions(customer_id);
+CREATE INDEX idx_constructions_partner_id ON constructions(partner_id);
 CREATE INDEX idx_constructions_department_id ON constructions(department_id);
 CREATE INDEX idx_constructions_status ON constructions(status);
 CREATE INDEX idx_constructions_order_date ON constructions(order_date);
@@ -305,7 +330,7 @@ CREATE INDEX idx_construction_items_classification ON construction_items(constru
 ```sql
 -- 発注ヘッダのインデックス
 CREATE INDEX idx_orders_construction_id ON orders(construction_id);
-CREATE INDEX idx_orders_supplier_id ON orders(supplier_id);
+CREATE INDEX idx_orders_partner_id ON orders(partner_id);
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_order_date ON orders(order_date);
 
@@ -314,6 +339,11 @@ CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_order_items_construction_item_id ON order_items(construction_item_id);
 CREATE INDEX idx_order_items_classification ON order_items(construction_classification_id);
 CREATE INDEX idx_order_items_display_order ON order_items(display_order);
+
+-- 出来高管理のインデックス
+CREATE INDEX idx_construction_achievements_order_id ON construction_achievements(order_id);
+CREATE INDEX idx_construction_achievements_date ON construction_achievements(achievement_date);
+CREATE INDEX idx_construction_achievements_order_date ON construction_achievements(order_id, achievement_date);
 
 -- 支払明細のインデックス
 CREATE INDEX idx_payment_items_payment_id ON payment_items(payment_id);
@@ -350,7 +380,7 @@ interface ConstructionData {
   id: number;
   estimate_id: number;
   construction_number: string;
-  customer_id: number;
+      partner_id: number;
   project_name: string;
   project_location: string;
   project_period_start: Date;
@@ -392,7 +422,7 @@ interface ConstructionToOrderConverter {
   // 実行予算明細から発注書を作成（1明細1発注書）
   createOrderFromConstructionItem(
     construction_item_id: number,
-    supplier_id: number
+    partner_id: number
   ): OrderData;
   
   // 複数の実行予算明細から発注書を作成
@@ -415,7 +445,7 @@ interface ConstructionToOrderConverter {
 interface OrderData {
   id: number;
   construction_id: number;
-  supplier_id: number;
+  partner_id: number;
   order_number: string;
   order_date: Date;
   delivery_date: Date;
@@ -466,7 +496,7 @@ interface OrderToPaymentConverter {
 interface PaymentData {
   id: number;
   order_id: number;
-  supplier_id: number;
+  partner_id: number;
   payment_number: string;
   payment_date: Date;
   total_amount: number;
