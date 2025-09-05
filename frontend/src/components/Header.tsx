@@ -35,10 +35,11 @@ export default function Header({
 
   const navigationItems = [
     { href: '/dashboard', label: 'ダッシュボード' },
-    { href: '/users', label: 'ユーザー管理' },
+    // { href: '/users', label: 'ユーザー管理' },
+    { href: '/employees', label: '社員管理' },
     { href: '/partners', label: '取引先管理' },
     { href: '/estimates', label: '見積管理' },
-    { href: '/reports', label: 'レポート' },
+    // { href: '/reports', label: 'レポート' },
   ]
 
   return (

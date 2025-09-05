@@ -18,7 +18,7 @@ export const useEstimates = (params: EstimateSearchParams = {}) => {
 }
 
 // 見積詳細取得フック
-export const useEstimate = (id: number) => {
+export const useEstimate = (id: string) => {
   return useQuery({
     queryKey: ['estimate', id],
     queryFn: () => estimateService.getEstimate(id),
@@ -49,7 +49,7 @@ export const useUpdateEstimate = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateEstimateRequest }) => 
+    mutationFn: ({ id, data }: { id: string; data: UpdateEstimateRequest }) => 
       estimateService.updateEstimate(id, data),
     onSuccess: (updatedEstimate) => {
       // 見積詳細のキャッシュを更新
@@ -67,7 +67,7 @@ export const useDeleteEstimate = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: (id: number) => estimateService.deleteEstimate(id),
+    mutationFn: (id: string) => estimateService.deleteEstimate(id),
     onSuccess: (_, deletedId) => {
       // 見積詳細のキャッシュを削除
       queryClient.removeQueries({ queryKey: ['estimate', deletedId] })
@@ -100,7 +100,7 @@ export const useDuplicateEstimate = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: (id: number) => estimateService.duplicateEstimate(id),
+    mutationFn: (id: string) => estimateService.duplicateEstimate(id),
     onSuccess: (duplicatedEstimate) => {
       // 見積一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
@@ -117,7 +117,7 @@ export const useUpdateEstimateStatus = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => 
+    mutationFn: ({ id, status }: { id: string; status: string }) => 
       estimateService.updateEstimateStatus(id, status),
     onSuccess: (updatedEstimate) => {
       // 見積詳細のキャッシュを更新

@@ -1,4 +1,4 @@
-// プロジェクトタイプの型定義
+// 工事種別（プロジェクトタイプ）の型定義
 
 export interface ProjectType {
   id: number
@@ -8,6 +8,9 @@ export interface ProjectType {
   description?: string
   is_active: boolean
   sort_order: number
+  overhead_rate?: number
+  cost_expense_rate?: number
+  material_expense_rate?: number
   created_at: string
   updated_at: string
 }
@@ -58,7 +61,6 @@ export interface ProjectTypesResponse {
 }
 
 export interface ProjectTypeOption {
-  value: number
-  label: string
-  code: string
+  id: number
+  name: string
 }

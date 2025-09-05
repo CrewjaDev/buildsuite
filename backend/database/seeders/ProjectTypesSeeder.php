@@ -14,6 +14,9 @@ class ProjectTypesSeeder extends Seeder
      */
     public function run(): void
     {
+        // 既存のプロジェクトタイプデータをクリア
+        ProjectType::truncate();
+
         // テスト用ユーザーを取得
         $user = User::first();
         if (!$user) {

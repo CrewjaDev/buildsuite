@@ -384,18 +384,51 @@ class AuthController extends Controller
      */
     private function getUserData(User $user): array
     {
+        // 社員情報を取得
+        $employee = $user->employee;
+        
         return [
+            // ユーザー基本情報（usersテーブル）
             'id' => $user->id,
             'employee_id' => $user->employee_id,
-            'name' => $user->name,
-            'name_kana' => $user->name_kana,
-            'email' => $user->email,
-            'position' => $user->position,
-            'job_title' => $user->job_title,
+            'login_id' => $user->login_id,
             'system_level' => $user->system_level,
             'is_admin' => $user->is_admin,
-            'is_active' => $user->is_active,
             'last_login_at' => $user->last_login_at,
+            
+            // ヘッダー表示用の統合情報（HeaderUser型に対応）
+            'name' => $employee ? $employee->name : null,
+            'email' => $employee ? $employee->email : null,
+            'is_active' => $employee ? $employee->is_active : false,
+            'primary_department' => $employee && $employee->department ? [
+                'id' => $employee->department->id,
+                'name' => $employee->department->name,
+                'code' => $employee->department->code,
+                'is_primary' => true,
+            ] : null,
+            
+            // 詳細な社員情報
+            'employee' => $employee ? [
+                'id' => $employee->id,
+                'employee_id' => $employee->employee_id,
+                'name' => $employee->name,
+                'name_kana' => $employee->name_kana,
+                'email' => $employee->email,
+                'job_title' => $employee->job_title,
+                'is_active' => $employee->is_active,
+                'department' => $employee->department ? [
+                    'id' => $employee->department->id,
+                    'name' => $employee->department->name,
+                    'code' => $employee->department->code,
+                ] : null,
+                'position' => $employee->position ? [
+                    'id' => $employee->position->id,
+                    'name' => $employee->position->name,
+                    'level' => $employee->position->level,
+                ] : null,
+            ] : null,
+            
+            // システム権限情報
             'system_level_info' => $user->systemLevel ? [
                 'code' => $user->systemLevel->code,
                 'name' => $user->systemLevel->name,
@@ -410,24 +443,6 @@ class AuthController extends Controller
                     'priority' => $role->priority,
                 ];
             }),
-            'departments' => $user->activeDepartments()->get()->map(function ($department) {
-                return [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                    'code' => $department->code,
-                    'position' => $department->pivot->position,
-                    'is_primary' => $department->pivot->is_primary,
-                ];
-            }),
-            'primary_department' => $user->activeDepartments()
-                ->wherePivot('is_primary', true)
-                ->first() ? [
-                    'id' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->id,
-                    'name' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->name,
-                    'code' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->code,
-                    'position' => $user->activeDepartments()->wherePivot('is_primary', true)->first()->pivot->position,
-                    'is_primary' => true,
-                ] : null,
             'permissions' => $this->getUserPermissions($user),
         ];
     }
@@ -457,14 +472,11 @@ class AuthController extends Controller
                 });
             $permissions = $permissions->merge($rolePermissions);
 
-            // 部署による権限
-            $departmentPermissions = $user->activeDepartments()
-                ->with('permissions')
-                ->get()
-                ->flatMap(function ($department) {
-                    return $department->activePermissions;
-                });
-            $permissions = $permissions->merge($departmentPermissions);
+            // 部署による権限（社員情報経由）
+            if ($user->employee && $user->employee->department) {
+                $departmentPermissions = $user->employee->department->activePermissions ?? collect();
+                $permissions = $permissions->merge($departmentPermissions);
+            }
 
             // 重複を除去
             $permissions = $permissions->unique('id');

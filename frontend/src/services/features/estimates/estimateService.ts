@@ -17,9 +17,9 @@ export const estimateService = {
   },
 
   // 見積詳細取得
-  async getEstimate(id: number): Promise<Estimate> {
+  async getEstimate(id: string): Promise<Estimate> {
     const response = await api.get(`/estimates/${id}`)
-    return response.data
+    return response.data.data
   },
 
   // 見積作成
@@ -29,13 +29,13 @@ export const estimateService = {
   },
 
   // 見積更新
-  async updateEstimate(id: number, data: UpdateEstimateRequest): Promise<Estimate> {
+  async updateEstimate(id: string, data: UpdateEstimateRequest): Promise<Estimate> {
     const response = await api.put(`/estimates/${id}`, data)
     return response.data
   },
 
   // 見積削除
-  async deleteEstimate(id: number): Promise<void> {
+  async deleteEstimate(id: string): Promise<void> {
     await api.delete(`/estimates/${id}`)
   },
 
@@ -52,13 +52,13 @@ export const estimateService = {
   },
 
   // 見積複製
-  async duplicateEstimate(id: number): Promise<Estimate> {
+  async duplicateEstimate(id: string): Promise<Estimate> {
     const response = await api.post(`/estimates/${id}/duplicate`)
     return response.data
   },
 
   // 見積ステータス更新
-  async updateEstimateStatus(id: number, status: string): Promise<Estimate> {
+  async updateEstimateStatus(id: string, status: string): Promise<Estimate> {
     const response = await api.patch(`/estimates/${id}/status`, { status })
     return response.data
   }

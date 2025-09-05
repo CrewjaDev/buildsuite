@@ -41,8 +41,26 @@ export function formatCurrency(amount: number): string {
 /**
  * 日付フォーマット
  */
-export function formatDate(dateString: string): string {
+export function formatDate(dateString: string | null | undefined, format: 'YYYY-MM-DD' | 'YYYY/MM/DD' = 'YYYY/MM/DD'): string {
+  if (!dateString) {
+    return '-'
+  }
+  
   const date = new Date(dateString)
+  
+  // 無効な日時の場合は'-'を返す
+  if (isNaN(date.getTime())) {
+    return '-'
+  }
+  
+  if (format === 'YYYY-MM-DD') {
+    return new Intl.DateTimeFormat('ja-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(date)
+  }
+  
   return new Intl.DateTimeFormat('ja-JP', {
     year: 'numeric',
     month: '2-digit',
@@ -53,8 +71,18 @@ export function formatDate(dateString: string): string {
 /**
  * 日時フォーマット
  */
-export function formatDateTime(dateString: string): string {
+export function formatDateTime(dateString: string | null | undefined): string {
+  if (!dateString) {
+    return '-'
+  }
+  
   const date = new Date(dateString)
+  
+  // 無効な日時の場合は'-'を返す
+  if (isNaN(date.getTime())) {
+    return '-'
+  }
+  
   return new Intl.DateTimeFormat('ja-JP', {
     year: 'numeric',
     month: '2-digit',
@@ -62,6 +90,18 @@ export function formatDateTime(dateString: string): string {
     hour: '2-digit',
     minute: '2-digit'
   }).format(date)
+}
+
+/**
+ * ISO形式の日付文字列をyyyy-MM-dd形式に変換（HTML input[type="date"]用）
+ */
+export function formatDateForInput(date: string | Date | null | undefined): string {
+  if (!date) return ''
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(dateObj.getTime())) return ''
+  
+  return dateObj.toISOString().split('T')[0]
 }
 
 /**

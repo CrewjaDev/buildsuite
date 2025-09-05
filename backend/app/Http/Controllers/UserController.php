@@ -86,17 +86,6 @@ class UserController extends Controller
             // プライマリ部署を取得（既に読み込まれたリレーションから）
             $primaryDepartment = $user->departments->where('pivot.is_primary', true)->first();
 
-            // デバッグ用ログ
-            \Log::info('User data:', [
-                'user_id' => $user->id,
-                'name' => $user->name,
-                'gender' => $user->gender,
-                'position_id' => $user->position_id,
-                'position' => $user->position,
-                'departments_count' => $user->departments->count(),
-                'primary_department' => $primaryDepartment,
-            ]);
-
             return [
                 'id' => $user->id,
                 'login_id' => $user->login_id,
@@ -151,53 +140,106 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'employee_id' => 'required|string|max:50|unique:users',
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:8',
-            'role' => 'required|in:admin,user,manager',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'login_id' => 'required|string|max:255|unique:users',
+                'employee_id' => 'required|string|max:50|unique:users',
+                'name' => 'required|string|max:255',
+                'name_kana' => 'nullable|string|max:255',
+                'email' => 'nullable|email|unique:users',
+                'password' => 'required|string|min:8',
+                'birth_date' => 'nullable|date',
+                'gender' => 'nullable|in:male,female,other',
+                'phone' => 'nullable|string|max:20',
+                'mobile_phone' => 'nullable|string|max:20',
+                'postal_code' => 'nullable|string|max:10',
+                'prefecture' => 'nullable|string|max:50',
+                'address' => 'nullable|string|max:500',
+                'job_title' => 'nullable|string|max:100',
+                'hire_date' => 'nullable|date',
+                'is_active' => 'nullable|boolean',
+                'is_admin' => 'nullable|boolean',
+                'system_level' => 'nullable|string|max:50',
+                'role' => 'nullable|string',
+                'department_id' => 'nullable|integer|exists:departments,id',
+                'position_id' => 'nullable|integer|exists:positions,id',
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $userData = $validator->validated();
+            $userData['password'] = Hash::make($userData['password']);
+            
+            // 空文字列をnullに変換
+            foreach ($userData as $key => $value) {
+                if ($value === '') {
+                    $userData[$key] = null;
+                }
+            }
+            
+            // デフォルト値を設定
+            if (!isset($userData['is_active'])) {
+                $userData['is_active'] = true;
+            }
+            if (!isset($userData['is_admin'])) {
+                $userData['is_admin'] = false;
+            }
+
+            // role と department_id は User モデルの作成時には含めない
+            $role = !empty($userData['role']) ? $userData['role'] : null;
+            $departmentId = !empty($userData['department_id']) ? $userData['department_id'] : null;
+            unset($userData['role'], $userData['department_id']);
+
+            $user = User::create($userData);
+
+            // 役割を割り当て
+            if ($role) {
+                $roleModel = Role::where('name', $role)->first();
+                if ($roleModel) {
+                    $user->roles()->attach($roleModel->id, [
+                        'assigned_at' => now(),
+                        'assigned_by' => auth()->id() ?? 1,
+                        'is_active' => true,
+                    ]);
+                }
+            }
+
+            // 部署を割り当て
+            if ($departmentId) {
+                $department = \App\Models\Department::find($departmentId);
+                if ($department) {
+                    $user->departments()->attach($departmentId, [
+                        'assigned_at' => now(),
+                        'assigned_by' => auth()->id() ?? 1,
+                        'is_primary' => true,
+                        'is_active' => true,
+                    ]);
+                }
+            }
+
+            // 関連データを読み込み
+            $user->load(['roles', 'departments', 'position', 'systemLevel']);
+
+            // フロントエンドが期待する形式でレスポンス
+            return response()->json([
+                'success' => true,
+                'message' => 'ユーザーが正常に作成されました',
+                'data' => $this->formatUserData($user),
+            ], 201);
+            
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'バリデーションエラー',
-                'errors' => $validator->errors(),
-            ], 422);
+                'message' => 'ユーザーの作成中にエラーが発生しました',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $userData = $validator->validated();
-        $userData['password'] = Hash::make($userData['password']);
-        $userData['is_active'] = true;
-
-        $user = User::create($userData);
-
-        // 役割を割り当て
-        $role = Role::where('name', $userData['role'])->first();
-        if ($role) {
-            $user->roles()->attach($role->id, [
-                'assigned_at' => now(),
-                'assigned_by' => auth()->id() ?? 1,
-                'is_active' => true,
-            ]);
-        }
-
-        $user->load(['roles']);
-
-        // フロントエンドが期待する形式でレスポンス
-        $activeRoles = $user->roles()->wherePivot('is_active', true)->get();
-        
-        return response()->json([
-            'id' => $user->id,
-            'employee_id' => $user->employee_id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'role' => $activeRoles->first() ? $activeRoles->first()->name : 'user',
-            'status' => $user->is_active ? 'active' : 'inactive',
-            'createdAt' => $user->created_at->toISOString(),
-            'updatedAt' => $user->updated_at->toISOString(),
-        ], 201);
     }
 
     /**

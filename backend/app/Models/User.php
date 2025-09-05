@@ -24,33 +24,16 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'login_id',
-        'employee_id',
-        'name',
-        'name_kana',
-        'email',
-        'password',
-        'birth_date',
-        'gender',
-        'phone',
-        'mobile_phone',
-        'postal_code',
-        'prefecture',
-        'address',
-        'position',
-        'position_id',
-        'job_title',
-        'hire_date',
-        'service_years',
-        'service_months',
-        'system_level',
-        'is_active',
-        'is_admin',
-        'last_login_at',
-        'password_changed_at',
-        'password_expires_at',
-        'failed_login_attempts',
-        'locked_at',
+        'employee_id',      // 社員への外部キー
+        'login_id',         // ログインID
+        'password',         // パスワード
+        'system_level',     // システム権限レベル
+        'is_admin',         // 管理者権限
+        'last_login_at',    // 最終ログイン時刻
+        'password_changed_at',     // パスワード変更日時
+        'password_expires_at',     // パスワード有効期限
+        'failed_login_attempts',   // ログイン失敗回数
+        'locked_at',        // アカウントロック時刻
     ];
 
     /**
@@ -71,20 +54,23 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
+            'employee_id' => 'integer',
             'password' => 'hashed',
-            'birth_date' => 'date',
-            'hire_date' => 'date',
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
             'password_expires_at' => 'datetime',
             'locked_at' => 'datetime',
-            'is_active' => 'boolean',
             'is_admin' => 'boolean',
-            'service_years' => 'integer',
-            'service_months' => 'integer',
             'failed_login_attempts' => 'integer',
         ];
+    }
+
+    /**
+     * 社員情報とのリレーション
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     /**
@@ -94,16 +80,6 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Role::class, 'user_roles')
             ->withPivot(['assigned_at', 'assigned_by', 'expires_at', 'is_active'])
-            ->withTimestamps();
-    }
-
-    /**
-     * ユーザーの部署とのリレーション
-     */
-    public function departments(): BelongsToMany
-    {
-        return $this->belongsToMany(Department::class, 'user_departments')
-            ->withPivot(['position', 'is_primary', 'assigned_at', 'assigned_by', 'expires_at', 'is_active'])
             ->withTimestamps();
     }
 
@@ -124,14 +100,6 @@ class User extends Authenticatable
     }
 
     /**
-     * 職位とのリレーション
-     */
-    public function position(): BelongsTo
-    {
-        return $this->belongsTo(Position::class, 'position_id', 'id');
-    }
-
-    /**
      * システム権限レベルとのリレーション
      */
     public function systemLevel()
@@ -147,21 +115,7 @@ class User extends Authenticatable
         return $this->roles()->wherePivot('is_active', true);
     }
 
-    /**
-     * アクティブな部署のみを取得
-     */
-    public function activeDepartments()
-    {
-        return $this->departments()->wherePivot('is_active', true);
-    }
 
-    /**
-     * プライマリ部署を取得
-     */
-    public function primaryDepartment()
-    {
-        return $this->departments()->wherePivot('is_primary', true)->first();
-    }
 
     /**
      * ユーザーが指定された権限を持っているかチェック
@@ -196,14 +150,17 @@ class User extends Authenticatable
             return true;
         }
 
-        // 部署による権限チェック
-        $departmentPermissions = $this->activeDepartments()
-            ->whereHas('permissions', function ($query) use ($permission) {
-                $query->where('name', $permission)->where('is_active', true);
-            })
-            ->exists();
+        // 社員の部署による権限チェック（employeeリレーション経由）
+        if ($this->employee && $this->employee->department) {
+            $departmentPermissions = $this->employee->department->permissions()
+                ->where('name', $permission)
+                ->where('is_active', true)
+                ->exists();
+                
+            return $departmentPermissions;
+        }
 
-        return $departmentPermissions;
+        return false;
     }
 
     /**

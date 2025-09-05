@@ -23,11 +23,15 @@ services:
         dockerfile: ../docker/dockerfile.backend.dev
       image: buildsuite-backend:dev
       container_name: buildsuite-backend-container
+      # ユーザーマッピングを追加（コメントアウト - 権限問題回避のため）
+      # user: "${UID:-1000}:${GID:-1000}"
       env_file:
         - ../backend/.env # Laravelの.envファイルを指定
       environment:
           - APP_ENV=local
           - APP_DEBUG=true
+          - HOST_UID=${UID:-1000}
+          - HOST_GID=${GID:-1000}
       networks:
           - buildsuite-network  # 追加: Nginxと通信できるようにする
       volumes:
@@ -43,17 +47,28 @@ services:
           timeout: 10s
           retries: 3
 
-      # command: bash -c "php artisan migrate --force && php-fpm"
-      # ★環境に応じてユーザ指定（www-data:www-data）を変更すること★
+      # 改善されたコマンド：権限設定を安全に実行
       command: bash -c "
-        chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache &&
-        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache &&
+        echo 'Setting up permissions...' &&
+        chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true &&
+        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true &&
+        if [ ! -z \"\$HOST_UID\" ] && [ ! -z \"\$HOST_GID\" ]; then
+          echo 'Updating www-data user to match host UID/GID...' &&
+          echo 'Current www-data:' && id www-data &&
+          usermod -u \$HOST_UID www-data &&
+          groupmod -g \$HOST_GID www-data &&
+          echo 'Updated www-data:' && id www-data &&
+          chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true &&
+          echo 'Setting default umask for shared file access...' &&
+          echo 'umask 002' >> /etc/profile;
+        fi &&
         if php artisan migrate:status | grep -q 'No'; then
           echo 'Running migrations';
           php artisan migrate --force;
         else
           echo 'Migrations already up to date';
         fi &&
+        echo 'Starting PHP-FPM...' &&
         php-fpm"
 
   nginx:

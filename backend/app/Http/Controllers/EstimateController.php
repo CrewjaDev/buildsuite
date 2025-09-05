@@ -20,7 +20,7 @@ class EstimateController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = Estimate::with(['partner', 'projectType', 'constructionClassification'])
+            $query = Estimate::with(['partner', 'projectType', 'constructionClassification', 'creator', 'creatorEmployee'])
                 ->orderBy('created_at', 'desc');
 
             // 検索条件
@@ -62,8 +62,37 @@ class EstimateController extends Controller
             $perPage = $request->get('per_page', 20);
             $estimates = $query->paginate($perPage);
 
+            // フロントエンド用にフィールドを追加
+            $estimatesData = $estimates->items();
+            foreach ($estimatesData as $estimate) {
+                $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
+                $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
+                // Employeeテーブルから社員名を取得
+                $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
+                // フロントエンドで使用するフィールド名に合わせる
+                $estimate->estimate_date = $estimate->issue_date;
+                $estimate->construction_period_from = $estimate->project_period_start;
+                $estimate->construction_period_to = $estimate->project_period_end;
+                $estimate->project_description = $estimate->project_location;
+                
+                // 工事種別に紐づく項目を追加
+                if ($estimate->projectType) {
+                    $estimate->overhead_rate = $estimate->projectType->overhead_rate;
+                    $estimate->cost_expense_rate = $estimate->projectType->cost_expense_rate;
+                    $estimate->material_expense_rate = $estimate->projectType->material_expense_rate;
+                }
+                // 取引先の詳細情報を追加
+                if ($estimate->partner) {
+                    $estimate->partner_type = $estimate->partner->partner_type;
+                    $estimate->partner_address = $estimate->partner->address;
+                    $estimate->partner_contact_person = $estimate->partner->representative;
+                    $estimate->partner_phone = $estimate->partner->phone;
+                    $estimate->partner_email = $estimate->partner->email;
+                }
+            }
+
             return response()->json([
-                'data' => $estimates->items(),
+                'data' => $estimatesData,
                 'meta' => [
                     'current_page' => $estimates->currentPage(),
                     'last_page' => $estimates->lastPage(),
@@ -93,10 +122,36 @@ class EstimateController extends Controller
                 'partner', 
                 'projectType', 
                 'constructionClassification',
+                'creatorEmployee',
                 'items' => function ($query) {
-                    $query->orderBy('sort_order', 'asc');
+                    $query->orderBy('display_order', 'asc');
                 }
             ])->findOrFail($id);
+
+            // フロントエンド用にフィールドを追加
+            $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
+            $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
+            $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
+            
+            // フィールド名のマッピング（データベースのカラム名をフロントエンドのフィールド名に変換）
+            $estimate->estimate_date = $estimate->issue_date;
+            $estimate->construction_period_from = $estimate->project_period_start;
+            $estimate->construction_period_to = $estimate->project_period_end;
+            
+            // 工事種別に紐づく項目を追加
+            if ($estimate->projectType) {
+                $estimate->overhead_rate = $estimate->projectType->overhead_rate;
+                $estimate->cost_expense_rate = $estimate->projectType->cost_expense_rate;
+                $estimate->material_expense_rate = $estimate->projectType->material_expense_rate;
+            }
+            // 取引先の詳細情報を追加
+            if ($estimate->partner) {
+                $estimate->partner_type = $estimate->partner->partner_type;
+                $estimate->partner_address = $estimate->partner->address;
+                $estimate->partner_contact_person = $estimate->partner->representative;
+                $estimate->partner_phone = $estimate->partner->phone;
+                $estimate->partner_email = $estimate->partner->email;
+            }
 
             return response()->json([
                 'data' => $estimate,
@@ -150,7 +205,7 @@ class EstimateController extends Controller
                         'unit' => $item['unit'],
                         'unit_price' => $item['unit_price'],
                         'amount' => $item['quantity'] * $item['unit_price'],
-                        'sort_order' => $index + 1,
+                        'display_order' => $index + 1,
                     ]);
                 }
             }
@@ -182,13 +237,22 @@ class EstimateController extends Controller
             $validator = Validator::make($request->all(), [
                 'estimate_number' => 'sometimes|required|string|max:50|unique:estimates,estimate_number,' . $id,
                 'project_name' => 'sometimes|required|string|max:255',
+                'project_location' => 'nullable|string',
                 'partner_id' => 'sometimes|required|exists:partners,id',
                 'project_type_id' => 'sometimes|required|exists:project_types,id',
                 'construction_classification_id' => 'sometimes|required|exists:construction_classifications,id',
                 'total_amount' => 'sometimes|required|numeric|min:0',
                 'status' => 'sometimes|required|in:draft,sent,approved,rejected',
-                'valid_until' => 'sometimes|required|date',
-                'remarks' => 'nullable|string|max:1000',
+                'estimate_date' => 'sometimes|required|date',
+                'issue_date' => 'sometimes|required|date',
+                'expiry_date' => 'sometimes|required|date',
+                'construction_period_from' => 'sometimes|required|date',
+                'construction_period_to' => 'sometimes|required|date',
+                'created_by' => 'sometimes|required|exists:users,id',
+                'notes' => 'nullable|string|max:1000',
+                'overhead_rate' => 'sometimes|numeric|min:0|max:100',
+                'cost_expense_rate' => 'sometimes|numeric|min:0|max:100',
+                'material_expense_rate' => 'sometimes|numeric|min:0|max:100',
             ]);
 
             if ($validator->fails()) {
@@ -200,7 +264,26 @@ class EstimateController extends Controller
 
             DB::beginTransaction();
 
-            $estimate->update($request->all());
+            // フロントエンドのフィールド名をデータベースのカラム名にマッピング
+            $updateData = $request->all();
+            
+            // フィールド名のマッピング
+            if (isset($updateData['estimate_date'])) {
+                $updateData['issue_date'] = $updateData['estimate_date'];
+                unset($updateData['estimate_date']);
+            }
+            
+            if (isset($updateData['construction_period_from'])) {
+                $updateData['project_period_start'] = $updateData['construction_period_from'];
+                unset($updateData['construction_period_from']);
+            }
+            
+            if (isset($updateData['construction_period_to'])) {
+                $updateData['project_period_end'] = $updateData['construction_period_to'];
+                unset($updateData['construction_period_to']);
+            }
+
+            $estimate->update($updateData);
 
             // 見積明細の更新
             if ($request->has('items') && is_array($request->items)) {
@@ -216,7 +299,7 @@ class EstimateController extends Controller
                         'unit' => $item['unit'],
                         'unit_price' => $item['unit_price'],
                         'amount' => $item['quantity'] * $item['unit_price'],
-                        'sort_order' => $index + 1,
+                        'display_order' => $index + 1,
                     ]);
                 }
             }

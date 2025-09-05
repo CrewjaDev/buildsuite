@@ -306,8 +306,33 @@ class PartnerController extends Controller
     /**
      * 取引先作成・編集用のオプションデータを取得
      */
-    public function getOptions(): JsonResponse
+    public function getOptions(Request $request): JsonResponse
     {
+        // 取引先オプション（ドロップダウン用）
+        if ($request->has('type')) {
+            $type = $request->get('type');
+            $query = Partner::where('is_active', true);
+            
+            if ($type === 'customer') {
+                $query->whereIn('partner_type', ['customer', 'both']);
+            } elseif ($type === 'supplier') {
+                $query->whereIn('partner_type', ['supplier', 'both']);
+            }
+            
+            $partners = $query->orderBy('partner_name')->get(['id', 'partner_name']);
+            
+            $options = $partners->map(function ($partner) {
+                return [
+                    'value' => $partner->id,
+                    'label' => $partner->partner_name,
+                    'type' => $partner->partner_type,
+                ];
+            });
+            
+            return response()->json($options);
+        }
+        
+        // 従来のオプションデータ
         $partnerTypes = [
             ['value' => 'customer', 'label' => '顧客'],
             ['value' => 'supplier', 'label' => '仕入先'],

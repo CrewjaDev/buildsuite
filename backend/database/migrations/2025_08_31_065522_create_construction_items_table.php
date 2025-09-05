@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // 一時的に無効化（constructionsテーブルが存在しないため）
+        // TODO: constructionsテーブル作成後に有効化
+        /*
         Schema::create('construction_items', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
             $table->foreignUuid('construction_id')->constrained('constructions')->onDelete('cascade')->comment('工事ID');
@@ -44,6 +47,7 @@ return new class extends Migration
             $table->index('construction_classification_id');
             $table->index('is_active');
         });
+        */
     }
 
     /**

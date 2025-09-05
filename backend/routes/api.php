@@ -4,12 +4,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SystemLevelController;
 use App\Http\Controllers\EstimateController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\ProjectTypeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,7 +41,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('sessions/{sessionId}', [AuthController::class, 'revokeSession']);
     });
 
-    // ユーザー管理
+    // 社員管理
+    Route::prefix('employees')->group(function () {
+        Route::get('/', [EmployeeController::class, 'index']);
+        Route::get('/options', [EmployeeController::class, 'getOptions']);
+        Route::get('/system-levels', [EmployeeController::class, 'getSystemLevels']);
+        Route::post('/', [EmployeeController::class, 'store']);
+        Route::get('/{id}', [EmployeeController::class, 'show']);
+        Route::put('/{id}', [EmployeeController::class, 'update']);
+        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+        
+        // システム権限管理
+        Route::post('/{id}/system-access', [EmployeeController::class, 'grantSystemAccess']);
+        Route::delete('/{id}/system-access', [EmployeeController::class, 'revokeSystemAccess']);
+    });
+
+    // ユーザー管理（システム権限）
     Route::prefix('users')->group(function () {
         Route::get('/', [UserController::class, 'index']);
         Route::get('/options', [UserController::class, 'getOptions']);
@@ -91,6 +109,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/usage', [DepartmentController::class, 'usage']);
     });
 
+    // 職位管理
+    Route::prefix('positions')->group(function () {
+        Route::get('/', [PositionController::class, 'index']);
+        Route::get('/options', [PositionController::class, 'getOptions']);
+        Route::post('/', [PositionController::class, 'store']);
+        Route::get('/{id}', [PositionController::class, 'show']);
+        Route::put('/{id}', [PositionController::class, 'update']);
+        Route::delete('/{id}', [PositionController::class, 'destroy']);
+        Route::post('/{id}/permissions', [PositionController::class, 'addPermissions']);
+        Route::delete('/{id}/permissions', [PositionController::class, 'removePermissions']);
+        Route::get('/{id}/usage', [PositionController::class, 'usage']);
+    });
+
     // システム権限レベル管理
     Route::prefix('system-levels')->group(function () {
         Route::get('/', [SystemLevelController::class, 'index']);
@@ -125,6 +156,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [PartnerController::class, 'update']);
         Route::delete('/{id}', [PartnerController::class, 'destroy']);
         Route::post('/{id}/toggle-active', [PartnerController::class, 'toggleActive']);
+    });
+
+    // プロジェクトタイプ管理
+    Route::prefix('project-types')->group(function () {
+        Route::get('/', [ProjectTypeController::class, 'index']);
+        Route::get('/options', [ProjectTypeController::class, 'getOptions']);
+        Route::post('/', [ProjectTypeController::class, 'store']);
+        Route::get('/{id}', [ProjectTypeController::class, 'show']);
+        Route::put('/{id}', [ProjectTypeController::class, 'update']);
+        Route::delete('/{id}', [ProjectTypeController::class, 'destroy']);
     });
 });
 

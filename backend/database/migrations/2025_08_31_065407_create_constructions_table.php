@@ -12,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // 一時的に無効化（partnersテーブルのID型不一致のため）
+        // TODO: partnersテーブルのIDをuuidに変更後に有効化
+        /*
         Schema::create('constructions', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
             $table->string('construction_number', 50)->unique()->comment('工事番号');
@@ -69,6 +72,7 @@ return new class extends Migration
             $table->index('construction_period_start');
             $table->index('construction_period_end');
         });
+        */
     }
 
     /**

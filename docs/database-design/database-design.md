@@ -36,58 +36,100 @@ deleted_at TIMESTAMP WITH TIME ZONE NULL
 - **日時**: `TIMESTAMP WITH TIME ZONE`
 - **JSON**: `JSONB` (PostgreSQL固有)
 
-## 認証・ユーザー管理
+## 人事・社員管理
 
-### users テーブル
-**概要**: システムユーザーの基本情報を管理するテーブルです。ログイン認証、権限管理、ユーザープロフィール情報を格納します。
+### employees テーブル
+**概要**: 社員の基本情報を管理するテーブルです。人事情報、連絡先、職歴等の基本データを格納します。
 ```sql
-CREATE TABLE users (
+CREATE TABLE employees (
     id BIGSERIAL PRIMARY KEY,                                    -- 主キーID
     employee_id VARCHAR(50) UNIQUE NOT NULL,                     -- 社員ID（一意）
     name VARCHAR(255) NOT NULL,                                  -- 氏名
-    name_kana VARCHAR(255) NULL,                                 -- 氏名（カナ）
-    email VARCHAR(255) UNIQUE NOT NULL,                          -- メールアドレス（一意）
-    email_verified_at TIMESTAMP WITH TIME ZONE NULL,             -- メール認証日時
-    password VARCHAR(255) NOT NULL,                              -- パスワード（ハッシュ化）
-    remember_token VARCHAR(100) NULL,                            -- ログイン記憶トークン
+    name_kana VARCHAR(255) NULL,                                 -- 氏名（フリガナ）
+    email VARCHAR(255) UNIQUE NULL,                              -- メールアドレス（一意、nullable）
     birth_date DATE NULL,                                        -- 生年月日
-    gender VARCHAR(10) NULL,                                     -- 性別
+    gender VARCHAR(10) NULL,                                     -- 性別（male/female/other）
     phone VARCHAR(20) NULL,                                      -- 固定電話番号
     mobile_phone VARCHAR(20) NULL,                               -- 携帯電話番号
     postal_code VARCHAR(10) NULL,                                -- 郵便番号
     prefecture VARCHAR(50) NULL,                                 -- 都道府県
     address TEXT NULL,                                           -- 住所
-    position VARCHAR(100) NULL,                                  -- 職位
-    position_id BIGINT NULL,                                     -- 職位ID（positionsテーブル参照）
     job_title VARCHAR(100) NULL,                                 -- 役職名
     hire_date DATE NULL,                                         -- 入社日
-    service_years INTEGER NULL,                                  -- 勤続年数
-    service_months INTEGER NULL,                                 -- 勤続月数
-    system_level VARCHAR(50) DEFAULT 'staff',                   -- システム権限レベル
-    is_active BOOLEAN DEFAULT true,                              -- アクティブ状態
+    -- 勤続年数・勤続月数は入社日から自動計算（Eloquentアクセサーで実装）
+    department_id BIGINT NOT NULL,                               -- 所属部署ID（必須）
+    position_id BIGINT NULL,                                     -- 職位ID（nullable）
+    is_active BOOLEAN DEFAULT true,                              -- 在職状況
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 更新日時
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,                    -- 削除日時（ソフトデリート）
+    
+    -- 外部キー制約
+    CONSTRAINT fk_employees_department FOREIGN KEY (department_id) REFERENCES departments(id),
+    CONSTRAINT fk_employees_position FOREIGN KEY (position_id) REFERENCES positions(id)
+);
+
+-- インデックス
+CREATE INDEX idx_employees_employee_id ON employees(employee_id);
+CREATE INDEX idx_employees_name ON employees(name);
+CREATE INDEX idx_employees_email ON employees(email);
+CREATE INDEX idx_employees_department_id ON employees(department_id);
+CREATE INDEX idx_employees_position_id ON employees(position_id);
+CREATE INDEX idx_employees_is_active ON employees(is_active);
+CREATE INDEX idx_employees_hire_date ON employees(hire_date);
+```
+
+## 認証・ユーザー管理
+
+### users テーブル
+**概要**: システム利用権限とログイン認証情報を管理するテーブルです。社員の中でシステムを利用する権限を持つユーザーの認証情報を格納します。
+```sql
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,                                    -- 主キーID
+    employee_id BIGINT UNIQUE NOT NULL,                          -- 社員ID（employeesテーブルへの外部キー）
+    login_id VARCHAR(255) NULL,                                  -- ログインID
+    email VARCHAR(255) UNIQUE NULL,                              -- メールアドレス（一意、nullable）
+    email_verified_at TIMESTAMP WITH TIME ZONE NULL,             -- メール認証日時
+    password VARCHAR(255) NULL,                                  -- パスワード（ハッシュ化、nullable）
+    remember_token VARCHAR(100) NULL,                            -- ログイン記憶トークン
+    system_level VARCHAR(50) NULL,                               -- システム権限レベル
     is_admin BOOLEAN DEFAULT false,                              -- 管理者フラグ
     last_login_at TIMESTAMP WITH TIME ZONE NULL,                 -- 最終ログイン日時
     password_changed_at TIMESTAMP WITH TIME ZONE NULL,           -- パスワード変更日時
     password_expires_at TIMESTAMP WITH TIME ZONE NULL,           -- パスワード有効期限
-    failed_login_attempts INTEGER DEFAULT 0,                    -- ログイン失敗回数
+    failed_login_attempts INTEGER DEFAULT 0,                     -- ログイン失敗回数
     locked_at TIMESTAMP WITH TIME ZONE NULL,                     -- アカウントロック日時
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 更新日時
-    deleted_at TIMESTAMP WITH TIME ZONE NULL                     -- 削除日時（ソフトデリート）
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,                    -- 削除日時（ソフトデリート）
+    
+    -- 外部キー制約
+    CONSTRAINT fk_users_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
 
 -- インデックス
 CREATE INDEX idx_users_employee_id ON users(employee_id);
+CREATE INDEX idx_users_login_id ON users(login_id);
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_is_active ON users(is_active);
 CREATE INDEX idx_users_is_admin ON users(is_admin);
-CREATE INDEX idx_users_birth_date ON users(birth_date);
-CREATE INDEX idx_users_hire_date ON users(hire_date);
 CREATE INDEX idx_users_system_level ON users(system_level);
-CREATE INDEX idx_users_postal_code ON users(postal_code);
-CREATE INDEX idx_users_prefecture ON users(prefecture);
-CREATE INDEX idx_users_position_id ON users(position_id);
 ```
+
+### テーブル間のリレーションシップ
+
+#### employees ⇔ users (1対0または1)
+- **employees.id** → **users.employee_id** (外部キー)
+- 1人の社員は、0個または1個のシステム利用権限を持つ
+- 社員登録時はemployeesテーブルのみ作成
+- システム利用権限付与時にusersテーブルにレコード作成
+
+#### employees ⇔ departments (多対1)
+- **employees.department_id** → **departments.id** (外部キー、必須)
+- 1人の社員は必ず1つの部署に所属
+
+#### employees ⇔ positions (多対1)
+- **employees.position_id** → **positions.id** (外部キー、nullable)
+- 1人の社員は0個または1個の職位を持つ
 
 ## ユーザー管理関連テーブル
 

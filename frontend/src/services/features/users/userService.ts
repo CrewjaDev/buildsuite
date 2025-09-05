@@ -71,7 +71,7 @@ export const userService = {
   // 新規ユーザー作成
   async createUser(userData: Partial<UserDetail>): Promise<UserDetail> {
     const response = await api.post('/users', userData)
-    return response.data
+    return response.data.data
   },
 
   // ユーザー更新

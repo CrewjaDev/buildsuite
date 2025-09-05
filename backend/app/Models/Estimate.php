@@ -151,6 +151,14 @@ class Estimate extends Model
     }
 
     /**
+     * 作成者（Employee）とのリレーション
+     */
+    public function creatorEmployee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'created_by', 'id');
+    }
+
+    /**
      * 更新者とのリレーション
      */
     public function updater(): BelongsTo

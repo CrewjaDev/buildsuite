@@ -91,68 +91,6 @@ export const StickyHeaderTable = <T,>({ data, columns, ...props }) => {
 
 ---
 
-## スクロールバーによるレイアウトシフト対策
-
-### 問題
-- ドロップダウン開閉時に縦スクロールバーが出現
-- ページ全体が左右にブレる（レイアウトシフト）
-
-### 解決方法: CSSスクロールバー制御
-
-#### **1. スクロールバー非表示**
-```css
-.scrollbar-hidden {
-  -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  scrollbar-width: none;     /* Firefox */
-}
-.scrollbar-hidden::-webkit-scrollbar {
-  display: none;             /* Safari and Chrome */
-}
-```
-
-#### **2. ページ全体のスクロールバー領域確保**
-```css
-html {
-  overflow-y: scroll; /* 常にスクロールバー領域を確保 */
-}
-```
-
-#### **3. Radix UI Popover最適化**
-```css
-[data-radix-popper-content-wrapper] {
-  will-change: transform; /* アニメーション最適化 */
-}
-```
-
----
-
-## 動的スクロールバー幅計算とCSS変数設定
-
-### JavaScriptによるスクロールバー幅検出
-```typescript
-// layout.tsx での実装
-<script dangerouslySetInnerHTML={{
-  __html: `
-    (function() {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.documentElement.style.setProperty('--scrollbar-width', scrollbarWidth + 'px');
-    })();
-  `
-}} />
-```
-
-### CSS変数を使用した動的調整
-```css
-body[data-scroll-locked] {
-  padding-right: var(--scrollbar-width);
-  overflow: hidden;
-}
-```
-
-### 利点
-- 環境ごとのスクロールバー幅に自動対応
-- OSやブラウザ設定による差異を吸収
-- より精密なレイアウト制御
 
 ---
 
@@ -355,3 +293,126 @@ minWidth: '60px'
 - ✅ ブラウザリサイズに連動してスムーズに拡縮
 - ✅ 列幅の比率を維持
 - ✅ 長いテキストは省略表示（...）
+
+---
+
+## パスワードマネージャー誤動作防止実装
+
+### 問題の概要
+- **症状**: 1Password、LastPassなどのパスワードマネージャーが、パスワードフィールド以外のテキスト入力フィールドにも反応
+- **具体的な問題**:
+  - 住所、社員ID、名前などのフィールドで「1Passwordをロック解除」プロンプトが表示
+  - 南京錠アイコンや青い円のアイコンが意図しないフィールドに表示
+  - ユーザーがパスワードフィールド以外でパスワードマネージャーの機能を誤って起動
+
+### 解決方法
+
+#### **1. 基本属性設定**
+```typescript
+<Input
+  id="address"
+  {...register('address')}
+  placeholder="住所を入力"
+  autoComplete="off"           // ブラウザの自動補完を無効化
+  data-1p-ignore="true"       // 1Passwordがこのフィールドを無視
+  data-lpignore="true"        // LastPassがこのフィールドを無視
+/>
+```
+
+#### **2. 適用対象フィールド**
+```typescript
+// ✅ パスワードマネージャーを無効化すべきフィールド
+const fieldsToIgnore = [
+  'login_id',      // ログインID
+  'employee_id',   // 社員ID
+  'name',          // 社員名（漢字）
+  'name_kana',     // 社員名（カナ）
+  'email',         // メールアドレス
+  'phone',         // 電話番号
+  'address',       // 住所
+  'job_title',     // 役職
+  // その他の個人情報フィールド
+]
+
+// ❌ パスワードマネージャーを有効にすべきフィールド
+const passwordFields = [
+  'password',              // パスワード
+  'password_confirmation', // パスワード確認
+  'current_password',      // 現在のパスワード
+  'new_password',          // 新しいパスワード
+]
+```
+
+#### **3. 実装パターン**
+```typescript
+// パスワードフィールド以外のすべてのテキスト入力に適用
+const getInputProps = (fieldName: string, isPasswordField = false) => {
+  if (isPasswordField) {
+    return {
+      autoComplete: 'current-password', // または 'new-password'
+      // パスワードマネージャー関連の属性は設定しない
+    }
+  }
+  
+  return {
+    autoComplete: 'off',
+    'data-1p-ignore': 'true',
+    'data-lpignore': 'true',
+  }
+}
+
+// 使用例
+<Input
+  id="address"
+  {...register('address')}
+  {...getInputProps('address', false)}
+  placeholder="住所を入力"
+/>
+```
+
+### 技術的ポイント
+
+#### **属性の効果**
+- **`autoComplete="off"`**: ブラウザ標準の自動補完を無効化
+- **`data-1p-ignore="true"`**: 1Password拡張機能がフィールドを無視
+- **`data-lpignore="true"`**: LastPass拡張機能がフィールドを無視
+
+#### **ブラウザ対応**
+- **Chrome/Edge**: 1Password、LastPass、Bitwarden等に対応
+- **Firefox**: 1Password、LastPass等に対応
+- **Safari**: 1Password等に対応
+
+### 実装ガイドライン
+
+#### **新規実装時**
+1. **パスワードフィールド**: `autoComplete="current-password"` または `autoComplete="new-password"`
+2. **その他のテキストフィールド**: `autoComplete="off"` + `data-1p-ignore="true"` + `data-lpignore="true"`
+
+#### **既存コンポーネント修正時**
+1. パスワードフィールド以外のすべての`Input`コンポーネントに属性を追加
+2. フォーム作成・編集・詳細表示の全画面で統一
+3. ユーザー管理、取引先管理など、個人情報を含む画面を優先
+
+### トラブルシューティング
+
+#### **問題が解決しない場合**
+```typescript
+// より強力な無効化
+<Input
+  autoComplete="new-password"  // パスワードフィールドと誤認させる
+  data-1p-ignore="true"
+  data-lpignore="true"
+  data-form-type="other"       // フォームタイプを明示
+/>
+```
+
+#### **デバッグ方法**
+1. ブラウザの開発者ツールで要素を確認
+2. 1Password/LastPassの設定で特定サイトの動作を確認
+3. 他のブラウザで動作確認
+
+### 品質基準
+- ✅ パスワードフィールド以外でパスワードマネージャーが反応しない
+- ✅ ユーザーが意図しないパスワード関連のUIが表示されない
+- ✅ パスワードフィールドは通常通り動作する
+- ✅ セキュリティとUXのバランスが保たれている

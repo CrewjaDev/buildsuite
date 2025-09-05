@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Position extends Model
@@ -53,6 +54,16 @@ class Position extends Model
     }
 
     /**
+     * 職位に属する権限とのリレーション
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'position_permissions')
+            ->withPivot(['granted_at', 'granted_by'])
+            ->withTimestamps();
+    }
+
+    /**
      * アクティブな職位のみを取得するスコープ
      */
     public function scopeActive($query)
@@ -90,5 +101,21 @@ class Position extends Model
     public function hasLevelOrLower(int $level): bool
     {
         return $this->level <= $level;
+    }
+
+    /**
+     * アクティブな権限のみを取得
+     */
+    public function activePermissions()
+    {
+        return $this->permissions()->where('is_active', true);
+    }
+
+    /**
+     * 職位が指定された権限を持っているかチェック
+     */
+    public function hasPermission(string $permission): bool
+    {
+        return $this->activePermissions()->where('name', $permission)->exists();
     }
 }

@@ -21,6 +21,12 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             PermissionSeeder::class,
             UserSeeder::class,
+            // 見積関連のマスターデータ
+            PartnerSeeder::class,
+            ProjectTypesSeeder::class,
+            ConstructionClassificationsSeeder::class,
+            // 見積テストデータ
+            EstimateSeeder::class,
         ]);
     }
 }
