@@ -43,7 +43,8 @@ class AuthController extends Controller
             $user = User::where('login_id', $credentials['login_id'])->first();
 
             if (!$user) {
-                $this->logLoginAttempt($request, 'failed', 'ユーザーが見つかりません');
+                // 存在しないユーザーIDの場合はログイン履歴を記録しない
+                // セキュリティ上の理由で、ユーザーIDの存在有無を外部に知らせない
                 return response()->json([
                     'success' => false,
                     'message' => 'ログインIDまたはパスワードが正しくありません',
@@ -115,10 +116,12 @@ class AuthController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Log::error('Login error: ' . $e->getMessage());
+            \Log::error('Login error trace: ' . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => 'ログイン処理中にエラーが発生しました',
-                'error' => config('app.debug') ? $e->getMessage() : null,
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -352,14 +355,36 @@ class AuthController extends Controller
         User $user = null, 
         string $sessionId = null
     ): void {
+        // ユーザーが見つからない場合はログイン履歴を記録しない
+        if (!$user) {
+            return;
+        }
+        
         UserLoginHistory::create([
-            'user_id' => $user ? $user->id : null,
+            'user_id' => $user->id,
             'login_at' => now(),
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'session_id' => $sessionId,
             'status' => $status,
             'failure_reason' => $failureReason,
+        ]);
+    }
+
+    /**
+     * ユーザーが見つからない場合のログイン失敗を記録
+     */
+    private function logFailedLoginAttempt(Request $request, string $failureReason): void
+    {
+        // ユーザーが見つからない場合のログイン履歴を記録するための専用テーブルまたは
+        // 既存のテーブルに特別な値を設定する
+        // 今回は、ログファイルに記録する方法を採用
+        \Log::warning('Failed login attempt', [
+            'login_id' => $request->input('login_id'),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'failure_reason' => $failureReason,
+            'timestamp' => now(),
         ]);
     }
 

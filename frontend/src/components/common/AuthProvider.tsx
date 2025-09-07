@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAppDispatch, useAppSelector } from '@/lib/hooks'
 import { authService } from '@/lib/authService'
 import { setCredentials, logout } from '@/store/authSlice'
@@ -16,8 +16,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const pathname = usePathname()
   const { user, isAuthenticated } = useAppSelector((state) => state.auth)
   const [isInitialized, setIsInitialized] = useState(false)
+  const authStateRef = useRef({ user, isAuthenticated })
+  
+  // 最新の認証状態をrefに保存
+  authStateRef.current = { user, isAuthenticated }
 
   useEffect(() => {
+    // 認証ページでは何もしない（リダイレクトも発生しない）
+    if (pathname?.startsWith('/login') || pathname?.startsWith('/register')) {
+      setIsInitialized(true)
+      return
+    }
+    
     const initializeAuth = async () => {
       try {
         const token = localStorage.getItem('token')
@@ -32,7 +42,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         }
 
         // 既にユーザー情報がある場合は初期化完了
-        if (user && isAuthenticated) {
+        if (authStateRef.current.user && authStateRef.current.isAuthenticated) {
           setIsInitialized(true)
           return
         }
@@ -62,7 +72,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }
 
     initializeAuth()
-  }, [dispatch, router, pathname, user, isAuthenticated])
+  }, [dispatch, router, pathname])
+
+  // 認証ページでは初期化チェックをスキップ
+  if (pathname?.startsWith('/login') || pathname?.startsWith('/register')) {
+    return <>{children}</>
+  }
 
   // 初期化中はローディング表示
   if (!isInitialized) {

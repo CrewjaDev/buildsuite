@@ -1,56 +1,90 @@
 // 見積明細の型定義
 
 export interface EstimateItem {
-  id: number
-  estimate_id: number
-  parent_id?: number
-  item_code: string
-  item_name: string
-  item_description?: string
-  unit: string
+  id: string
+  estimate_id: string
+  breakdown_id?: string
+  display_order: number
+  name: string
+  description?: string
   quantity: number
+  unit: string
   unit_price: number
   amount: number
-  sort_order: number
-  level: number
-  is_group: boolean
+  estimated_cost: number
+  supplier_id?: number
+  order_request_content?: string
+  construction_method?: string
+  construction_classification_id?: number
+  construction_classification_name?: string
+  remarks?: string
+  is_active: boolean
   created_at: string
   updated_at: string
-  children?: EstimateItem[]
+  deleted_at?: string
+  
+  // Relations
+  estimate?: {
+    id: string
+    estimate_number: string
+    project_name: string
+  }
+  breakdown?: {
+    id: string
+    name: string
+    breakdown_type: string
+  }
+  supplier?: {
+    id: number
+    name: string
+  }
+  construction_classification?: {
+    id: number
+    name: string
+  }
 }
 
 export interface CreateEstimateItemRequest {
-  estimate_id: number
-  parent_id?: number
-  item_code: string
-  item_name: string
-  item_description?: string
-  unit: string
+  estimate_id: string
+  breakdown_id?: string
+  display_order?: number
+  name: string
+  description?: string
   quantity: number
+  unit: string
   unit_price: number
-  sort_order?: number
-  level?: number
-  is_group?: boolean
+  estimated_cost?: number
+  supplier_id?: number
+  order_request_content?: string
+  construction_method?: string
+  construction_classification_id?: number
+  construction_classification_name?: string
+  remarks?: string
+  is_active?: boolean
 }
 
 export interface UpdateEstimateItemRequest {
-  parent_id?: number
-  item_code?: string
-  item_name?: string
-  item_description?: string
-  unit?: string
+  breakdown_id?: string
+  display_order?: number
+  name?: string
+  description?: string
   quantity?: number
+  unit?: string
   unit_price?: number
-  sort_order?: number
-  level?: number
-  is_group?: boolean
+  estimated_cost?: number
+  supplier_id?: number
+  order_request_content?: string
+  construction_method?: string
+  construction_classification_id?: number
+  construction_classification_name?: string
+  remarks?: string
+  is_active?: boolean
 }
 
 export interface EstimateItemSearchParams {
-  estimate_id: number
-  parent_id?: number
-  level?: number
-  is_group?: boolean
+  estimate_id: string
+  breakdown_id?: string
+  is_active?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }
@@ -68,27 +102,49 @@ export interface EstimateItemsResponse {
 }
 
 export interface EstimateItemTree {
-  id: number
-  estimate_id: number
-  parent_id?: number
-  item_code: string
-  item_name: string
-  item_description?: string
-  unit: string
+  id: string
+  estimate_id: string
+  breakdown_id?: string
+  display_order: number
+  name: string
+  description?: string
   quantity: number
+  unit: string
   unit_price: number
   amount: number
-  sort_order: number
-  level: number
-  is_group: boolean
-  children: EstimateItemTree[]
+  estimated_cost: number
+  supplier_id?: number
+  order_request_content?: string
+  construction_method?: string
+  construction_classification_id?: number
+  construction_classification_name?: string
+  remarks?: string
+  is_active: boolean
   created_at: string
   updated_at: string
+  deleted_at?: string
+  item_type?: string
+  children?: EstimateItemTree[]
+  
+  // Relations
+  breakdown?: {
+    id: string
+    name: string
+    breakdown_type: string
+  }
+  supplier?: {
+    id: number
+    name: string
+  }
+  construction_classification?: {
+    id: number
+    name: string
+  }
 }
 
 export interface EstimateItemStats {
   total_items: number
   total_amount: number
+  total_estimated_cost: number
   average_unit_price: number
-  max_level: number
 }

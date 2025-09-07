@@ -1,0 +1,55 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('estimate_breakdowns', function (Blueprint $table) {
+            $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
+            $table->foreignUuid('estimate_id')->constrained('estimates')->onDelete('cascade')->comment('見積ID');
+            $table->uuid('parent_id')->nullable()->comment('親内訳ID（階層構造用）');
+            $table->string('breakdown_type', 20)->comment('内訳種別（large/medium/small）');
+            $table->string('name', 500)->comment('内訳名');
+            $table->integer('display_order')->default(0)->comment('表示順序');
+            $table->text('description')->nullable()->comment('詳細説明');
+            $table->decimal('quantity', 12, 2)->default(1)->comment('数量');
+            $table->string('unit', 50)->default('個')->comment('単位');
+            $table->bigInteger('unit_price')->default(0)->comment('単価（顧客提示用）');
+            $table->bigInteger('direct_amount')->default(0)->comment('直接入力金額（一式等のケース用）');
+            $table->bigInteger('calculated_amount')->default(0)->comment('最終表示金額（システム計算）');
+            $table->bigInteger('estimated_cost')->default(0)->comment('予想原価（社内用）');
+            $table->foreignId('supplier_id')->nullable()->constrained('partners')->comment('発注先（取引先ID）');
+            $table->string('construction_method', 255)->nullable()->comment('工法');
+            $table->foreignId('construction_classification_id')->nullable()->constrained('construction_classifications')->comment('工事分類ID');
+            $table->text('remarks')->nullable()->comment('備考');
+            $table->text('order_request_content')->nullable()->comment('発注依頼内容');
+            $table->boolean('is_active')->default(true)->comment('有効フラグ');
+            $table->timestamps();
+            $table->softDeletes();
+            
+            // インデックス
+            $table->index('estimate_id');
+            $table->index('parent_id');
+            $table->index('breakdown_type');
+            $table->index('display_order');
+            $table->index('is_active');
+            $table->index('construction_classification_id');
+            $table->index('supplier_id');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('estimate_breakdowns');
+    }
+};

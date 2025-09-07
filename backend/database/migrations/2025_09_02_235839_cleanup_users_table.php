@@ -8,6 +8,20 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
+     * 制約が存在するかチェック
+     */
+    private function constraintExists($table, $constraint)
+    {
+        $constraints = DB::select("
+            SELECT constraint_name 
+            FROM information_schema.table_constraints 
+            WHERE table_name = ? AND constraint_name = ?
+        ", [$table, $constraint]);
+        
+        return count($constraints) > 0;
+    }
+
+    /**
      * Run the migrations.
      */
     public function up(): void
@@ -38,10 +52,14 @@ return new class extends Migration
         DB::statement('ALTER TABLE users ALTER COLUMN employee_id TYPE bigint USING employee_id::bigint');
         
         Schema::table('users', function (Blueprint $table) {
-            // ユニーク制約を追加
-            $table->unique('employee_id');
-            // 外部キー制約を追加
-            $table->foreign('employee_id')->references('id')->on('employees')->onDelete('cascade');
+            // ユニーク制約を追加（存在しない場合のみ）
+            if (!$this->constraintExists('users', 'users_employee_id_unique')) {
+                $table->unique('employee_id');
+            }
+            // 外部キー制約を追加（存在しない場合のみ）
+            if (!$this->constraintExists('users', 'users_employee_id_foreign')) {
+                $table->foreign('employee_id')->references('id')->on('employees')->onDelete('cascade');
+            }
         });
     }
 

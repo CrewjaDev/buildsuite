@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { usePartners } from '@/hooks/features/estimates/usePartners'
-import { useProjectTypes } from '@/hooks/features/estimates/useProjectTypes'
+import { useProjectType } from '@/hooks/features/estimates/useProjectTypes'
 import { useConstructionClassifications } from '@/hooks/features/estimates/useConstructionClassifications'
 import { useToast } from '@/components/ui/toast'
 import { Save } from 'lucide-react'
@@ -39,7 +39,7 @@ export function EstimateCreateForm({ onSuccess, onCancel }: EstimateCreateFormPr
 
   // マスターデータ取得
   const { data: partners } = usePartners()
-  const { data: projectTypes } = useProjectTypes()
+  const { data: projectTypes } = useProjectType(0)
   const { data: constructionClassifications } = useConstructionClassifications()
 
   // フォーム更新ハンドラー
@@ -62,7 +62,7 @@ export function EstimateCreateForm({ onSuccess, onCancel }: EstimateCreateFormPr
       })
       
       if (onSuccess) {
-        onSuccess(newEstimate.id)
+        onSuccess(Number(newEstimate.id))
       } else {
         router.push(`/estimates/${newEstimate.id}`)
       }
@@ -148,9 +148,9 @@ export function EstimateCreateForm({ onSuccess, onCancel }: EstimateCreateFormPr
               <SelectValue placeholder="工事種別を選択してください" />
             </SelectTrigger>
             <SelectContent>
-              {projectTypes?.data?.map((projectType) => (
-                <SelectItem key={projectType.id} value={projectType.id.toString()}>
-                  {projectType.name}
+              {[projectTypes].filter(Boolean).map((projectType) => (
+                <SelectItem key={projectType!.id} value={projectType!.id.toString()}>
+                  {projectType!.name}
                 </SelectItem>
               ))}
             </SelectContent>

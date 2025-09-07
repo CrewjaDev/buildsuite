@@ -14,14 +14,13 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // システム管理者ユーザーを作成
-        $adminUserId = DB::table('users')->insertGetId([
-            'login_id' => 'admin',
+        // システム管理者の社員情報を作成
+        $adminEmployeeId = DB::table('employees')->insertGetId([
             'employee_id' => 'ADMIN001',
             'name' => 'システム管理者',
             'name_kana' => 'システムカンリシャ',
             'email' => 'admin@buildsuite.local',
-            'password' => Hash::make('password123'),
+            'birth_date' => '1980-01-01',
             'gender' => 'male',
             'phone' => '03-1234-5678',
             'mobile_phone' => '090-1234-5678',
@@ -29,10 +28,19 @@ class UserSeeder extends Seeder
             'prefecture' => '東京都',
             'address' => '千代田区千代田1-1-1',
             'position_id' => 5, // 取締役
+            'department_id' => 1, // 営業部
             'job_title' => 'システム管理者',
             'hire_date' => '2020-01-01',
-            'service_years' => 5,
-            'service_months' => 0,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        // システム管理者ユーザーを作成
+        $adminUserId = DB::table('users')->insertGetId([
+            'login_id' => 'admin',
+            'employee_id' => $adminEmployeeId,
+            'password' => Hash::make('password123'),
             'system_level' => 'system_admin',
             'is_active' => true,
             'is_admin' => true,
@@ -68,12 +76,11 @@ class UserSeeder extends Seeder
         // テストユーザーを作成
         $testUsers = [
             [
-                'login_id' => 'yamada',
                 'employee_id' => 'EMP001',
                 'name' => '山田太郎',
                 'name_kana' => 'ヤマダタロウ',
                 'email' => 'yamada@buildsuite.local',
-                'password' => Hash::make('password123'),
+                'birth_date' => '1985-03-15',
                 'gender' => 'male',
                 'phone' => '03-2345-6789',
                 'mobile_phone' => '090-2345-6789',
@@ -83,22 +90,19 @@ class UserSeeder extends Seeder
                 'position_id' => 2, // 担当
                 'job_title' => '営業主任',
                 'hire_date' => '2020-04-01',
-                'service_years' => 3,
-                'service_months' => 6,
-                'system_level' => 'supervisor',
                 'is_active' => true,
+                'login_id' => 'yamada',
+                'password' => Hash::make('password123'),
+                'system_level' => 'supervisor',
                 'is_admin' => false,
-                'email_verified_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now()
+                'email_verified_at' => now()
             ],
             [
-                'login_id' => 'sato',
                 'employee_id' => 'EMP002',
                 'name' => '佐藤花子',
                 'name_kana' => 'サトウハナコ',
                 'email' => 'sato@buildsuite.local',
-                'password' => Hash::make('password123'),
+                'birth_date' => '1990-07-22',
                 'gender' => 'female',
                 'phone' => '03-3456-7890',
                 'mobile_phone' => '090-3456-7890',
@@ -108,19 +112,50 @@ class UserSeeder extends Seeder
                 'position_id' => 1, // 社員
                 'job_title' => '営業担当',
                 'hire_date' => '2021-04-01',
-                'service_years' => 2,
-                'service_months' => 6,
-                'system_level' => 'staff',
                 'is_active' => true,
+                'login_id' => 'sato',
+                'password' => Hash::make('password123'),
+                'system_level' => 'staff',
                 'is_admin' => false,
-                'email_verified_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now()
+                'email_verified_at' => now()
             ]
         ];
 
         foreach ($testUsers as $userData) {
-            $userId = DB::table('users')->insertGetId($userData);
+            // 社員情報を作成
+            $employeeId = DB::table('employees')->insertGetId([
+                'employee_id' => $userData['employee_id'],
+                'name' => $userData['name'],
+                'name_kana' => $userData['name_kana'],
+                'email' => $userData['email'],
+                'birth_date' => $userData['birth_date'],
+                'gender' => $userData['gender'],
+                'phone' => $userData['phone'],
+                'mobile_phone' => $userData['mobile_phone'],
+                'postal_code' => $userData['postal_code'],
+                'prefecture' => $userData['prefecture'],
+                'address' => $userData['address'],
+                'position_id' => $userData['position_id'],
+                'department_id' => 1, // 営業部
+                'job_title' => $userData['job_title'],
+                'hire_date' => $userData['hire_date'],
+                'is_active' => $userData['is_active'],
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            // ユーザー情報を作成
+            $userId = DB::table('users')->insertGetId([
+                'login_id' => $userData['login_id'],
+                'employee_id' => $employeeId,
+                'password' => $userData['password'],
+                'system_level' => $userData['system_level'],
+                'is_active' => true,
+                'is_admin' => $userData['is_admin'],
+                'email_verified_at' => $userData['email_verified_at'],
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
             
             // 役割を割り当て
             $roleName = $userData['system_level'];
@@ -148,17 +183,9 @@ class UserSeeder extends Seeder
             ]);
         }
 
-        // 100件のランダムユーザーを作成
-        $roles = ['admin', 'manager', 'user'];
-        $systemLevels = ['executive', 'accounting_manager', 'office_manager', 'construction_manager', 'supervisor', 'estimator', 'staff'];
-        $positionIds = [1, 2, 3, 4, 5]; // 社員, 担当, 課長, 部長, 取締役
-        $departmentIds = [1, 2, 3, 4, 5, 6, 7, 8]; // 営業部, 経理部, 工事部, 調査設計室, 土木事業部, 建設事業部, 東京支店, 福岡支店
-        $genders = ['male', 'female', 'other'];
-        $jobTitles = ['営業部長', '工事部長', '経理部長', '営業課長', '工事課長', '経理課長', '営業主任', '工事主任', '営業担当', '工事担当', '経理担当', '見積担当'];
-        $prefectures = ['東京都', '神奈川県', '埼玉県', '千葉県', '茨城県', '栃木県', '群馬県'];
-        $lastNames = ['田中', '佐藤', '鈴木', '高橋', '渡辺', '伊藤', '山本', '中村', '小林', '加藤', '吉田', '山田', '佐々木', '山口', '松本', '井上', '木村', '林', '斎藤', '清水'];
-        $firstNames = ['太郎', '次郎', '三郎', '花子', '美子', '恵子', '健一', '正一', '和子', '雅子', '博', '誠', '明', '清', '正', '義', '勇', '智', '恵', '美'];
-
+        // ランダムユーザー作成は一旦無効化（新しいテーブル構造に対応するため）
+        // TODO: 新しいテーブル構造に対応したランダムユーザー作成を実装
+        /*
         for ($i = 1; $i <= 100; $i++) {
             $role = $roles[array_rand($roles)];
             $systemLevel = $systemLevels[array_rand($systemLevels)];
@@ -233,5 +260,6 @@ class UserSeeder extends Seeder
                 'updated_at' => now()
             ]);
         }
+        */
     }
 }

@@ -110,7 +110,7 @@ export default function EstimateEditPage() {
         {/* 編集フォーム */}
         <EstimateDetailEdit
           estimate={estimate}
-          onSave={handleSave}
+          onSuccess={handleSave}
           onCancel={handleCancel}
         />
       </div>

@@ -28,6 +28,7 @@ class User extends Authenticatable
         'login_id',         // ログインID
         'password',         // パスワード
         'system_level',     // システム権限レベル
+        'is_active',        // アクティブ状態
         'is_admin',         // 管理者権限
         'last_login_at',    // 最終ログイン時刻
         'password_changed_at',     // パスワード変更日時

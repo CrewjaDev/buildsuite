@@ -4,9 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class EstimateItem extends Model
+class EstimateBreakdown extends Model
 {
     use SoftDeletes;
 
@@ -18,31 +19,22 @@ class EstimateItem extends Model
 
     protected $fillable = [
         'estimate_id',
-        'breakdown_id',
+        'parent_id',
+        'breakdown_type',
         'name',
         'description',
-        'quantity',
-        'unit',
-        'unit_price',
-        'amount',
-        'estimated_cost',
-        'supplier_id',
-        'construction_method',
-        'construction_classification_id',
-        'remarks',
-        'order_request_content',
-        'is_active',
         'display_order',
+        'direct_amount',
+        'calculated_amount',
+        'is_active',
     ];
 
     protected $casts = [
         'id' => 'string',
         'estimate_id' => 'string',
-        'breakdown_id' => 'string',
-        'quantity' => 'decimal:2',
-        'unit_price' => 'integer',
-        'amount' => 'integer',
-        'estimated_cost' => 'integer',
+        'parent_id' => 'string',
+        'direct_amount' => 'integer',
+        'calculated_amount' => 'integer',
         'display_order' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -53,8 +45,18 @@ class EstimateItem extends Model
         return $this->belongsTo(Estimate::class);
     }
 
-    public function breakdown(): BelongsTo
+    public function parent(): BelongsTo
     {
-        return $this->belongsTo(EstimateBreakdown::class, 'breakdown_id');
+        return $this->belongsTo(EstimateBreakdown::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(EstimateBreakdown::class, 'parent_id');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(EstimateItem::class, 'breakdown_id');
     }
 }

@@ -13,6 +13,9 @@ class SystemLevelSeeder extends Seeder
      */
     public function run(): void
     {
+        // 既存のシステムレベルをクリア
+        DB::table('system_levels')->truncate();
+        
         $levels = [
             [
                 'code' => 'system_admin',

@@ -389,7 +389,7 @@ interface GroupedItems {
 ```sql
 -- 見積テーブル
 CREATE TABLE estimates (
-    id BIGSERIAL PRIMARY KEY,                                    -- 見積ID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),               -- 見積ID（UUID型に変更）
     estimate_number VARCHAR(50) UNIQUE NOT NULL,                 -- 見積番号
     partner_id BIGINT REFERENCES partners(id),                   -- 取引先ID
     project_type_id BIGINT REFERENCES project_types(id),         -- 工事種別ID
@@ -435,17 +435,54 @@ CREATE INDEX idx_estimates_status ON estimates(status);
 CREATE INDEX idx_estimates_created_by ON estimates(created_by);
 ```
 
-#### 4.2 見積明細テーブル（階層構造対応）
+#### 4.2 見積内訳構造テーブル
 
 ```sql
--- 見積明細テーブル（階層構造対応）
+-- 見積内訳構造テーブル
+CREATE TABLE estimate_breakdowns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),              -- 内訳ID
+    estimate_id UUID REFERENCES estimates(id) ON DELETE CASCADE, -- 見積ID
+    parent_id UUID REFERENCES estimate_breakdowns(id),          -- 親内訳ID（階層構造用）
+    breakdown_type VARCHAR(20) NOT NULL,                        -- 内訳種別（large/medium/small）
+    name VARCHAR(500) NOT NULL,                                 -- 内訳名
+    display_order INTEGER NOT NULL DEFAULT 0,                   -- 表示順序
+    description TEXT,                                           -- 詳細説明
+    quantity DECIMAL(12,2) DEFAULT 1,                           -- 数量
+    unit VARCHAR(50) DEFAULT '個',                              -- 単位
+    unit_price BIGINT DEFAULT 0,                                -- 単価（顧客提示用）
+    direct_amount BIGINT DEFAULT 0,                             -- 直接入力金額（一式等のケース用）
+    calculated_amount BIGINT DEFAULT 0,                         -- 最終表示金額（システム計算）
+    estimated_cost BIGINT DEFAULT 0,                            -- 予想原価（社内用）
+    supplier_id BIGINT REFERENCES partners(id),                 -- 発注先（取引先ID）
+    construction_method VARCHAR(255),                           -- 工法
+    construction_classification_id UUID REFERENCES construction_classifications(id), -- 工事分類ID
+    remarks TEXT,                                               -- 備考
+    order_request_content TEXT,                                 -- 発注依頼内容
+    is_active BOOLEAN DEFAULT true,                             -- 有効フラグ
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 更新日時
+    deleted_at TIMESTAMP WITH TIME ZONE NULL                     -- 削除日時
+);
+
+-- 見積内訳構造のインデックス
+CREATE INDEX idx_estimate_breakdowns_estimate_id ON estimate_breakdowns(estimate_id);
+CREATE INDEX idx_estimate_breakdowns_parent_id ON estimate_breakdowns(parent_id);
+CREATE INDEX idx_estimate_breakdowns_type ON estimate_breakdowns(breakdown_type);
+CREATE INDEX idx_estimate_breakdowns_order ON estimate_breakdowns(display_order);
+CREATE INDEX idx_estimate_breakdowns_active ON estimate_breakdowns(is_active);
+CREATE INDEX idx_estimate_breakdowns_classification ON estimate_breakdowns(construction_classification_id);
+CREATE INDEX idx_estimate_breakdowns_supplier_id ON estimate_breakdowns(supplier_id);
+```
+
+#### 4.3 見積明細アイテムテーブル
+
+```sql
+-- 見積明細アイテムテーブル
 CREATE TABLE estimate_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),              -- 明細ID
     estimate_id UUID REFERENCES estimates(id) ON DELETE CASCADE, -- 見積ID
-    parent_id UUID REFERENCES estimate_items(id),               -- 親明細ID（階層構造用）
-    item_type VARCHAR(20) NOT NULL,                             -- 明細種別（large/medium/small/detail）
-    display_order INTEGER NOT NULL DEFAULT 0,                   -- 表示順序
-    name VARCHAR(500) NOT NULL,                                 -- 品名・仕様・内訳名
+    breakdown_id UUID REFERENCES estimate_breakdowns(id),       -- 小内訳への紐付け
+    name VARCHAR(500) NOT NULL,                                 -- 品名・仕様
     description TEXT,                                           -- 詳細説明
     quantity DECIMAL(12,2) DEFAULT 1,                           -- 数量
     unit VARCHAR(50) DEFAULT '個',                              -- 単位
@@ -456,24 +493,24 @@ CREATE TABLE estimate_items (
     construction_method VARCHAR(255),                           -- 工法
     construction_classification_id UUID REFERENCES construction_classifications(id), -- 工事分類ID
     remarks TEXT,                                               -- 備考
-    is_expanded BOOLEAN DEFAULT true,                           -- 展開状態
+    order_request_content TEXT,                                 -- 発注依頼内容
     is_active BOOLEAN DEFAULT true,                             -- 有効フラグ
+    display_order INTEGER NOT NULL DEFAULT 0,                   -- 表示順序
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 作成日時
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 更新日時
     deleted_at TIMESTAMP WITH TIME ZONE NULL                     -- 削除日時
 );
 
--- 見積明細のインデックス
+-- 見積明細アイテムのインデックス
 CREATE INDEX idx_estimate_items_estimate_id ON estimate_items(estimate_id);
-CREATE INDEX idx_estimate_items_parent_id ON estimate_items(parent_id);
-CREATE INDEX idx_estimate_items_type ON estimate_items(item_type);
+CREATE INDEX idx_estimate_items_breakdown_id ON estimate_items(breakdown_id);
 CREATE INDEX idx_estimate_items_order ON estimate_items(display_order);
 CREATE INDEX idx_estimate_items_active ON estimate_items(is_active);
 CREATE INDEX idx_estimate_items_classification ON estimate_items(construction_classification_id);
 CREATE INDEX idx_estimate_items_supplier_id ON estimate_items(supplier_id);
 ```
 
-#### 4.3 原価計画テーブル
+#### 4.4 原価計画テーブル
 
 ```sql
 -- 原価計画テーブル
@@ -809,3 +846,26 @@ const itemsSlice = createSlice({
 - 大量の明細がある場合の表示最適化
 - 階層構造の効率的な取得
 - 金額計算の最適化
+
+### 10. 変更履歴
+
+#### 2025-09-06: テーブル定義書の更新
+
+**変更内容**:
+- `estimates.id`の型を`BIGSERIAL`から`UUID`に変更
+
+**変更理由**:
+1. **セキュリティ向上**: UUID型により連番推測が困難
+2. **分散システム対応**: マイクロサービス間でのID衝突回避
+3. **データ移行安全性**: データベース間移行時のID衝突リスク軽減
+4. **実装との整合性**: 現在の実装がUUID型で動作している
+
+**影響範囲**:
+- `estimate_breakdowns.estimate_id` → 既にUUID型で正しく実装済み
+- `estimate_items.estimate_id` → 既にUUID型で正しく実装済み
+- 他のテーブルとの外部キー関係 → 影響なし（`partner_id`、`project_type_id`等はBIGINT型のまま）
+
+**実装上の利点**:
+- 現在のエラー（`"tree"`エラー）の根本解決
+- フロントエンドとの整合性確保
+- 既存データの保持

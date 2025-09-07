@@ -57,6 +57,9 @@ class Estimate extends Model
     ];
 
     protected $casts = [
+        // UUID
+        'id' => 'string',
+        
         // 日付・時刻
         'project_period_start' => 'date',
         'project_period_end' => 'date',
@@ -241,6 +244,10 @@ class Estimate extends Model
      */
     protected $keyType = 'string';
     public $incrementing = false;
+    protected $primaryKey = 'id';
+    protected $keyName = 'id';
+    protected $connection = 'pgsql';
+    protected $table = 'estimates';
 
     /**
      * 日付として扱う属性

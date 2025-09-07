@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { EstimateDetailView } from '@/components/features/estimates/EstimateDetail/EstimateDetailView'
 import { EstimateDetailEdit } from '@/components/features/estimates/EstimateDetail/EstimateDetailEdit'
 import { EstimateDetailHeader } from '@/components/features/estimates/EstimateDetail/EstimateDetailHeader'
+import { EstimateBreakdownStructureCard } from '@/components/features/estimates/EstimateBreakdowns/EstimateBreakdownStructureCard'
+import { EstimateItemsCard } from '@/components/features/estimates/EstimateDetail/EstimateItemsCard'
 
 export default function EstimateDetailPage() {
   const params = useParams()
@@ -91,12 +93,12 @@ export default function EstimateDetailPage() {
             </TabsList>
 
             {/* 照会タブコンテンツ */}
-            <TabsContent value="view" className="mt-4">
+            <TabsContent value="view" className="mt-4 space-y-6">
               <EstimateDetailView estimate={estimate} />
             </TabsContent>
 
             {/* 編集タブコンテンツ */}
-            <TabsContent value="edit" className="mt-4">
+            <TabsContent value="edit" className="mt-4 space-y-6">
               <EstimateDetailEdit 
                 estimate={estimate} 
                 onCancel={() => setMode('view')}
@@ -106,6 +108,8 @@ export default function EstimateDetailPage() {
                   // 成功メッセージを表示する場合はここでトースト通知を追加
                 }}
               />
+              <EstimateBreakdownStructureCard estimate={estimate} />
+              <EstimateItemsCard estimate={estimate} isReadOnly={false} />
             </TabsContent>
           </Tabs>
         </div>

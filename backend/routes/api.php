@@ -11,6 +11,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SystemLevelController;
 use App\Http\Controllers\EstimateController;
+use App\Http\Controllers\EstimateItemController;
+use App\Http\Controllers\EstimateBreakdownController;
 use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ProjectTypeController;
 
@@ -145,6 +147,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [EstimateController::class, 'destroy']);
         Route::patch('/{id}/status', [EstimateController::class, 'updateStatus']);
         Route::post('/{id}/duplicate', [EstimateController::class, 'duplicate']);
+        
+        // 見積明細管理
+        Route::get('/{id}/items/tree', [EstimateItemController::class, 'getTree']);
+        Route::get('/{id}/items/stats', [EstimateItemController::class, 'getStats']);
+        Route::put('/{id}/items/order', [EstimateItemController::class, 'updateOrder']);
+        Route::delete('/{id}/items', [EstimateItemController::class, 'bulkDelete']);
+    });
+
+    // 見積明細管理
+    Route::prefix('estimate-items')->group(function () {
+        Route::get('/', [EstimateItemController::class, 'index']);
+        Route::post('/', [EstimateItemController::class, 'store']);
+        Route::get('/{id}', [EstimateItemController::class, 'show']);
+        Route::put('/{id}', [EstimateItemController::class, 'update']);
+        Route::delete('/{id}', [EstimateItemController::class, 'destroy']);
     });
 
     // 取引先管理
@@ -179,6 +196,13 @@ Route::post('/graphql', function (Request $request) {
 Route::post('/graphql-test', function (Request $request) {
     // GraphQL リクエストを処理
     return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
+});
+
+// 見積内訳関連のルート
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('estimate-breakdowns/tree', [EstimateBreakdownController::class, 'getTree']);
+    Route::post('estimate-breakdowns/order', [EstimateBreakdownController::class, 'updateOrder']);
+    Route::apiResource('estimate-breakdowns', EstimateBreakdownController::class);
 });
 
 // ヘルスチェック

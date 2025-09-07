@@ -3,6 +3,8 @@
 import { Estimate } from '@/types/features/estimates/estimate'
 import { EstimateInfoCard } from './EstimateInfoCard'
 import { EstimateAmountCard } from './EstimateAmountCard'
+import { EstimateBreakdownStructureCard } from '../EstimateBreakdowns/EstimateBreakdownStructureCard'
+import { EstimateItemsCard } from './EstimateItemsCard'
 import { Card, CardContent } from '@/components/ui/card'
 
 interface EstimateDetailViewProps {
@@ -18,17 +20,11 @@ export function EstimateDetailView({ estimate }: EstimateDetailViewProps) {
       {/* 金額情報 */}
       <EstimateAmountCard estimate={estimate} />
 
+      {/* 見積内訳構造 */}
+      <EstimateBreakdownStructureCard estimate={estimate} />
+
       {/* 見積明細 */}
-      <Card>
-        <div className="px-6 pt-2 pb-0">
-          <h3 className="text-lg font-semibold leading-none tracking-tight">見積明細</h3>
-        </div>
-        <CardContent className="pt-0">
-          <div className="text-center py-8 text-gray-500">
-            見積明細の表示機能は準備中です
-          </div>
-        </CardContent>
-      </Card>
+      <EstimateItemsCard estimate={estimate} isReadOnly={true} />
 
       {/* メタ情報 */}
       <Card>

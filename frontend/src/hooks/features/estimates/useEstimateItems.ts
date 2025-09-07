@@ -4,20 +4,20 @@ import { estimateItemService } from '@/services/features/estimates/estimateItemS
 import {
   CreateEstimateItemRequest,
   UpdateEstimateItemRequest,
-  EstimateItemSearchParams,
 } from '@/types/features/estimates/estimateItem'
 
 // 見積明細一覧取得フック
-export const useEstimateItems = (params: EstimateItemSearchParams) => {
+export const useEstimateItems = (estimateId: string) => {
   return useQuery({
-    queryKey: ['estimate-items', params],
-    queryFn: () => estimateItemService.getEstimateItems(params),
+    queryKey: ['estimate-items', estimateId],
+    queryFn: () => estimateItemService.getEstimateItemsByEstimateId(estimateId),
+    enabled: !!estimateId, // estimateIdが存在する時のみ実行
     staleTime: 5 * 60 * 1000, // 5分間キャッシュ
   })
 }
 
 // 見積明細詳細取得フック
-export const useEstimateItem = (id: number) => {
+export const useEstimateItem = (id: string) => {
   return useQuery({
     queryKey: ['estimate-item', id],
     queryFn: () => estimateItemService.getEstimateItem(id),
@@ -26,18 +26,18 @@ export const useEstimateItem = (id: number) => {
   })
 }
 
-// 見積明細ツリー取得フック
-export const useEstimateItemTree = (estimateId: number) => {
+// 見積明細一覧取得フック（見積ID指定）
+export const useEstimateItemTree = (estimateId: string) => {
   return useQuery({
-    queryKey: ['estimate-item-tree', estimateId],
-    queryFn: () => estimateItemService.getEstimateItemTree(estimateId),
+    queryKey: ['estimate-items', estimateId],
+    queryFn: () => estimateItemService.getEstimateItemsByEstimateId(estimateId),
     enabled: !!estimateId, // estimateIdが存在する時のみ実行
     staleTime: 5 * 60 * 1000, // 5分間キャッシュ
   })
 }
 
 // 見積明細統計取得フック
-export const useEstimateItemStats = (estimateId: number) => {
+export const useEstimateItemStats = (estimateId: string) => {
   return useQuery({
     queryKey: ['estimate-item-stats', estimateId],
     queryFn: () => estimateItemService.getEstimateItemStats(estimateId),
@@ -55,8 +55,8 @@ export const useCreateEstimateItem = () => {
     onSuccess: (newItem) => {
       // 見積明細一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
-      // 見積明細ツリーのキャッシュを無効化
-      queryClient.invalidateQueries({ queryKey: ['estimate-item-tree', newItem.estimate_id] })
+      // 見積明細一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items', newItem.estimate_id] })
       // 見積明細統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-item-stats', newItem.estimate_id] })
       // 見積詳細のキャッシュを無効化（金額が変わるため）
@@ -70,15 +70,15 @@ export const useUpdateEstimateItem = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateEstimateItemRequest }) => 
+    mutationFn: ({ id, data }: { id: string; data: UpdateEstimateItemRequest }) => 
       estimateItemService.updateEstimateItem(id, data),
     onSuccess: (updatedItem) => {
       // 見積明細詳細のキャッシュを更新
       queryClient.setQueryData(['estimate-item', updatedItem.id], updatedItem)
       // 見積明細一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
-      // 見積明細ツリーのキャッシュを無効化
-      queryClient.invalidateQueries({ queryKey: ['estimate-item-tree', updatedItem.estimate_id] })
+      // 見積明細一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items', updatedItem.estimate_id] })
       // 見積明細統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-item-stats', updatedItem.estimate_id] })
       // 見積詳細のキャッシュを無効化（金額が変わるため）
@@ -92,14 +92,14 @@ export const useDeleteEstimateItem = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: (id: number) => estimateItemService.deleteEstimateItem(id),
+    mutationFn: (id: string) => estimateItemService.deleteEstimateItem(id),
     onSuccess: (_, deletedId) => {
       // 見積明細詳細のキャッシュを削除
       queryClient.removeQueries({ queryKey: ['estimate-item', deletedId] })
       // 見積明細一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
-      // 見積明細ツリーのキャッシュを無効化
-      queryClient.invalidateQueries({ queryKey: ['estimate-item-tree'] })
+      // 見積明細一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
       // 見積明細統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-item-stats'] })
       // 見積詳細のキャッシュを無効化（金額が変わるため）
@@ -113,13 +113,13 @@ export const useUpdateEstimateItemOrder = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ estimateId, items }: { estimateId: number; items: { id: number; sort_order: number }[] }) => 
+    mutationFn: ({ estimateId, items }: { estimateId: string; items: { id: string; display_order: number }[] }) => 
       estimateItemService.updateEstimateItemOrder(estimateId, items),
     onSuccess: (_, { estimateId }) => {
       // 見積明細一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
-      // 見積明細ツリーのキャッシュを無効化
-      queryClient.invalidateQueries({ queryKey: ['estimate-item-tree', estimateId] })
+      // 見積明細一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items', estimateId] })
     },
   })
 }
@@ -129,13 +129,13 @@ export const useDeleteEstimateItems = () => {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ estimateId, itemIds }: { estimateId: number; itemIds: number[] }) => 
+    mutationFn: ({ estimateId, itemIds }: { estimateId: string; itemIds: string[] }) => 
       estimateItemService.deleteEstimateItems(estimateId, itemIds),
     onSuccess: (_, { estimateId }) => {
       // 見積明細一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
-      // 見積明細ツリーのキャッシュを無効化
-      queryClient.invalidateQueries({ queryKey: ['estimate-item-tree', estimateId] })
+      // 見積明細一覧のキャッシュを無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items', estimateId] })
       // 見積明細統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-item-stats', estimateId] })
       // 見積詳細のキャッシュを無効化（金額が変わるため）
