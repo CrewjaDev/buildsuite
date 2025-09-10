@@ -1,7 +1,6 @@
 'use client'
 
 import { Estimate } from '@/types/features/estimates/estimate'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils/estimateUtils'
 
@@ -11,15 +10,10 @@ interface EstimateInfoCardProps {
 
 export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
   return (
-    <Card>
-      <div className="px-6 pt-2 pb-0">
-        <h3 className="text-lg font-semibold leading-none tracking-tight">基本情報</h3>
-      </div>
-      <CardContent className="space-y-0 pt-0 px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* 左側カード - 基本情報 */}
-          <Card>
-            <CardContent className="p-0">
+    <div className="space-y-0">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 左側 - 基本情報 */}
+        <div className="p-0">
               <div className="overflow-hidden">
                 <table className="w-full">
                   <tbody>
@@ -114,12 +108,10 @@ export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
+        </div>
 
-          {/* 右側カード - その他の詳細 */}
-          <Card>
-            <CardContent className="p-0">
+        {/* 右側 - その他の詳細 */}
+        <div className="p-0">
               <div className="overflow-hidden">
                 <table className="w-full">
                   <tbody>
@@ -193,8 +185,6 @@ export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* 備考 */}
@@ -206,7 +196,7 @@ export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
             </p>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

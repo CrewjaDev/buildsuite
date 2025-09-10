@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { EstimateBreakdownTree } from '@/types/features/estimates/estimateBreakdown'
 import { Estimate } from '@/types/features/estimates/estimate'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +14,8 @@ import { useEmployees } from '@/hooks/features/employee/useEmployees'
 import { usePartnerOptions } from '@/hooks/features/estimates/usePartners'
 import { useProjectTypeOptions, useProjectType } from '@/hooks/features/estimates/useProjectTypes'
 import { formatDateForInput } from '@/lib/utils/estimateUtils'
+import { EstimateBreakdownStructureCard } from '../EstimateBreakdowns/EstimateBreakdownStructureCard'
+import { EstimateItemsCard } from './EstimateItemsCard'
 
 interface EstimateDetailEditProps {
   estimate: Estimate
@@ -51,6 +54,9 @@ export function EstimateDetailEdit({ estimate, onCancel, onSuccess }: EstimateDe
     material_expense_rate: estimate.material_expense_rate || 0,
   })
 
+  // 見積内訳のローカル状態
+  const [, setLocalBreakdowns] = useState<EstimateBreakdownTree[]>([])
+
   // 選択された工事種別の詳細取得
   const { data: selectedProjectType } = useProjectType(formData.project_type_id)
   
@@ -70,13 +76,22 @@ export function EstimateDetailEdit({ estimate, onCancel, onSuccess }: EstimateDe
     e.preventDefault()
     
     try {
+      // 見積基本情報の更新
       await updateEstimateMutation.mutateAsync({
         id: estimate.id,
         data: formData
       })
       
+      // TODO: 見積内訳の一括更新APIを呼び出し
+      // await updateEstimateBreakdownsMutation.mutateAsync({
+      //   estimateId: estimate.id,
+      //   breakdowns: localBreakdowns
+      // })
+      
       // 見積詳細のキャッシュを明示的に無効化して最新データを取得
       queryClient.invalidateQueries({ queryKey: ['estimate', estimate.id] })
+      queryClient.invalidateQueries({ queryKey: ['estimate-breakdowns', estimate.id] })
+      queryClient.invalidateQueries({ queryKey: ['estimate-breakdown-tree', estimate.id] })
       
       addToast({
         title: "見積を更新しました",
@@ -379,6 +394,16 @@ export function EstimateDetailEdit({ estimate, onCancel, onSuccess }: EstimateDe
           </div>
         </CardContent>
       </Card>
+
+      {/* 見積内訳構造 */}
+      <EstimateBreakdownStructureCard 
+        estimate={estimate} 
+        isReadOnly={false}
+        onBreakdownsChange={setLocalBreakdowns}
+      />
+
+      {/* 見積明細 */}
+      <EstimateItemsCard estimate={estimate} isReadOnly={false} />
 
       {/* アクションボタン */}
       <div className="flex justify-end gap-2">

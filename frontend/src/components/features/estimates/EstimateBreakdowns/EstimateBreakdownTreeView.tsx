@@ -50,6 +50,7 @@ export function EstimateBreakdownTreeView({
     }
   }
 
+
   const renderBreakdownNode = (breakdown: EstimateBreakdownTree, level: number = 0) => {
     const hasChildren = (breakdown.children?.length || 0) > 0 || (breakdown.items?.length || 0) > 0
     const isExpanded = expandedNodes.has(breakdown.id)
@@ -57,7 +58,7 @@ export function EstimateBreakdownTreeView({
     return (
       <div key={breakdown.id}>
         <div 
-          className="grid grid-cols-[100px_100px_minmax(150px,_1fr)_80px_80px_100px_minmax(100px,_1fr)_100px_minmax(100px,_1fr)_100px] gap-x-2 p-2 text-sm border-b hover:bg-gray-50"
+          className="grid grid-cols-[100px_100px_minmax(150px,_1fr)_80px_80px_100px_minmax(100px,_1fr)_100px_minmax(100px,_1fr)_100px_80px] gap-x-2 p-2 text-sm border-b hover:bg-gray-50"
         >
           {/* 工法 */}
           <div className="col-span-1 text-xs text-gray-700">
@@ -124,7 +125,10 @@ export function EstimateBreakdownTreeView({
           
           {/* 金額 */}
           <div className="text-right font-medium">
-            {formatCurrency(breakdown.calculated_amount)}
+            {breakdown.breakdown_type === 'small' && breakdown.direct_amount > 0 
+              ? formatCurrency(breakdown.direct_amount)
+              : formatCurrency(breakdown.calculated_amount)
+            }
           </div>
           
           {/* 備考 */}
@@ -138,7 +142,12 @@ export function EstimateBreakdownTreeView({
           
           {/* 予想原価 */}
           <div className="text-right">
-            {breakdown.direct_amount > 0 ? formatCurrency(breakdown.direct_amount) : '-'}
+            {breakdown.estimated_cost > 0 ? formatCurrency(breakdown.estimated_cost) : '-'}
+          </div>
+          
+          {/* 操作 */}
+          <div className="col-span-1 flex justify-center items-center gap-1">
+            {/* 編集・削除ボタンを削除 */}
           </div>
         </div>
 

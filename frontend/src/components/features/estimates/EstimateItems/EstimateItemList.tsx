@@ -114,13 +114,17 @@ export function EstimateItemList({
     // 下位層がない内訳の場合は、内訳自身の金額を優先
     const hasChildren = childBreakdowns.length > 0 || breakdownItems.length > 0
     
+    // 小内訳の場合は、明細がなくても内訳自身の金額を表示
+    const isSmallBreakdown = breakdown.breakdown_type === 'small'
+    
     // 総合計（明細 + 子内訳）または内訳自身の金額
-    const totalAmount = hasChildren 
-      ? itemsAmount + childTotals.amount 
+    const totalAmount = (hasChildren || isSmallBreakdown) 
+      ? (hasChildren ? itemsAmount + childTotals.amount : (breakdown.calculated_amount || breakdown.direct_amount || 0))
       : (breakdown.calculated_amount || breakdown.direct_amount || 0)
-    const totalEstimatedCost = hasChildren 
-      ? itemsEstimatedCost + childTotals.estimatedCost 
-      : (breakdown.direct_amount || 0)
+    const totalEstimatedCost = (hasChildren || isSmallBreakdown)
+      ? (hasChildren ? itemsEstimatedCost + childTotals.estimatedCost : (breakdown.estimated_cost || 0))
+      : (breakdown.estimated_cost || 0)
+    
     
     return (
       <div key={breakdown.id}>

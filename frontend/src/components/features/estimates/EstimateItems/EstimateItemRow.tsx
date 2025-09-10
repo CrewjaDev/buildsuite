@@ -33,7 +33,6 @@ export function EstimateItemRow({
 }: EstimateItemRowProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValues, setEditValues] = useState({
-    item_type: item.item_type,
     name: item.name,
     unit: item.unit,
     quantity: item.quantity,
@@ -45,7 +44,6 @@ export function EstimateItemRow({
   const handleEdit = () => {
     setIsEditing(true)
     setEditValues({
-      item_type: item.item_type,
       name: item.name,
       unit: item.unit,
       quantity: item.quantity,
@@ -65,7 +63,6 @@ export function EstimateItemRow({
 
   const handleCancel = () => {
     setEditValues({
-      item_type: item.item_type,
       name: item.name,
       unit: item.unit,
       quantity: item.quantity,
@@ -107,17 +104,9 @@ export function EstimateItemRow({
       <div className="flex-1 grid grid-cols-12 gap-4 items-center">
         {/* アイテムタイプ */}
         <div className="col-span-2">
-          {isEditing ? (
-            <Input
-              value={editValues.item_type}
-              onChange={(e) => setEditValues(prev => ({ ...prev, item_type: e.target.value }))}
-              className="h-8 text-sm"
-            />
-          ) : (
-            <span className="text-sm font-medium text-gray-900">
-              {item.item_type}
-            </span>
-          )}
+          <span className="text-sm font-medium text-gray-900">
+            {item.breakdown_id ? '明細' : '内訳'}
+          </span>
         </div>
 
         {/* アイテム名 */}
@@ -133,9 +122,9 @@ export function EstimateItemRow({
               <span className="text-sm text-gray-900">
                 {item.name}
               </span>
-              {item.item_type === 'group' && (
+              {!item.breakdown_id && (
                 <Badge variant="secondary" className="text-xs">
-                  グループ
+                  内訳
                 </Badge>
               )}
             </div>

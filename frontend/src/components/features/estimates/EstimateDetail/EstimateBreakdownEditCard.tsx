@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Estimate } from '@/types/features/estimates/estimate'
-import { EstimateItemTree } from '@/types/features/estimates/estimateItem'
+import { EstimateItem } from '@/types/features/estimates/estimateItem'
 import { useEstimateItemTree } from '@/hooks/features/estimates/useEstimateItems'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -19,14 +19,14 @@ export function EstimateBreakdownEditCard({ estimate }: EstimateBreakdownEditCar
   const { data: items, isLoading } = useEstimateItemTree(estimate.id)
   const [activeTab, setActiveTab] = useState('small')
   const [editingItem, setEditingItem] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<Record<string, any>>({})
+  const [editValues, setEditValues] = useState<Record<string, string | number>>({})
 
-  // アイテムを階層別に分類
-  const smallItems = items?.filter(item => item.item_type === 'detail') || []
-  const mediumItems = items?.filter(item => item.item_type === 'medium') || []
-  const largeItems = items?.filter(item => item.item_type === 'large' && item.parent_id === null) || []
+  // アイテムを階層別に分類（breakdown_idの有無で判定）
+  const smallItems = items?.filter(item => item.breakdown_id) || []
+  const mediumItems = items?.filter(item => !item.breakdown_id && item.construction_method) || []
+  const largeItems = items?.filter(item => !item.breakdown_id && !item.construction_method) || []
 
-  const handleEdit = (item: EstimateItemTree) => {
+  const handleEdit = (item: EstimateItem) => {
     setEditingItem(item.id)
     setEditValues({
       name: item.name,
@@ -62,7 +62,7 @@ export function EstimateBreakdownEditCard({ estimate }: EstimateBreakdownEditCar
     console.log('Move down:', itemId)
   }
 
-  const renderEditableTable = (items: EstimateItemTree[]) => {
+  const renderEditableTable = (items: EstimateItem[]) => {
     if (items.length === 0) {
       return (
         <div className="text-center py-8 text-gray-500">

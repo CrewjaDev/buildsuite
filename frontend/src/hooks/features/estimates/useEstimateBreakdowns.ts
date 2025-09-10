@@ -22,6 +22,8 @@ export function useEstimateBreakdownTree(estimateId: string) {
     queryKey: ['estimate-breakdown-tree', estimateId],
     queryFn: () => estimateBreakdownService.getBreakdownTree(estimateId),
     enabled: !!estimateId,
+    staleTime: 0, // 常に最新データを取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   })
 }
 
@@ -35,7 +37,7 @@ export function useEstimateBreakdown(breakdownId: string) {
 }
 
 // 見積内訳作成
-export function useCreateEstimateBreakdown() {
+export function useCreateEstimateBreakdown(showToast: boolean = true) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -48,7 +50,9 @@ export function useCreateEstimateBreakdown() {
       queryClient.invalidateQueries({ 
         queryKey: ['estimate-breakdown-tree', data.estimate_id] 
       })
-      toast.success('見積内訳を作成しました')
+      if (showToast) {
+        toast.success('見積内訳を作成しました')
+      }
     },
     onError: (error: Error) => {
       console.error('見積内訳作成エラー:', error)
@@ -58,7 +62,7 @@ export function useCreateEstimateBreakdown() {
 }
 
 // 見積内訳更新
-export function useUpdateEstimateBreakdown() {
+export function useUpdateEstimateBreakdown(showToast: boolean = true) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -76,7 +80,9 @@ export function useUpdateEstimateBreakdown() {
       queryClient.invalidateQueries({ 
         queryKey: ['estimate-breakdown', data.id] 
       })
-      toast.success('見積内訳を更新しました')
+      if (showToast) {
+        toast.success('見積内訳を更新しました')
+      }
     },
     onError: (error: Error) => {
       console.error('見積内訳更新エラー:', error)

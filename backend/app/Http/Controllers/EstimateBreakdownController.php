@@ -22,8 +22,8 @@ class EstimateBreakdownController extends Controller
 
         try {
             $breakdowns = DB::select("
-                SELECT id, estimate_id, parent_id, breakdown_type, name, display_order, 
-                       description, direct_amount, calculated_amount, is_active
+                SELECT id, estimate_id, parent_id, breakdown_type, name, display_order,
+                       description, direct_amount, calculated_amount, estimated_cost, is_active
                 FROM estimate_breakdowns 
                 WHERE estimate_id = ? AND deleted_at IS NULL 
                 ORDER BY display_order
@@ -55,7 +55,7 @@ class EstimateBreakdownController extends Controller
             // 見積内訳を取得
             $breakdowns = DB::select("
                 SELECT id, estimate_id, parent_id, breakdown_type, name, display_order, 
-                       description, direct_amount, calculated_amount, is_active
+                       description, direct_amount, calculated_amount, estimated_cost, is_active
                 FROM estimate_breakdowns 
                 WHERE estimate_id = ? AND deleted_at IS NULL 
                 ORDER BY display_order
@@ -131,7 +131,7 @@ class EstimateBreakdownController extends Controller
         try {
             $breakdown = DB::select("
                 SELECT id, estimate_id, parent_id, breakdown_type, name, display_order, 
-                       description, direct_amount, calculated_amount, is_active
+                       description, direct_amount, calculated_amount, estimated_cost, is_active
                 FROM estimate_breakdowns 
                 WHERE id = ? AND deleted_at IS NULL
             ", [$id]);
@@ -147,6 +147,164 @@ class EstimateBreakdownController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'データ取得エラー: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 見積内訳作成
+     */
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'estimate_id' => 'required|string',
+                'parent_id' => 'nullable|string',
+                'breakdown_type' => 'required|in:large,medium,small',
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'quantity' => 'nullable|numeric|min:0',
+                'unit' => 'nullable|string|max:50',
+                'unit_price' => 'nullable|numeric|min:0',
+                'direct_amount' => 'nullable|numeric|min:0',
+                'estimated_cost' => 'nullable|numeric|min:0'
+            ]);
+
+            // display_orderを計算（同じ親の下での最大値+1）
+            $maxOrder = DB::select("
+                SELECT COALESCE(MAX(display_order), 0) as max_order 
+                FROM estimate_breakdowns 
+                WHERE estimate_id = ? AND parent_id = ? AND deleted_at IS NULL
+            ", [$validated['estimate_id'], $validated['parent_id']]);
+
+            $displayOrder = ($maxOrder[0]->max_order ?? 0) + 1;
+
+            $breakdownId = \Illuminate\Support\Str::uuid();
+            
+            DB::table('estimate_breakdowns')->insert([
+                'id' => $breakdownId,
+                'estimate_id' => $validated['estimate_id'],
+                'parent_id' => $validated['parent_id'],
+                'breakdown_type' => $validated['breakdown_type'],
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? '',
+                'quantity' => $validated['quantity'] ?? 1,
+                'unit' => $validated['unit'] ?? '式',
+                'unit_price' => $validated['unit_price'] ?? 0,
+                'direct_amount' => $validated['direct_amount'] ?? 0,
+                'calculated_amount' => 0,
+                'estimated_cost' => $validated['estimated_cost'] ?? 0,
+                'display_order' => $displayOrder,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'data' => [
+                    'id' => $breakdownId,
+                    'estimate_id' => $validated['estimate_id']
+                ],
+                'message' => '見積内訳を作成しました'
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'バリデーションエラー',
+                'details' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => '作成エラー: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 見積内訳更新
+     */
+    public function update(Request $request, string $id): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'parent_id' => 'nullable|string',
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'quantity' => 'nullable|numeric|min:0',
+                'unit' => 'nullable|string|max:50',
+                'unit_price' => 'nullable|numeric|min:0',
+                'direct_amount' => 'nullable|numeric|min:0',
+                'estimated_cost' => 'nullable|numeric|min:0'
+            ]);
+
+            $updated = DB::table('estimate_breakdowns')
+                ->where('id', $id)
+                ->where('deleted_at', null)
+                ->update([
+                    'parent_id' => $validated['parent_id'] ?? null,
+                    'name' => $validated['name'],
+                    'description' => $validated['description'] ?? '',
+                    'quantity' => $validated['quantity'] ?? 1,
+                    'unit' => $validated['unit'] ?? '式',
+                    'unit_price' => $validated['unit_price'] ?? 0,
+                    'direct_amount' => $validated['direct_amount'] ?? 0,
+                    'estimated_cost' => $validated['estimated_cost'] ?? 0,
+                    'updated_at' => now()
+                ]);
+
+            if ($updated === 0) {
+                return response()->json(['error' => '見積内訳が見つかりません'], 404);
+            }
+
+            // estimate_idを取得
+            $breakdown = DB::select("
+                SELECT estimate_id 
+                FROM estimate_breakdowns 
+                WHERE id = ? AND deleted_at IS NULL
+            ", [$id]);
+
+            return response()->json([
+                'data' => [
+                    'id' => $id,
+                    'estimate_id' => $breakdown[0]->estimate_id ?? null
+                ],
+                'message' => '見積内訳を更新しました'
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'バリデーションエラー',
+                'details' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => '更新エラー: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 見積内訳削除
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $deleted = DB::table('estimate_breakdowns')
+                ->where('id', $id)
+                ->where('deleted_at', null)
+                ->update([
+                    'deleted_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+            if ($deleted === 0) {
+                return response()->json(['error' => '見積内訳が見つかりません'], 404);
+            }
+
+            return response()->json([
+                'message' => '見積内訳を削除しました'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => '削除エラー: ' . $e->getMessage()
             ], 500);
         }
     }

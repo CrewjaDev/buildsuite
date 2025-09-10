@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEstimate } from '@/hooks/features/estimates/useEstimates'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { EstimateDetailView } from '@/components/features/estimates/EstimateDetail/EstimateDetailView'
@@ -14,6 +15,7 @@ export default function EstimateDetailPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const estimateId = params.id as string
   
   // 初期モードの決定: modeパラメータが指定されていない場合は照会モード
@@ -94,7 +96,13 @@ export default function EstimateDetailPage() {
 
             {/* 照会タブコンテンツ */}
             <TabsContent value="view" className="mt-4 space-y-6">
-              <EstimateDetailView estimate={estimate} />
+              <EstimateDetailView 
+                estimate={estimate} 
+                onDataUpdate={() => {
+                  // 見積詳細のキャッシュを無効化してデータを再取得
+                  queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
+                }}
+              />
             </TabsContent>
 
             {/* 編集タブコンテンツ */}

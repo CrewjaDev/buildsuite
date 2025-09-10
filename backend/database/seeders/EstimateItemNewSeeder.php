@@ -36,6 +36,7 @@ class EstimateItemNewSeeder extends Seeder
 
         foreach ($estimates as $estimate) {
             $this->createEstimateItems($estimate, $suppliers);
+            $this->updateBreakdownAmounts($estimate->id);
         }
 
         $this->command->info('見積明細アイテムデータを作成しました。');
@@ -304,5 +305,66 @@ class EstimateItemNewSeeder extends Seeder
             'is_active' => true,
             'display_order' => $displayOrder++,
         ]);
+    }
+
+    /**
+     * 見積内訳の金額を明細の集計値で更新
+     */
+    private function updateBreakdownAmounts($estimateId)
+    {
+        // 小内訳の金額を明細の集計値で更新
+        $smallBreakdowns = EstimateBreakdown::where('estimate_id', $estimateId)
+            ->where('breakdown_type', 'small')
+            ->get();
+
+        foreach ($smallBreakdowns as $breakdown) {
+            $items = EstimateItem::where('breakdown_id', $breakdown->id)->get();
+            
+            $totalAmount = $items->sum('amount');
+            $totalEstimatedCost = $items->sum('estimated_cost');
+            
+            // 明細がある場合は集計値、ない場合はdirect_amountを使用
+            $calculatedAmount = $items->count() > 0 ? $totalAmount : $breakdown->direct_amount;
+            $calculatedEstimatedCost = $items->count() > 0 ? $totalEstimatedCost : $breakdown->estimated_cost;
+            
+            $breakdown->update([
+                'calculated_amount' => $calculatedAmount,
+                'estimated_cost' => $calculatedEstimatedCost,
+            ]);
+        }
+
+        // 中内訳の金額を子要素の集計値で更新
+        $mediumBreakdowns = EstimateBreakdown::where('estimate_id', $estimateId)
+            ->where('breakdown_type', 'medium')
+            ->get();
+
+        foreach ($mediumBreakdowns as $breakdown) {
+            $children = EstimateBreakdown::where('parent_id', $breakdown->id)->get();
+            
+            $totalAmount = $children->sum('calculated_amount');
+            $totalEstimatedCost = $children->sum('estimated_cost');
+            
+            $breakdown->update([
+                'calculated_amount' => $totalAmount,
+                'estimated_cost' => $totalEstimatedCost,
+            ]);
+        }
+
+        // 大内訳の金額を子要素の集計値で更新
+        $largeBreakdowns = EstimateBreakdown::where('estimate_id', $estimateId)
+            ->where('breakdown_type', 'large')
+            ->get();
+
+        foreach ($largeBreakdowns as $breakdown) {
+            $children = EstimateBreakdown::where('parent_id', $breakdown->id)->get();
+            
+            $totalAmount = $children->sum('calculated_amount');
+            $totalEstimatedCost = $children->sum('estimated_cost');
+            
+            $breakdown->update([
+                'calculated_amount' => $totalAmount,
+                'estimated_cost' => $totalEstimatedCost,
+            ]);
+        }
     }
 }

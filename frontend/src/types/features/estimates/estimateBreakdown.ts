@@ -105,6 +105,7 @@ export interface CreateEstimateBreakdownRequest {
 }
 
 export interface UpdateEstimateBreakdownRequest {
+  parent_id?: string
   name?: string
   description?: string
   quantity?: number

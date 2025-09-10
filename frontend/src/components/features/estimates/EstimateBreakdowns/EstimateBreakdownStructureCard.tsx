@@ -1,38 +1,48 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Estimate } from '@/types/features/estimates/estimate'
 import { EstimateBreakdownTree } from '@/types/features/estimates/estimateBreakdown'
 import { useEstimateBreakdownTree } from '@/hooks/features/estimates/useEstimateBreakdowns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/utils/estimateUtils'
-import { Plus, TreePine } from 'lucide-react'
+import { TreePine } from 'lucide-react'
 import { EstimateBreakdownTreeView } from './EstimateBreakdownTreeView'
-import { EstimateBreakdownForm } from './EstimateBreakdownForm'
-
 interface EstimateBreakdownStructureCardProps {
   estimate: Estimate
+  isReadOnly?: boolean
+  breakdowns?: EstimateBreakdownTree[]
+  onBreakdownsChange?: (breakdowns: EstimateBreakdownTree[]) => void
 }
 
-export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownStructureCardProps) {
-  const { data: breakdownTree, isLoading } = useEstimateBreakdownTree(estimate.id)
-  const [showForm, setShowForm] = useState(false)
-  const [editingBreakdown, setEditingBreakdown] = useState<EstimateBreakdownTree | null>(null)
+export function EstimateBreakdownStructureCard({ 
+  estimate, 
+  onBreakdownsChange 
+}: EstimateBreakdownStructureCardProps) {
+  const { data: serverBreakdownTree, isLoading } = useEstimateBreakdownTree(estimate.id)
   const [activeTab, setActiveTab] = useState<'large' | 'medium' | 'small'>('large')
+  
+  // ローカル状態の内訳データ（編集用）
+  const [localBreakdowns, setLocalBreakdowns] = useState<EstimateBreakdownTree[]>([])
+  
+  // サーバーデータが変更されたらローカル状態を更新
+  useEffect(() => {
+    if (serverBreakdownTree) {
+      setLocalBreakdowns(serverBreakdownTree)
+    }
+  }, [serverBreakdownTree])
+  
+  // 親コンポーネントに変更を通知
+  useEffect(() => {
+    if (onBreakdownsChange) {
+      onBreakdownsChange(localBreakdowns)
+    }
+  }, [localBreakdowns, onBreakdownsChange])
 
-  const handleCreateBreakdown = () => {
-    setEditingBreakdown(null)
-    setShowForm(true)
-  }
 
 
-  const handleCloseForm = () => {
-    setShowForm(false)
-    setEditingBreakdown(null)
-  }
 
   const getTotalAmount = (breakdowns: EstimateBreakdownTree[] | undefined): number => {
     const safeBreakdowns = Array.isArray(breakdowns) ? breakdowns : []
@@ -43,12 +53,12 @@ export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownSt
 
   // タブ別に階層データをフィルタリング
   const filteredBreakdowns = useMemo(() => {
-    if (!Array.isArray(breakdownTree)) return []
+    if (!Array.isArray(localBreakdowns)) return []
     
     switch (activeTab) {
       case 'large':
         // 大内訳のみ表示（子要素なし）
-        return breakdownTree
+        return localBreakdowns
           .filter(breakdown => breakdown.breakdown_type === 'large')
           .map(breakdown => ({
             ...breakdown,
@@ -56,7 +66,7 @@ export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownSt
           }))
       case 'medium':
         // 大内訳と中内訳の階層表示（小内訳は非表示）
-        return breakdownTree
+        return localBreakdowns
           .filter(breakdown => breakdown.breakdown_type === 'large')
           .map(breakdown => ({
             ...breakdown,
@@ -67,7 +77,7 @@ export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownSt
           }))
       case 'small':
         // 大内訳、中内訳、小内訳の完全階層表示
-        return breakdownTree
+        return localBreakdowns
           .filter(breakdown => breakdown.breakdown_type === 'large')
           .map(breakdown => ({
             ...breakdown,
@@ -77,20 +87,20 @@ export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownSt
             })).filter(child => child.breakdown_type === 'medium') || []
           }))
       default:
-        return breakdownTree
+        return localBreakdowns
     }
-  }, [breakdownTree, activeTab])
+  }, [localBreakdowns, activeTab])
 
   // 各タイプの件数を計算
   const breakdownCounts = useMemo(() => {
-    if (!Array.isArray(breakdownTree)) return { large: 0, medium: 0, small: 0 }
+    if (!Array.isArray(localBreakdowns)) return { large: 0, medium: 0, small: 0 }
     
     return {
-      large: breakdownTree.filter(b => b.breakdown_type === 'large').length,
-      medium: breakdownTree.filter(b => b.breakdown_type === 'medium').length,
-      small: breakdownTree.filter(b => b.breakdown_type === 'small').length,
+      large: localBreakdowns.filter(b => b.breakdown_type === 'large').length,
+      medium: localBreakdowns.filter(b => b.breakdown_type === 'medium').length,
+      small: localBreakdowns.filter(b => b.breakdown_type === 'small').length,
     }
-  }, [breakdownTree])
+  }, [localBreakdowns])
 
   if (isLoading) {
     return (
@@ -121,74 +131,57 @@ export function EstimateBreakdownStructureCard({ estimate }: EstimateBreakdownSt
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-sm">
-              合計: {formatCurrency(getTotalAmount(breakdownTree))}
+              合計: {formatCurrency(getTotalAmount(localBreakdowns))}
             </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCreateBreakdown}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              内訳追加
-            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {showForm ? (
-          <EstimateBreakdownForm
-            estimate={estimate}
-            breakdown={editingBreakdown}
-            onClose={handleCloseForm}
-          />
-        ) : (
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'large' | 'medium' | 'small')}>
-            <div className="flex justify-start">
-              <TabsList className="inline-flex h-9 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-auto">
-                <TabsTrigger value="large" className="flex items-center gap-1 px-3 py-1 text-sm">
-                  大内訳
-                  <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
-                    {breakdownCounts.large}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="medium" className="flex items-center gap-1 px-3 py-1 text-sm">
-                  中内訳
-                  <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
-                    {breakdownCounts.medium}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="small" className="flex items-center gap-1 px-3 py-1 text-sm">
-                  小内訳
-                  <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
-                    {breakdownCounts.small}
-                  </Badge>
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            
-            <TabsContent value="large" className="mt-4">
-              <EstimateBreakdownTreeView
-                breakdowns={filteredBreakdowns}
-                currentTab="large"
-              />
-            </TabsContent>
-            
-            <TabsContent value="medium" className="mt-4">
-              <EstimateBreakdownTreeView
-                breakdowns={filteredBreakdowns}
-                currentTab="medium"
-              />
-            </TabsContent>
-            
-            <TabsContent value="small" className="mt-4">
-              <EstimateBreakdownTreeView
-                breakdowns={filteredBreakdowns}
-                currentTab="small"
-              />
-            </TabsContent>
-          </Tabs>
-        )}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'large' | 'medium' | 'small')}>
+          <div className="flex justify-start">
+            <TabsList className="inline-flex h-9 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-auto">
+              <TabsTrigger value="large" className="flex items-center gap-1 px-3 py-1 text-sm">
+                大内訳
+                <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                  {breakdownCounts.large}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="medium" className="flex items-center gap-1 px-3 py-1 text-sm">
+                中内訳
+                <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                  {breakdownCounts.medium}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="small" className="flex items-center gap-1 px-3 py-1 text-sm">
+                小内訳
+                <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                  {breakdownCounts.small}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          
+          <TabsContent value="large" className="mt-4">
+            <EstimateBreakdownTreeView
+              breakdowns={filteredBreakdowns}
+              currentTab="large"
+            />
+          </TabsContent>
+          
+          <TabsContent value="medium" className="mt-4">
+            <EstimateBreakdownTreeView
+              breakdowns={filteredBreakdowns}
+              currentTab="medium"
+            />
+          </TabsContent>
+          
+          <TabsContent value="small" className="mt-4">
+            <EstimateBreakdownTreeView
+              breakdowns={filteredBreakdowns}
+              currentTab="small"
+            />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )

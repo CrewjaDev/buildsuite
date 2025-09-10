@@ -108,12 +108,18 @@ export interface CreateEstimateRequest {
 export interface UpdateEstimateRequest {
   project_name?: string
   project_description?: string
+  project_location?: string
   partner_id?: number
   project_type_id?: number
   construction_classification_id?: number
   estimate_date?: string
+  issue_date?: string
   valid_until?: string
+  expiry_date?: string
+  construction_period_from?: string
+  construction_period_to?: string
   tax_rate?: number
+  notes?: string
   remarks?: string
 }
 
