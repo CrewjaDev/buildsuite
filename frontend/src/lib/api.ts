@@ -28,15 +28,16 @@ api.interceptors.request.use((config) => {
 // レスポンスインターセプター
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message)
+  (error: unknown) => {
+    const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
+    console.error('API Error:', axiosError.response?.data || axiosError.message)
     
-    if (error.response?.status === 401) {
+    if (axiosError.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
     }
     
-    if (error.response?.status === 419) {
+    if (axiosError.response?.status === 419) {
       // CSRFトークンエラー
       console.warn('CSRF token expired')
     }

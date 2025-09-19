@@ -13,6 +13,7 @@ interface EstimateSearchFiltersProps {
   filters: Record<string, string | number | boolean | null | undefined>
   onFilterChange: (filters: Record<string, string | number | boolean | null | undefined>) => void
   onClearFilters: () => void
+  activeTab?: string // アクティブなタブ（ステータスフィルターを非表示にするため）
 }
 
 export function EstimateSearchFilters({
@@ -20,35 +21,44 @@ export function EstimateSearchFilters({
   onSearchChange,
   filters,
   onFilterChange,
-  onClearFilters
+  onClearFilters,
+  activeTab
 }: EstimateSearchFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // フィルターオプション
-  const filterOptions = useMemo(() => [
-    {
-      key: 'status',
-      label: 'ステータス',
-      options: [
-        { value: '', label: 'すべて' },
-        { value: 'draft', label: '下書き' },
-        { value: 'submitted', label: '提出済み' },
-        { value: 'approved', label: '承認済み' },
-        { value: 'rejected', label: '却下' },
-        { value: 'expired', label: '期限切れ' },
-      ],
-    },
-    {
-      key: 'partner_type',
-      label: '取引先タイプ',
-      options: [
-        { value: '', label: 'すべて' },
-        { value: 'customer', label: '得意先' },
-        { value: 'supplier', label: '仕入先' },
-        { value: 'both', label: '両方' },
-      ],
-    },
-  ], [])
+  // フィルターオプション（ステータスフィルターはタブで管理するため除外）
+  const filterOptions = useMemo(() => {
+    const options = [
+      {
+        key: 'partner_type',
+        label: '取引先タイプ',
+        options: [
+          { value: '', label: 'すべて' },
+          { value: 'customer', label: '得意先' },
+          { value: 'supplier', label: '仕入先' },
+          { value: 'both', label: '両方' },
+        ],
+      },
+    ]
+
+    // タブが「すべて」以外の場合はステータスフィルターを追加
+    if (activeTab === 'all') {
+      options.unshift({
+        key: 'status',
+        label: 'ステータス',
+        options: [
+          { value: '', label: 'すべて' },
+          { value: 'draft', label: '下書き' },
+          { value: 'submitted', label: '提出済み' },
+          { value: 'approved', label: '承認済み' },
+          { value: 'rejected', label: '却下' },
+          { value: 'expired', label: '期限切れ' },
+        ],
+      })
+    }
+
+    return options
+  }, [activeTab])
 
   const handleFilterChange = (key: string, value: string) => {
     const newFilters = { ...filters }
@@ -60,7 +70,8 @@ export function EstimateSearchFilters({
     onFilterChange(newFilters)
   }
 
-  const hasActiveFilters = Object.keys(filters).length > 0
+  // 「自分の見積のみ表示」以外のフィルターがあるかチェック
+  const hasActiveFilters = Object.keys(filters).filter(key => key !== 'show_only_mine').length > 0
 
   return (
     <Card className="mb-6">

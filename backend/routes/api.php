@@ -15,6 +15,7 @@ use App\Http\Controllers\EstimateItemController;
 use App\Http\Controllers\EstimateBreakdownController;
 use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ProjectTypeController;
+use App\Http\Controllers\ConstructionClassificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -183,6 +184,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [ProjectTypeController::class, 'show']);
         Route::put('/{id}', [ProjectTypeController::class, 'update']);
         Route::delete('/{id}', [ProjectTypeController::class, 'destroy']);
+    });
+
+    // 工事分類管理
+    Route::prefix('construction-classifications')->group(function () {
+        Route::get('/', [ConstructionClassificationController::class, 'index']);
+        Route::get('/options', [ConstructionClassificationController::class, 'getOptions']);
+        Route::post('/', [ConstructionClassificationController::class, 'store']);
+        Route::get('/{id}', [ConstructionClassificationController::class, 'show']);
+        Route::put('/{id}', [ConstructionClassificationController::class, 'update']);
+        Route::delete('/{id}', [ConstructionClassificationController::class, 'destroy']);
     });
 });
 

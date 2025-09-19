@@ -103,6 +103,9 @@ export interface CreateEstimateRequest {
   valid_until: string
   tax_rate: number
   remarks?: string
+  estimate_number?: string
+  status?: EstimateStatus
+  total_amount?: number
 }
 
 export interface UpdateEstimateRequest {
@@ -135,6 +138,7 @@ export interface EstimateSearchParams {
   date_to?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  show_only_mine?: boolean
 }
 
 export interface EstimatesResponse {

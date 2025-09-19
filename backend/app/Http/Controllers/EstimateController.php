@@ -171,15 +171,17 @@ class EstimateController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        \Log::info('見積作成API呼び出し開始', ['request_data' => $request->all()]);
+        
         try {
             $validator = Validator::make($request->all(), [
-                'estimate_number' => 'required|string|max:50|unique:estimates',
+                'estimate_number' => 'nullable|string|max:50|unique:estimates',
                 'project_name' => 'required|string|max:255',
                 'partner_id' => 'required|exists:partners,id',
                 'project_type_id' => 'required|exists:project_types,id',
                 'construction_classification_id' => 'required|exists:construction_classifications,id',
-                'total_amount' => 'required|numeric|min:0',
-                'status' => 'required|in:draft,sent,approved,rejected',
+                'total_amount' => 'nullable|numeric|min:0',
+                'status' => 'nullable|in:draft,sent,approved,rejected',
                 'valid_until' => 'required|date|after:today',
                 'remarks' => 'nullable|string|max:1000',
             ]);
@@ -193,7 +195,14 @@ class EstimateController extends Controller
 
             DB::beginTransaction();
 
-            $estimate = Estimate::create($request->all());
+            $data = $request->all();
+            $data['created_by'] = auth()->id() ?? 1; // 認証ユーザーIDまたはデフォルト値1
+            
+            \Log::info('見積作成データ', ['data' => $data]);
+            
+            $estimate = Estimate::create($data);
+            
+            \Log::info('見積作成成功', ['estimate_id' => $estimate->id]);
 
             // 見積明細があれば作成
             if ($request->has('items') && is_array($request->items)) {
