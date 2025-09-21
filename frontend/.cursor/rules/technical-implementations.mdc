@@ -416,3 +416,101 @@ const getInputProps = (fieldName: string, isPasswordField = false) => {
 - ✅ ユーザーが意図しないパスワード関連のUIが表示されない
 - ✅ パスワードフィールドは通常通り動作する
 - ✅ セキュリティとUXのバランスが保たれている
+
+---
+
+## React Selectコンポーネント再レンダリング問題
+
+### 問題の概要
+- **症状**: 動的に値を設定したSelectコンポーネントで、値が変更されても表示が更新されない
+- **具体的な問題**:
+  - 編集フォームで初期値が正しく設定されているのに、Selectに表示されない
+  - `value` プロパティは正しい値なのに、UIに反映されない
+  - データは正しく読み込まれているのに、Selectの選択状態が空のまま
+
+### 根本原因
+**Reactの再レンダリング問題**
+- Reactは同じコンポーネントインスタンスを再利用しようとする
+- `value` プロパティが変更されても、内部状態が更新されない場合がある
+- 特に非同期データ読み込み後の値設定で発生しやすい
+
+### 解決方法
+
+#### **1. keyプロパティによる強制再レンダリング**
+```typescript
+// ❌ 問題のあったコード
+<Select value={formData.first_approver_system_level}>
+
+// ✅ 修正後のコード  
+<Select 
+  key={`first-approver-${formData.first_approver_system_level}`}
+  value={formData.first_approver_system_level}
+>
+```
+
+#### **2. 実装パターン**
+```typescript
+// 動的値を持つSelectコンポーネントには必ずkeyを設定
+<Select
+  key={`field-name-${formData.fieldValue}`}
+  value={formData.fieldValue}
+  onValueChange={(value) => handleInputChange('fieldValue', value)}
+>
+  <SelectTrigger>
+    <SelectValue placeholder="選択してください" />
+  </SelectTrigger>
+  <SelectContent>
+    {options.map((option) => (
+      <SelectItem key={option.value} value={option.value}>
+        {option.label}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+### 技術的ポイント
+
+#### **keyプロパティの仕組み**
+- Reactは `key` が変更されると、そのコンポーネントを完全に再作成
+- 新しいコンポーネントインスタンスが作成されるため、正しい値で初期化される
+- 値の変更を確実にUIに反映させる
+
+#### **適用対象**
+- 編集フォームのSelectコンポーネント
+- 非同期データ読み込み後に値を設定するSelect
+- 動的にオプションが変更されるSelect
+- 初期値が空で、後から値が設定されるSelect
+
+### 実装ガイドライン
+
+#### **新規実装時**
+1. **動的値を持つSelect**: 必ず `key` プロパティを設定
+2. **keyの命名規則**: `{field-name}-{current-value}` 形式
+3. **値の変更検知**: `formData` の値が変更された時にkeyも変更される
+
+#### **既存コンポーネント修正時**
+1. 編集フォームのSelectコンポーネントを優先
+2. 非同期データ読み込みがあるSelectを確認
+3. 値は正しいのに表示されないSelectを特定
+
+### トラブルシューティング
+
+#### **問題の特定方法**
+```typescript
+// デバッグ用ログを追加
+console.log('FormData value:', formData.fieldValue)
+console.log('Select value prop:', formData.fieldValue)
+```
+
+#### **確認すべきポイント**
+1. `formData` に正しい値が設定されているか
+2. Selectの `value` プロパティに正しい値が渡されているか
+3. オプション配列に該当する値が存在するか
+4. `key` プロパティが設定されているか
+
+### 品質基準
+- ✅ 編集フォームで初期値が正しく表示される
+- ✅ 非同期データ読み込み後に値が反映される
+- ✅ 値の変更が確実にUIに反映される
+- ✅ デバッグ時間を削減できる

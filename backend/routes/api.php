@@ -16,6 +16,9 @@ use App\Http\Controllers\EstimateBreakdownController;
 use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ProjectTypeController;
 use App\Http\Controllers\ConstructionClassificationController;
+use App\Http\Controllers\EstimateApprovalController;
+use App\Http\Controllers\SystemLevelPermissionController;
+use App\Http\Controllers\ApprovalFlowController;
 
 /*
 |--------------------------------------------------------------------------
@@ -154,6 +157,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/items/stats', [EstimateItemController::class, 'getStats']);
         Route::put('/{id}/items/order', [EstimateItemController::class, 'updateOrder']);
         Route::delete('/{id}/items', [EstimateItemController::class, 'bulkDelete']);
+        
+        // 見積承認管理
+        Route::post('/{id}/approval/request', [EstimateApprovalController::class, 'requestApproval']);
+        Route::post('/{id}/approval/approve', [EstimateApprovalController::class, 'approve']);
+        Route::post('/{id}/approval/reject', [EstimateApprovalController::class, 'reject']);
+        Route::post('/{id}/approval/return', [EstimateApprovalController::class, 'return']);
+        Route::post('/{id}/approval/cancel', [EstimateApprovalController::class, 'cancel']);
     });
 
     // 見積明細管理
@@ -195,7 +205,30 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [ConstructionClassificationController::class, 'update']);
         Route::delete('/{id}', [ConstructionClassificationController::class, 'destroy']);
     });
-});
+
+
+            // システム権限レベル別権限管理（システム管理者のみ）
+            Route::prefix('system-level-permissions')->group(function () {
+                Route::get('/', [SystemLevelPermissionController::class, 'index']);
+                Route::get('/{id}', [SystemLevelPermissionController::class, 'show']);
+                Route::post('/{id}/attach', [SystemLevelPermissionController::class, 'attachPermission']);
+                Route::post('/{id}/detach', [SystemLevelPermissionController::class, 'detachPermission']);
+                Route::post('/{id}/sync', [SystemLevelPermissionController::class, 'syncPermissions']);
+                Route::get('/available/permissions', [SystemLevelPermissionController::class, 'availablePermissions']);
+                Route::get('/approval/permissions', [SystemLevelPermissionController::class, 'approvalPermissions']);
+                Route::get('/status', [SystemLevelPermissionController::class, 'permissionStatus']);
+            });
+
+            // 承認フロー管理
+            Route::prefix('approval-flows')->group(function () {
+                Route::get('/', [ApprovalFlowController::class, 'index']);
+                Route::get('/templates', [ApprovalFlowController::class, 'templates']);
+                Route::post('/create-from-template', [ApprovalFlowController::class, 'createFromTemplate']);
+                Route::get('/{id}', [ApprovalFlowController::class, 'show']);
+                Route::put('/{id}', [ApprovalFlowController::class, 'update']);
+                Route::delete('/{id}', [ApprovalFlowController::class, 'destroy']);
+            });
+        });
 
 // GraphQL エンドポイント（承認フロー関連の複雑なクエリ用）
 Route::post('/graphql', function (Request $request) {

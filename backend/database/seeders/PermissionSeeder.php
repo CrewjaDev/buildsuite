@@ -94,21 +94,38 @@ class PermissionSeeder extends Seeder
             ['name' => 'payment.approval.approve', 'display_name' => '支払承認', 'description' => '支払を承認する権限', 'module' => 'payment', 'action' => 'approval', 'resource' => 'approve', 'is_system' => false],
             ['name' => 'payment.approval.reject', 'display_name' => '支払却下', 'description' => '支払を却下する権限', 'module' => 'payment', 'action' => 'approval', 'resource' => 'reject', 'is_system' => false],
             ['name' => 'payment.approval.return', 'display_name' => '支払差し戻し', 'description' => '支払を差し戻す権限', 'module' => 'payment', 'action' => 'approval', 'resource' => 'return', 'is_system' => false],
+            
+            // 承認フロー設定権限（システム管理者のみ）
+            ['name' => 'approval.flow.view', 'display_name' => '承認フロー設定閲覧', 'description' => '承認フロー設定を閲覧する権限', 'module' => 'approval', 'action' => 'flow', 'resource' => 'view', 'is_system' => true],
+            ['name' => 'approval.flow.create', 'display_name' => '承認フロー設定作成', 'description' => '承認フロー設定を作成する権限', 'module' => 'approval', 'action' => 'flow', 'resource' => 'create', 'is_system' => true],
+            ['name' => 'approval.flow.edit', 'display_name' => '承認フロー設定編集', 'description' => '承認フロー設定を編集する権限', 'module' => 'approval', 'action' => 'flow', 'resource' => 'edit', 'is_system' => true],
+            ['name' => 'approval.flow.delete', 'display_name' => '承認フロー設定削除', 'description' => '承認フロー設定を削除する権限', 'module' => 'approval', 'action' => 'flow', 'resource' => 'delete', 'is_system' => true],
+            
+            // 承認依頼管理権限
+            ['name' => 'estimate.approval.request', 'display_name' => '見積承認依頼作成', 'description' => '見積承認依頼を作成する権限', 'module' => 'estimate', 'action' => 'approval', 'resource' => 'request', 'is_system' => false],
+            ['name' => 'estimate.approval.cancel', 'display_name' => '見積承認依頼キャンセル', 'description' => '見積承認依頼をキャンセルする権限', 'module' => 'estimate', 'action' => 'approval', 'resource' => 'cancel', 'is_system' => false],
         ];
 
         foreach ($permissions as $permission) {
-            DB::table('permissions')->insert([
-                'name' => $permission['name'],
-                'display_name' => $permission['display_name'],
-                'description' => $permission['description'],
-                'module' => $permission['module'],
-                'action' => $permission['action'],
-                'resource' => $permission['resource'],
-                'is_system' => $permission['is_system'],
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
+            // 既存の権限をチェックして重複を避ける
+            $existingPermission = DB::table('permissions')
+                ->where('name', $permission['name'])
+                ->first();
+            
+            if (!$existingPermission) {
+                DB::table('permissions')->insert([
+                    'name' => $permission['name'],
+                    'display_name' => $permission['display_name'],
+                    'description' => $permission['description'],
+                    'module' => $permission['module'],
+                    'action' => $permission['action'],
+                    'resource' => $permission['resource'],
+                    'is_system' => $permission['is_system'],
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
         }
     }
 }

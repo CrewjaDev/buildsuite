@@ -30,7 +30,7 @@ api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
-    console.error('API Error:', axiosError.response?.data || axiosError.message)
+    console.error('API Error:', axiosError.response?.data || axiosError.message || 'Unknown error')
     
     if (axiosError.response?.status === 401) {
       localStorage.removeItem('token')
