@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Users, Building, DollarSign, CheckCircle, Eye, Plus, Minus } from 'lucide-react'
-import { ApprovalFlowTemplate, CreateApprovalFlowRequest } from '@/services/features/approvals/approvalFlows'
+import type { ApprovalFlowTemplate, CreateApprovalFlowRequest } from '@/types/features/approvals/approvalFlows'
 import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useToast } from '@/components/ui/toast'
@@ -60,7 +60,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
         description: template.description
       }))
       
-      // テンプレートからステップを初期化
+      // パターンからステップを初期化
       const initialSteps = template.approvers.map((approver, index) => ({
         step_order: index + 1,
         name: `第${index + 1}承認`,
@@ -187,8 +187,8 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">承認フローテンプレート</h3>
-          <p className="text-sm text-gray-600">組織規模や案件に応じたテンプレートから承認フローを作成できます</p>
+          <h3 className="text-lg font-semibold">承認フローパターン</h3>
+          <p className="text-sm text-gray-600">組織規模や案件に応じたパターンから承認フローを作成できます</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -200,7 +200,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
             <DialogHeader>
               <DialogTitle>承認フローを作成</DialogTitle>
               <DialogDescription>
-                選択したテンプレートから承認フローを作成します
+                選択したパターンから承認フローを作成します
               </DialogDescription>
             </DialogHeader>
             
@@ -342,7 +342,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
         </Dialog>
       </div>
 
-      {/* テンプレート一覧 */}
+      {/* パターン一覧 */}
       <div className="grid gap-4 md:grid-cols-2">
         {Object.entries(templates).map(([templateId, template]) => (
           <Card 
@@ -405,7 +405,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>テンプレート詳細</DialogTitle>
+            <DialogTitle>パターン詳細</DialogTitle>
             <DialogDescription>
               {detailTemplate?.name} の詳細情報
             </DialogDescription>
@@ -415,7 +415,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">テンプレート名</label>
+                  <label className="text-sm font-medium text-gray-500">パターン名</label>
                   <p className="text-sm font-medium">{detailTemplate.name}</p>
                 </div>
                 <div>
@@ -452,7 +452,7 @@ export function ApprovalFlowTemplateSelector({ templates, onFlowCreated }: Appro
                       </span>
                     </div>
                     <p className="text-sm text-orange-600 mt-1">
-                      この条件を満たす場合にこのテンプレートが適用されます
+                      この条件を満たす場合にこのパターンが適用されます
                     </p>
                   </div>
                 </div>

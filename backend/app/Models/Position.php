@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -46,11 +47,19 @@ class Position extends Model
     }
 
     /**
-     * この職位に属するユーザーとのリレーション
+     * この職位に属する社員とのリレーション
      */
-    public function users(): HasMany
+    public function employees(): HasMany
     {
-        return $this->hasMany(User::class);
+        return $this->hasMany(Employee::class);
+    }
+
+    /**
+     * この職位に属するユーザーとのリレーション（社員を通じて）
+     */
+    public function users(): HasManyThrough
+    {
+        return $this->hasManyThrough(User::class, Employee::class, 'position_id', 'employee_id');
     }
 
     /**

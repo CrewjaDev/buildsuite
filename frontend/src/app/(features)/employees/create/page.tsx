@@ -1,3 +1,5 @@
+'use client'
+
 import { EmployeeCreateForm } from '@/components/features/employees/EmployeeCreate/EmployeeCreateForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 

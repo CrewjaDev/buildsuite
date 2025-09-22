@@ -1,65 +1,9 @@
 import api from '@/lib/api'
-
-export interface EstimateApprovalRequest {
-  estimate_id: number
-  comment?: string
-}
-
-export interface EstimateApprovalAction {
-  estimate_id: number
-  comment?: string
-}
-
-export interface ApprovalRequest {
-  id: number
-  approval_flow_id: number
-  requestable_type: string
-  requestable_id: number
-  requested_by: number
-  status: 'pending' | 'approved' | 'rejected' | 'returned' | 'cancelled'
-  requested_at: string
-  approved_at?: string
-  rejected_at?: string
-  returned_at?: string
-  cancelled_at?: string
-  current_step_id?: number
-  requestedBy?: {
-    id: number
-    name: string
-  }
-  currentStep?: {
-    id: number
-    step_order: number
-    step_name: string
-    approver_type: string
-    approver_id: string
-    status: string
-  }
-  flow?: {
-    id: number
-    name: string
-    description?: string
-  }
-}
-
-export interface ApprovalHistory {
-  id: number
-  approval_request_id: number
-  approval_step_id: number
-  approver_id: number
-  action: 'approved' | 'rejected' | 'returned' | 'cancelled'
-  comment?: string
-  approved_at: string
-  approver?: {
-    id: number
-    name: string
-  }
-  step?: {
-    id: number
-    step_name: string
-    step_order: number
-  }
-}
+import type {
+  EstimateApprovalRequest,
+  EstimateApprovalAction,
+  ApprovalRequest
+} from '@/types/features/approvals/estimateApprovals'
 
 export const estimateApprovalsApi = {
       // 承認依頼を作成

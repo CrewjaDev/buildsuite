@@ -82,6 +82,10 @@ export default function EstimateDetailPage() {
           router.push('/estimates')
         }}
         canDelete={true}
+        onApprovalRequestCreated={() => {
+          // 承認依頼作成後、見積データを再取得
+          queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
+        }}
       />
 
       {/* メインコンテンツ */}

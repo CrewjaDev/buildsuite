@@ -8,17 +8,20 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import { useDeleteEstimate } from '@/hooks/features/estimates/useEstimates'
 import { useToast } from '@/components/ui/toast'
+import { EstimateApprovalRequestButton } from './EstimateApprovalRequestButton'
 
 interface EstimateDetailHeaderProps {
   estimate: Estimate
   onDeleteSuccess: () => void
   canDelete?: boolean
+  onApprovalRequestCreated?: () => void
 }
 
 export function EstimateDetailHeader({ 
   estimate, 
   onDeleteSuccess,
-  canDelete = true 
+  canDelete = true,
+  onApprovalRequestCreated
 }: EstimateDetailHeaderProps) {
   const router = useRouter()
   const { addToast } = useToast()
@@ -91,6 +94,10 @@ export function EstimateDetailHeader({
           
           {/* アクションボタン - 右上に配置 */}
           <div className="flex flex-wrap gap-2">
+            <EstimateApprovalRequestButton
+              estimate={estimate}
+              onApprovalRequestCreated={onApprovalRequestCreated}
+            />
             <Button
               variant="destructive"
               size="sm"

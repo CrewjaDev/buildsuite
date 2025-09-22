@@ -27,6 +27,9 @@ export interface Estimate {
   construction_period_from?: string
   construction_period_to?: string
   status: EstimateStatus
+  approval_request_id?: string
+  approval_flow_id?: string
+  approval_status?: 'pending' | 'approved' | 'rejected' | 'returned' | 'cancelled'
   subtotal?: number
   overhead_rate?: number
   overhead_amount?: number

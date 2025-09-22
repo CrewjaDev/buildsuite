@@ -14,6 +14,22 @@ class Estimate extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * ルートモデルバインディングで使用するキー
+     */
+    public function getRouteKeyName()
+    {
+        return 'id';
+    }
+
+    /**
+     * ルートモデルバインディングの解決
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where($field ?: $this->getRouteKeyName(), $value)->first();
+    }
+
     protected $fillable = [
         // 基本情報（必須）
         'estimate_number',
@@ -54,6 +70,11 @@ class Estimate extends Model
         // システム管理
         'created_by',
         'approved_by',
+        
+        // 承認関連
+        'approval_request_id',
+        'approval_flow_id',
+        'approval_status',
     ];
 
     protected $casts = [

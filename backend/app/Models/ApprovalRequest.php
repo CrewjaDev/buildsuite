@@ -48,6 +48,7 @@ class ApprovalRequest extends Model
     protected function casts(): array
     {
         return [
+            'request_id' => 'string', // UUID as string
             'request_data' => 'array',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',

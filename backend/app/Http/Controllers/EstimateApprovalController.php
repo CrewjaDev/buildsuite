@@ -21,9 +21,37 @@ class EstimateApprovalController extends Controller
     /**
      * 承認依頼を作成
      */
-    public function requestApproval(Request $request, Estimate $estimate)
+    public function requestApproval(Request $request, $estimateId)
     {
         $user = auth()->user();
+        
+        // 手動で見積を取得
+        $estimate = Estimate::find($estimateId);
+        
+        \Log::info('Current user for approval request:', [
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'estimate_id' => $estimateId,
+            'estimate_found' => $estimate ? 'yes' : 'no'
+        ]);
+        
+        if (!$estimate) {
+            \Log::error('Estimate not found', [
+                'estimate_id' => $estimateId
+            ]);
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
+        
+        \Log::info('Estimate object details:', [
+            'id' => $estimate->id,
+            'id_type' => gettype($estimate->id),
+            'estimate_number' => $estimate->estimate_number,
+            'project_name' => $estimate->project_name,
+            'total_amount' => $estimate->total_amount,
+            'created_by' => $estimate->created_by,
+            'exists' => $estimate->exists,
+            'was_recently_created' => $estimate->wasRecentlyCreated
+        ]);
 
         // 権限チェック
         if (!$user->hasPermission('estimate.approval.request')) {
@@ -36,23 +64,34 @@ class EstimateApprovalController extends Controller
         }
 
         // 承認フローを作成
+        \Log::info('Creating approval flow for estimate:', ['estimate_id' => $estimate->id]);
         $approvalFlow = $this->approvalFlowService->createApprovalFlow($estimate);
+        \Log::info('Approval flow created:', ['approval_flow_id' => $approvalFlow->id]);
 
-        // 承認依頼を作成
-        $approvalRequest = ApprovalRequest::create([
+        // デバッグ: 承認依頼作成データを確認
+        $approvalRequestData = [
             'approval_flow_id' => $approvalFlow->id,
-            'requestable_type' => Estimate::class,
-            'requestable_id' => $estimate->id,
+            'request_type' => 'estimate',
+            'request_id' => $estimate->id ?: 0,
+            'title' => "見積承認依頼 - " . ($estimate->estimate_number ?: 'No.' . $estimate->id),
+            'description' => "見積「" . ($estimate->project_name ?: '未設定') . "」の承認依頼です。",
             'requested_by' => $user->id,
             'status' => 'pending',
-            'requested_at' => now(),
-        ]);
+            'priority' => 'normal',
+            'created_by' => $user->id,
+        ];
+        
+        \Log::info('ApprovalRequest creation data:', $approvalRequestData);
+        
+        // 承認依頼を作成
+        $approvalRequest = ApprovalRequest::create($approvalRequestData);
 
         // 見積の承認関連フィールドを更新
         $estimate->update([
             'approval_request_id' => $approvalRequest->id,
             'approval_flow_id' => $approvalFlow->id,
             'approval_status' => 'pending',
+            'status' => 'submitted', // 承認依頼提出済み状態に変更
         ]);
 
         return response()->json($approvalRequest, 201);
@@ -61,9 +100,15 @@ class EstimateApprovalController extends Controller
     /**
      * 承認処理
      */
-    public function approve(Request $request, Estimate $estimate)
+    public function approve(Request $request, $estimateId)
     {
         $user = auth()->user();
+        
+        // 見積を取得
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
 
         // 権限チェック
         if (!$user->hasPermission('estimate.approval.approve')) {
@@ -97,9 +142,15 @@ class EstimateApprovalController extends Controller
     /**
      * 却下処理
      */
-    public function reject(Request $request, Estimate $estimate)
+    public function reject(Request $request, $estimateId)
     {
         $user = auth()->user();
+        
+        // 見積を取得
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
 
         // 権限チェック
         if (!$user->hasPermission('estimate.approval.reject')) {
@@ -120,9 +171,15 @@ class EstimateApprovalController extends Controller
     /**
      * 差し戻し処理
      */
-    public function return(Request $request, Estimate $estimate)
+    public function return(Request $request, $estimateId)
     {
         $user = auth()->user();
+        
+        // 見積を取得
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
 
         // 権限チェック
         if (!$user->hasPermission('estimate.approval.return')) {
@@ -143,9 +200,15 @@ class EstimateApprovalController extends Controller
     /**
      * 承認依頼キャンセル
      */
-    public function cancel(Request $request, Estimate $estimate)
+    public function cancel(Request $request, $estimateId)
     {
         $user = auth()->user();
+        
+        // 見積を取得
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
 
         // 権限チェック
         if (!$user->hasPermission('estimate.approval.cancel')) {
@@ -203,7 +266,10 @@ class EstimateApprovalController extends Controller
 
             // 見積のステータスを更新
             $estimate = $approvalRequest->requestable;
-            $estimate->update(['approval_status' => 'approved']);
+            $estimate->update([
+                'approval_status' => 'approved',
+                'status' => 'approved' // 見積のステータスも承認済みに変更
+            ]);
         }
     }
 
@@ -232,7 +298,10 @@ class EstimateApprovalController extends Controller
 
         // 見積のステータスを更新
         $estimate = $approvalRequest->requestable;
-        $estimate->update(['approval_status' => 'rejected']);
+        $estimate->update([
+            'approval_status' => 'rejected',
+            'status' => 'rejected' // 見積のステータスも却下に変更
+        ]);
     }
 
     /**
@@ -260,7 +329,10 @@ class EstimateApprovalController extends Controller
 
         // 見積のステータスを更新
         $estimate = $approvalRequest->requestable;
-        $estimate->update(['approval_status' => 'returned']);
+        $estimate->update([
+            'approval_status' => 'returned',
+            'status' => 'draft' // 差し戻し時は下書きに戻す
+        ]);
     }
 
     /**
@@ -286,6 +358,9 @@ class EstimateApprovalController extends Controller
 
         // 見積のステータスを更新
         $estimate = $approvalRequest->requestable;
-        $estimate->update(['approval_status' => 'cancelled']);
+        $estimate->update([
+            'approval_status' => 'cancelled',
+            'status' => 'draft' // キャンセル時は下書きに戻す
+        ]);
     }
 }

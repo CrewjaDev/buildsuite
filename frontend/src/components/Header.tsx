@@ -39,6 +39,7 @@ export default function Header({
     { href: '/employees', label: '社員管理' },
     { href: '/partners', label: '取引先管理' },
     { href: '/estimates', label: '見積管理' },
+    { href: '/approvals', label: '承認管理' },
     // { href: '/reports', label: 'レポート' },
   ]
 

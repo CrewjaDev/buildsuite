@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalCondition;
+use App\Models\SystemLevel;
 use App\Services\ApprovalFlowService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -192,7 +193,13 @@ class ApprovalFlowController extends Controller
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
-                'priority' => 'integer|min:0'
+                'priority' => 'integer|min:0',
+                'steps' => 'nullable|array',
+                'steps.*.step_order' => 'required|integer|min:1',
+                'steps.*.name' => 'required|string|max:255',
+                'steps.*.approver_type' => 'required|string|in:user,role,department,system_level',
+                'steps.*.approver_id' => 'required|string',
+                'steps.*.is_required' => 'boolean'
             ]);
 
             if ($validator->fails()) {
@@ -204,7 +211,14 @@ class ApprovalFlowController extends Controller
             }
 
             $flow = ApprovalFlow::findOrFail($id);
+            
+            // 基本情報を更新
             $flow->update($request->only(['name', 'description', 'is_active', 'priority']));
+
+            // ステップが提供されている場合は更新
+            if ($request->has('steps')) {
+                $this->updateApprovalSteps($flow, $request->steps);
+            }
 
             return response()->json([
                 'success' => true,
@@ -221,6 +235,55 @@ class ApprovalFlowController extends Controller
                 'message' => '承認フローの更新に失敗しました',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * 承認ステップを更新
+     */
+    private function updateApprovalSteps(ApprovalFlow $flow, array $steps): void
+    {
+        // 既存のステップを削除
+        $flow->steps()->delete();
+
+        // 新しいステップを作成
+        foreach ($steps as $stepData) {
+            $approverId = $this->resolveApproverId($stepData['approver_type'], $stepData['approver_id']);
+            
+            $flow->steps()->create([
+                'step_order' => $stepData['step_order'],
+                'name' => $stepData['name'],
+                'approver_type' => $stepData['approver_type'],
+                'approver_id' => $approverId,
+                'is_required' => $stepData['is_required'] ?? true,
+                'can_delegate' => false,
+                'is_active' => true,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+            ]);
+        }
+    }
+
+    /**
+     * 承認者IDを解決
+     */
+    private function resolveApproverId(string $approverType, string $approverCode): ?int
+    {
+        switch ($approverType) {
+            case 'system_level':
+                $systemLevel = SystemLevel::where('code', $approverCode)->first();
+                return $systemLevel ? $systemLevel->id : null;
+            
+            case 'user':
+                return is_numeric($approverCode) ? (int)$approverCode : null;
+            
+            case 'role':
+            case 'department':
+                // 役割や部署の場合は、将来的に実装
+                return null;
+            
+            default:
+                return null;
         }
     }
 

@@ -19,6 +19,8 @@ use App\Http\Controllers\ConstructionClassificationController;
 use App\Http\Controllers\EstimateApprovalController;
 use App\Http\Controllers\SystemLevelPermissionController;
 use App\Http\Controllers\ApprovalFlowController;
+use App\Http\Controllers\ApprovalRequestTypeController;
+use App\Http\Controllers\ApprovalRequestTemplateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -227,6 +229,25 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/{id}', [ApprovalFlowController::class, 'show']);
                 Route::put('/{id}', [ApprovalFlowController::class, 'update']);
                 Route::delete('/{id}', [ApprovalFlowController::class, 'destroy']);
+            });
+
+            // 承認依頼タイプ管理
+            Route::prefix('approval-request-types')->group(function () {
+                Route::get('/', [ApprovalRequestTypeController::class, 'index']);
+                Route::post('/', [ApprovalRequestTypeController::class, 'store']);
+                Route::get('/approval-flows', [ApprovalRequestTypeController::class, 'getApprovalFlows']);
+                Route::get('/{id}', [ApprovalRequestTypeController::class, 'show']);
+                Route::put('/{id}', [ApprovalRequestTypeController::class, 'update']);
+                Route::delete('/{id}', [ApprovalRequestTypeController::class, 'destroy']);
+            });
+
+            // 承認依頼テンプレート管理
+            Route::prefix('approval-request-templates')->group(function () {
+                Route::get('/', [ApprovalRequestTemplateController::class, 'index']);
+                Route::post('/', [ApprovalRequestTemplateController::class, 'store']);
+                Route::get('/{id}', [ApprovalRequestTemplateController::class, 'show']);
+                Route::put('/{id}', [ApprovalRequestTemplateController::class, 'update']);
+                Route::delete('/{id}', [ApprovalRequestTemplateController::class, 'destroy']);
             });
         });
 

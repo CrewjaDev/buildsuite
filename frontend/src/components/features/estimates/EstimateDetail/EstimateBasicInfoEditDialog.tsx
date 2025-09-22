@@ -63,24 +63,6 @@ export function EstimateBasicInfoEditDialog({
     })
   }, [estimate, formatDateForInput])
 
-  // デバッグ用: 初期値をコンソールに出力
-  console.log('Estimate data:', {
-    issue_date: estimate.issue_date,
-    estimate_date: estimate.estimate_date,
-    valid_until: estimate.valid_until,
-    expiry_date: estimate.expiry_date,
-    construction_period_from: estimate.construction_period_from,
-    construction_period_to: estimate.construction_period_to,
-    formatted_estimate_date: formatDateForInput(estimate.estimate_date),
-    formatted_expiry_date: formatDateForInput(estimate.expiry_date)
-  })
-  
-  console.log('Form data:', {
-    estimate_date: formData.estimate_date,
-    expiry_date: formData.expiry_date,
-    construction_period_from: formData.construction_period_from,
-    construction_period_to: formData.construction_period_to
-  })
 
   const { data: employeesData } = useEmployees()
   const { data: partnersData } = usePartners()

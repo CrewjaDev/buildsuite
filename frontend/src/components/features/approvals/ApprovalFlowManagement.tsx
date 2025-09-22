@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Settings, List } from 'lucide-react'
-import { approvalFlowService, ApprovalFlow, ApprovalFlowTemplate } from '@/services/features/approvals/approvalFlows'
+import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
+import type { ApprovalFlow, ApprovalFlowTemplate } from '@/types/features/approvals/approvalFlows'
 import { ApprovalFlowTemplateSelector } from './ApprovalFlowTemplateSelector'
 import { ApprovalFlowList } from './ApprovalFlowList'
 
@@ -45,7 +46,7 @@ export function ApprovalFlowManagement() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">承認フロー管理</h2>
-          <p className="text-gray-600">承認フローのテンプレートと設定を管理します</p>
+          <p className="text-gray-600">承認フローのパターンと設定を管理します</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-sm">
@@ -59,7 +60,7 @@ export function ApprovalFlowManagement() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="templates" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            テンプレート
+            パターン
           </TabsTrigger>
           <TabsTrigger value="flows" className="flex items-center gap-2">
             <List className="h-4 w-4" />
@@ -67,7 +68,7 @@ export function ApprovalFlowManagement() {
           </TabsTrigger>
         </TabsList>
 
-        {/* テンプレートタブ */}
+        {/* パターンタブ */}
         <TabsContent value="templates" className="space-y-6">
           <ApprovalFlowTemplateSelector 
             templates={templates}

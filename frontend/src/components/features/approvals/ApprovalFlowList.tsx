@@ -11,8 +11,8 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Edit, Trash2, Eye, RefreshCw, Plus, Minus } from 'lucide-react'
-import { ApprovalFlow } from '@/services/features/approvals/approvalFlows'
 import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
+import type { ApprovalFlow } from '@/types/features/approvals/approvalFlows'
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useToast } from '@/components/ui/toast'
 
@@ -81,7 +81,13 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
     if (!selectedFlow) return
 
     try {
-      await approvalFlowService.updateApprovalFlow(selectedFlow.id, editFormData)
+      // ステップの変更も含めて更新データを準備
+      const updateData = {
+        ...editFormData,
+        steps: editSteps
+      }
+      
+      await approvalFlowService.updateApprovalFlow(selectedFlow.id, updateData)
       
       addToast({
         type: 'success',
