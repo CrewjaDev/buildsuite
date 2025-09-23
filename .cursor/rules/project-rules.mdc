@@ -31,7 +31,8 @@
 - **状態管理**: Redux Toolkit
 - **ルーティング**: Next.js App Router
 - **HTTP クライアント**: Axios
-- **UI ライブラリ**: Material-UI (MUI) v5
+- **UI ライブラリ**: hadcn/ui + TanStack Tableを基本とする
+　　　　　　　　　　　必要な場合には、Material-UI (MUI) v5などの仕様を検討する
 - **フォーム管理**: React Hook Form
 - **帳票出力**: jsPDF, @react-pdf/renderer, xlsx
 - **型安全性**: TypeScript

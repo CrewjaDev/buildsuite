@@ -29,6 +29,9 @@ class DatabaseSeeder extends Seeder
             EstimateSeeder::class,
             EstimateBreakdownSeeder::class,
             EstimateItemNewSeeder::class,
+            // 承認フローテストデータ
+            BusinessTypeSeeder::class,
+        ApprovalFlowSeeder::class,
         ]);
     }
 }

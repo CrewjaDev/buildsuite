@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalHistory;
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalFlow;
 use App\Models\Estimate;
-use App\Services\ApprovalFlowService;
+use App\Services\Approval\ApprovalFlowService;
 use Illuminate\Http\Request;
 
 class EstimateApprovalController extends Controller
@@ -25,37 +26,11 @@ class EstimateApprovalController extends Controller
     {
         $user = auth()->user();
         
-        // 手動で見積を取得
+        // 見積を取得
         $estimate = Estimate::find($estimateId);
         
-        \Log::info('Current user for approval request:', [
-            'user_id' => $user->id,
-            'user_name' => $user->name,
-            'estimate_id' => $estimateId,
-            'estimate_found' => $estimate ? 'yes' : 'no'
-        ]);
-        
         if (!$estimate) {
-            \Log::error('Estimate not found', [
-                'estimate_id' => $estimateId
-            ]);
             return response()->json(['error' => '見積データが見つかりません'], 404);
-        }
-        
-        \Log::info('Estimate object details:', [
-            'id' => $estimate->id,
-            'id_type' => gettype($estimate->id),
-            'estimate_number' => $estimate->estimate_number,
-            'project_name' => $estimate->project_name,
-            'total_amount' => $estimate->total_amount,
-            'created_by' => $estimate->created_by,
-            'exists' => $estimate->exists,
-            'was_recently_created' => $estimate->wasRecentlyCreated
-        ]);
-
-        // 権限チェック
-        if (!$user->hasPermission('estimate.approval.request')) {
-            abort(403, '承認依頼作成権限がありません');
         }
 
         // 既に承認依頼がある場合はエラー
@@ -63,28 +38,38 @@ class EstimateApprovalController extends Controller
             return response()->json(['error' => '既に承認依頼が存在します'], 400);
         }
 
-        // 承認フローを作成
-        \Log::info('Creating approval flow for estimate:', ['estimate_id' => $estimate->id]);
-        $approvalFlow = $this->approvalFlowService->createApprovalFlow($estimate);
-        \Log::info('Approval flow created:', ['approval_flow_id' => $approvalFlow->id]);
+        // 動的承認フロー選択
+        $approvalFlow = $this->selectApprovalFlow($estimate, $user);
+        
+        if (!$approvalFlow) {
+            return response()->json(['error' => '適用可能な承認フローが見つかりません'], 400);
+        }
 
-        // デバッグ: 承認依頼作成データを確認
-        $approvalRequestData = [
+        // 承認依頼データを準備
+        $requestData = [
+            'amount' => $estimate->total_amount,
+            'project_type' => $estimate->projectType?->code ?? 'general',
+            'department_id' => $user->employee?->department_id,
+            'user_id' => $user->id,
+            'estimate_id' => $estimate->id,
+            'estimate_number' => $estimate->estimate_number,
+            'project_name' => $estimate->project_name,
+        ];
+
+        // 承認依頼を作成
+        $approvalRequest = ApprovalRequest::create([
             'approval_flow_id' => $approvalFlow->id,
             'request_type' => 'estimate',
-            'request_id' => $estimate->id ?: 0,
+            'request_id' => $estimate->id,
             'title' => "見積承認依頼 - " . ($estimate->estimate_number ?: 'No.' . $estimate->id),
             'description' => "見積「" . ($estimate->project_name ?: '未設定') . "」の承認依頼です。",
-            'requested_by' => $user->id,
+            'request_data' => $requestData,
+            'current_step' => 1, // 最初の承認ステップ
             'status' => 'pending',
             'priority' => 'normal',
-            'created_by' => $user->id,
-        ];
-        
-        \Log::info('ApprovalRequest creation data:', $approvalRequestData);
-        
-        // 承認依頼を作成
-        $approvalRequest = ApprovalRequest::create($approvalRequestData);
+            'requested_by' => $user->id,
+            'expires_at' => now()->addDays(7), // 7日間の有効期限
+        ]);
 
         // 見積の承認関連フィールドを更新
         $estimate->update([
@@ -94,7 +79,91 @@ class EstimateApprovalController extends Controller
             'status' => 'submitted', // 承認依頼提出済み状態に変更
         ]);
 
-        return response()->json($approvalRequest, 201);
+        return response()->json([
+            'message' => '承認依頼を作成しました',
+            'approval_request' => $approvalRequest,
+            'approval_flow' => $approvalFlow
+        ], 201);
+    }
+
+    /**
+     * 動的承認フロー選択
+     */
+    private function selectApprovalFlow(Estimate $estimate, $user)
+    {
+        // 見積データから条件を構築
+        $conditions = [
+            'amount' => $estimate->total_amount,
+            'project_type' => $estimate->projectType?->code ?? 'general',
+            'department_id' => $user->employee?->department_id,
+            'user_id' => $user->id,
+        ];
+
+        // 利用可能な承認フローを取得
+        $availableFlows = ApprovalFlow::where('is_active', true)
+            ->where('flow_type', 'estimate')
+            ->orderBy('priority')
+            ->get();
+
+        // 条件に合致する承認フローを選択
+        foreach ($availableFlows as $flow) {
+            if ($this->matchesConditions($flow, $conditions, $user)) {
+                return $flow;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 承認フローの条件マッチング
+     */
+    private function matchesConditions(ApprovalFlow $flow, array $conditions, $user)
+    {
+        // 金額条件チェック
+        if ($flow->conditions) {
+            if (isset($flow->conditions['amount_min']) && $conditions['amount'] < $flow->conditions['amount_min']) {
+                return false;
+            }
+            if (isset($flow->conditions['amount_max']) && $conditions['amount'] > $flow->conditions['amount_max']) {
+                return false;
+            }
+        }
+
+        // 承認依頼者権限チェック
+        if ($flow->requesters) {
+            $canRequest = false;
+            foreach ($flow->requesters as $requester) {
+                if ($this->matchesRequester($requester, $user)) {
+                    $canRequest = true;
+                    break;
+                }
+            }
+            if (!$canRequest) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 承認依頼者条件のマッチング
+     */
+    private function matchesRequester(array $requester, $user)
+    {
+        switch ($requester['type']) {
+            case 'system_level':
+                return $user->system_level === $requester['value'];
+            case 'department':
+                return $user->employee?->department_id == $requester['value'];
+            case 'position':
+                return $user->employee?->position_id == $requester['value'];
+            case 'user':
+                return $user->id == $requester['value'];
+            default:
+                return false;
+        }
     }
 
     /**
@@ -110,33 +179,95 @@ class EstimateApprovalController extends Controller
             return response()->json(['error' => '見積データが見つかりません'], 404);
         }
 
-        // 権限チェック
-        if (!$user->hasPermission('estimate.approval.approve')) {
-            abort(403, '承認権限がありません');
-        }
-
         $approvalRequest = $estimate->approvalRequest;
         if (!$approvalRequest) {
-            abort(404, '承認依頼が見つかりません');
+            return response()->json(['error' => '承認依頼が見つかりません'], 404);
         }
 
-        $currentStep = $approvalRequest->currentStep;
+        // 現在の承認ステップを取得
+        $currentStep = $this->getCurrentApprovalStep($approvalRequest);
         if (!$currentStep) {
-            abort(404, '承認ステップが見つかりません');
+            return response()->json(['error' => '承認ステップが見つかりません'], 404);
         }
 
-        // 承認者として指定されているかチェック
-        if ($currentStep->approver_type === 'system_level') {
-            $requiredLevel = $currentStep->approver_id;
-            if (!$user->hasSystemLevel($requiredLevel)) {
-                abort(403, '承認権限がありません');
-            }
+        // 承認者権限チェック
+        if (!$this->canApproveStep($currentStep, $user)) {
+            return response()->json(['error' => '承認権限がありません'], 403);
         }
 
         // 承認処理実行
-        $this->processApproval($approvalRequest, $user, $request->comment);
+        $this->processApproval($approvalRequest, $user, $request->input('comment', ''));
 
         return response()->json(['message' => '承認しました']);
+    }
+
+    /**
+     * 現在の承認ステップを取得
+     */
+    private function getCurrentApprovalStep(ApprovalRequest $approvalRequest)
+    {
+        $flow = $approvalRequest->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            return null;
+        }
+
+        $currentStepNumber = $approvalRequest->current_step;
+        
+        foreach ($flow->approval_steps as $step) {
+            if ($step['step'] === $currentStepNumber) {
+                return $step;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * ステップの承認権限チェック
+     */
+    private function canApproveStep(array $step, $user)
+    {
+        // 承認者として指定されているかチェック
+        $isApprover = false;
+        foreach ($step['approvers'] as $approver) {
+            if ($this->matchesApprover($approver, $user)) {
+                $isApprover = true;
+                break;
+            }
+        }
+
+        if (!$isApprover) {
+            return false;
+        }
+
+        // 利用可能権限チェック
+        $requiredPermissions = ['estimate.approval.approve'];
+        foreach ($requiredPermissions as $permission) {
+            if (!in_array($permission, $step['available_permissions'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 承認者条件のマッチング
+     */
+    private function matchesApprover(array $approver, $user)
+    {
+        switch ($approver['type']) {
+            case 'system_level':
+                return $user->system_level === $approver['value'];
+            case 'department':
+                return $user->employee?->department_id == $approver['value'];
+            case 'position':
+                return $user->employee?->position_id == $approver['value'];
+            case 'user':
+                return $user->id == $approver['value'];
+            default:
+                return false;
+        }
     }
 
     /**
@@ -236,41 +367,69 @@ class EstimateApprovalController extends Controller
      */
     private function processApproval(ApprovalRequest $approvalRequest, $user, string $comment)
     {
-        $currentStep = $approvalRequest->currentStep;
+        $currentStep = $this->getCurrentApprovalStep($approvalRequest);
         
         // 承認履歴を作成
         ApprovalHistory::create([
             'approval_request_id' => $approvalRequest->id,
-            'approval_step_id' => $currentStep->id,
-            'approver_id' => $user->id,
-            'action' => 'approved',
+            'step' => $approvalRequest->current_step,
+            'action' => 'approve',
+            'acted_by' => $user->id,
+            'acted_at' => now(),
             'comment' => $comment,
-            'approved_at' => now(),
         ]);
 
         // 次のステップがあるかチェック
-        $nextStep = $approvalRequest->getNextStep();
+        $nextStepNumber = $this->getNextStepNumber($approvalRequest);
         
-        if ($nextStep) {
+        if ($nextStepNumber) {
             // 次のステップに進む
             $approvalRequest->update([
-                'current_step_id' => $nextStep->id,
+                'current_step' => $nextStepNumber,
                 'status' => 'pending',
             ]);
         } else {
             // 承認完了
             $approvalRequest->update([
                 'status' => 'approved',
+                'approved_by' => $user->id,
                 'approved_at' => now(),
             ]);
 
             // 見積のステータスを更新
-            $estimate = $approvalRequest->requestable;
-            $estimate->update([
-                'approval_status' => 'approved',
-                'status' => 'approved' // 見積のステータスも承認済みに変更
-            ]);
+            $estimate = Estimate::find($approvalRequest->request_id);
+            if ($estimate) {
+                $estimate->update([
+                    'approval_status' => 'approved',
+                    'status' => 'approved',
+                    'approved_by' => $user->id,
+                ]);
+            }
         }
+    }
+
+    /**
+     * 次のステップ番号を取得
+     */
+    private function getNextStepNumber(ApprovalRequest $approvalRequest)
+    {
+        $flow = $approvalRequest->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            return null;
+        }
+
+        $currentStepNumber = $approvalRequest->current_step;
+        $nextStepNumber = null;
+
+        foreach ($flow->approval_steps as $step) {
+            if ($step['step'] > $currentStepNumber) {
+                if ($nextStepNumber === null || $step['step'] < $nextStepNumber) {
+                    $nextStepNumber = $step['step'];
+                }
+            }
+        }
+
+        return $nextStepNumber;
     }
 
     /**
@@ -278,30 +437,32 @@ class EstimateApprovalController extends Controller
      */
     private function processRejection(ApprovalRequest $approvalRequest, $user, string $comment)
     {
-        $currentStep = $approvalRequest->currentStep;
-        
         // 却下履歴を作成
         ApprovalHistory::create([
             'approval_request_id' => $approvalRequest->id,
-            'approval_step_id' => $currentStep->id,
-            'approver_id' => $user->id,
-            'action' => 'rejected',
+            'step' => $approvalRequest->current_step,
+            'action' => 'reject',
+            'acted_by' => $user->id,
+            'acted_at' => now(),
             'comment' => $comment,
-            'approved_at' => now(),
         ]);
 
         // 承認依頼を却下
         $approvalRequest->update([
             'status' => 'rejected',
-            'rejected_at' => now(),
+            'approved_by' => $user->id,
+            'approved_at' => now(),
         ]);
 
         // 見積のステータスを更新
-        $estimate = $approvalRequest->requestable;
-        $estimate->update([
-            'approval_status' => 'rejected',
-            'status' => 'rejected' // 見積のステータスも却下に変更
-        ]);
+        $estimate = Estimate::find($approvalRequest->request_id);
+        if ($estimate) {
+            $estimate->update([
+                'approval_status' => 'rejected',
+                'status' => 'rejected',
+                'approved_by' => $user->id,
+            ]);
+        }
     }
 
     /**
@@ -309,30 +470,32 @@ class EstimateApprovalController extends Controller
      */
     private function processReturn(ApprovalRequest $approvalRequest, $user, string $comment)
     {
-        $currentStep = $approvalRequest->currentStep;
-        
         // 差し戻し履歴を作成
         ApprovalHistory::create([
             'approval_request_id' => $approvalRequest->id,
-            'approval_step_id' => $currentStep->id,
-            'approver_id' => $user->id,
-            'action' => 'returned',
+            'step' => $approvalRequest->current_step,
+            'action' => 'return',
+            'acted_by' => $user->id,
+            'acted_at' => now(),
             'comment' => $comment,
-            'approved_at' => now(),
         ]);
 
         // 承認依頼を差し戻し
         $approvalRequest->update([
             'status' => 'returned',
-            'returned_at' => now(),
+            'approved_by' => $user->id,
+            'approved_at' => now(),
         ]);
 
         // 見積のステータスを更新
-        $estimate = $approvalRequest->requestable;
-        $estimate->update([
-            'approval_status' => 'returned',
-            'status' => 'draft' // 差し戻し時は下書きに戻す
-        ]);
+        $estimate = Estimate::find($approvalRequest->request_id);
+        if ($estimate) {
+            $estimate->update([
+                'approval_status' => 'returned',
+                'status' => 'draft', // 差し戻し時は下書きに戻す
+                'approved_by' => $user->id,
+            ]);
+        }
     }
 
     /**
@@ -343,24 +506,28 @@ class EstimateApprovalController extends Controller
         // キャンセル履歴を作成
         ApprovalHistory::create([
             'approval_request_id' => $approvalRequest->id,
-            'approval_step_id' => $approvalRequest->current_step_id,
-            'approver_id' => $user->id,
-            'action' => 'cancelled',
+            'step' => $approvalRequest->current_step,
+            'action' => 'cancel',
+            'acted_by' => $user->id,
+            'acted_at' => now(),
             'comment' => '申請者がキャンセル',
-            'approved_at' => now(),
         ]);
 
         // 承認依頼をキャンセル
         $approvalRequest->update([
             'status' => 'cancelled',
-            'cancelled_at' => now(),
+            'approved_by' => $user->id,
+            'approved_at' => now(),
         ]);
 
         // 見積のステータスを更新
-        $estimate = $approvalRequest->requestable;
-        $estimate->update([
-            'approval_status' => 'cancelled',
-            'status' => 'draft' // キャンセル時は下書きに戻す
-        ]);
+        $estimate = Estimate::find($approvalRequest->request_id);
+        if ($estimate) {
+            $estimate->update([
+                'approval_status' => 'cancelled',
+                'status' => 'draft', // キャンセル時は下書きに戻す
+                'approved_by' => $user->id,
+            ]);
+        }
     }
 }

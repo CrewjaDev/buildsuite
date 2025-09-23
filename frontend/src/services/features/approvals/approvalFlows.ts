@@ -16,10 +16,31 @@ class ApprovalFlowService {
   }
 
   /**
+   * 利用可能な承認フローを取得
+   */
+  async getAvailableFlows(params: {
+    request_type: string
+    amount?: number
+    project_type?: number
+    department_id?: number
+  }): Promise<ApprovalFlow[]> {
+    const response = await api.get('/approval-flows/available', { params })
+    return response.data.data
+  }
+
+  /**
    * 承認フローテンプレート一覧を取得
    */
   async getTemplates(): Promise<Record<string, ApprovalFlowTemplate>> {
     const response = await api.get('/approval-flows/templates')
+    return response.data.data
+  }
+
+  /**
+   * 承認フローを新規作成
+   */
+  async createApprovalFlow(data: CreateApprovalFlowRequest): Promise<ApprovalFlow> {
+    const response = await api.post('/approval-flows', data)
     return response.data.data
   }
 

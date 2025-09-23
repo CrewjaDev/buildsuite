@@ -143,6 +143,22 @@ class Estimate extends Model
     }
 
     /**
+     * 承認依頼とのリレーション
+     */
+    public function approvalRequest(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalRequest::class, 'approval_request_id');
+    }
+
+    /**
+     * 承認フローとのリレーション
+     */
+    public function approvalFlow(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalFlow::class, 'approval_flow_id');
+    }
+
+    /**
      * 見積明細とのリレーション
      */
     public function items(): HasMany
@@ -258,6 +274,93 @@ class Estimate extends Model
         return in_array($this->status, ['draft']);
     }
 
+    /**
+     * 承認依頼可能かチェック
+     */
+    public function canRequestApproval(): bool
+    {
+        return in_array($this->status, ['draft']) && !$this->approvalRequest;
+    }
+
+    /**
+     * 承認中かチェック
+     */
+    public function isUnderApproval(): bool
+    {
+        return $this->approvalRequest && in_array($this->approvalRequest->status, ['pending']);
+    }
+
+    /**
+     * 承認済みかチェック
+     */
+    public function isApproved(): bool
+    {
+        return $this->approvalRequest && $this->approvalRequest->status === 'approved';
+    }
+
+    /**
+     * 却下済みかチェック
+     */
+    public function isRejected(): bool
+    {
+        return $this->approvalRequest && $this->approvalRequest->status === 'rejected';
+    }
+
+    /**
+     * 差し戻し済みかチェック
+     */
+    public function isReturned(): bool
+    {
+        return $this->approvalRequest && $this->approvalRequest->status === 'returned';
+    }
+
+    /**
+     * 承認依頼キャンセル済みかチェック
+     */
+    public function isCancelled(): bool
+    {
+        return $this->approvalRequest && $this->approvalRequest->status === 'cancelled';
+    }
+
+    /**
+     * 現在の承認ステップを取得
+     */
+    public function getCurrentApprovalStep()
+    {
+        if (!$this->approvalRequest || !$this->approvalFlow) {
+            return null;
+        }
+
+        $currentStepNumber = $this->approvalRequest->current_step;
+        
+        foreach ($this->approvalFlow->approval_steps as $step) {
+            if ($step['step'] === $currentStepNumber) {
+                return $step;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 承認フロー情報を取得
+     */
+    public function getApprovalFlowInfo()
+    {
+        if (!$this->approvalFlow) {
+            return null;
+        }
+
+        return [
+            'id' => $this->approvalFlow->id,
+            'name' => $this->approvalFlow->name,
+            'flow_type' => $this->approvalFlow->flow_type,
+            'total_steps' => count($this->approvalFlow->approval_steps ?? []),
+            'current_step' => $this->approvalRequest?->current_step ?? 0,
+            'status' => $this->approvalRequest?->status ?? 'none',
+        ];
+    }
+
     // ===== Laravel機能的に必要な項目 =====
 
     /**
@@ -299,6 +402,12 @@ class Estimate extends Model
         'can_change_status',
         'can_edit',
         'can_delete',
+        'can_request_approval',
+        'is_under_approval',
+        'is_approved',
+        'is_rejected',
+        'is_returned',
+        'is_cancelled',
         'formatted_total_amount',
         'formatted_subtotal',
         'formatted_tax_amount',
@@ -322,21 +431,7 @@ class Estimate extends Model
         return $query->where('status', 'sent');
     }
 
-    /**
-     * 承認済みの見積
-     */
-    public function scopeApproved(Builder $query): Builder
-    {
-        return $query->where('status', 'approved');
-    }
 
-    /**
-     * 却下された見積
-     */
-    public function scopeRejected(Builder $query): Builder
-    {
-        return $query->where('status', 'rejected');
-    }
 
     /**
      * 有効期限内の見積
@@ -368,6 +463,65 @@ class Estimate extends Model
     public function scopeByProjectType(Builder $query, int $projectTypeId): Builder
     {
         return $query->where('project_type_id', $projectTypeId);
+    }
+
+    /**
+     * 承認依頼可能な見積
+     */
+    public function scopeCanRequestApproval(Builder $query): Builder
+    {
+        return $query->where('status', 'draft')
+                    ->whereNull('approval_request_id');
+    }
+
+    /**
+     * 承認中の見積
+     */
+    public function scopeUnderApproval(Builder $query): Builder
+    {
+        return $query->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'pending');
+        });
+    }
+
+    /**
+     * 承認済みの見積
+     */
+    public function scopeApproved(Builder $query): Builder
+    {
+        return $query->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'approved');
+        });
+    }
+
+    /**
+     * 却下された見積
+     */
+    public function scopeRejected(Builder $query): Builder
+    {
+        return $query->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'rejected');
+        });
+    }
+
+    /**
+     * 差し戻しされた見積
+     */
+    public function scopeReturned(Builder $query): Builder
+    {
+        return $query->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'returned');
+        });
+    }
+
+    /**
+     * 承認依頼キャンセルされた見積
+     */
+    public function scopeCancelled(Builder $query): Builder
+    {
+        return $query->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'cancelled');
+        });
     }
 
     // ===== ミューテータ =====
@@ -496,6 +650,54 @@ class Estimate extends Model
     public function getCanDeleteAttribute(): bool
     {
         return $this->canDelete();
+    }
+
+    /**
+     * appends: can_request_approval
+     */
+    public function getCanRequestApprovalAttribute(): bool
+    {
+        return $this->canRequestApproval();
+    }
+
+    /**
+     * appends: is_under_approval
+     */
+    public function getIsUnderApprovalAttribute(): bool
+    {
+        return $this->isUnderApproval();
+    }
+
+    /**
+     * appends: is_approved
+     */
+    public function getIsApprovedAttribute(): bool
+    {
+        return $this->isApproved();
+    }
+
+    /**
+     * appends: is_rejected
+     */
+    public function getIsRejectedAttribute(): bool
+    {
+        return $this->isRejected();
+    }
+
+    /**
+     * appends: is_returned
+     */
+    public function getIsReturnedAttribute(): bool
+    {
+        return $this->isReturned();
+    }
+
+    /**
+     * appends: is_cancelled
+     */
+    public function getIsCancelledAttribute(): bool
+    {
+        return $this->isCancelled();
     }
 
     // ===== イベント =====

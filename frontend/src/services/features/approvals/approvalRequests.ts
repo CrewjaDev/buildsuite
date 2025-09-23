@@ -1,67 +1,92 @@
 import api from '@/lib/api'
 import type {
+  ApprovalRequest,
   ApprovalHistory,
-  ApprovalRequestListItem,
-  ApprovalRequestDetail,
+  CreateApprovalRequestRequest,
+  UpdateApprovalRequestRequest,
   ApprovalActionRequest,
-  ApprovalActionResponse
-} from '@/types/features/approvals'
+  ApprovalRequestFilter,
+  ApprovalRequestListResponse
+} from '@/types/features/approvals/approvalRequests'
+import type { ApprovalFlow } from '@/types/features/approvals/approvalFlows'
 
 class ApprovalRequestService {
   /**
-   * 承認待ちの依頼一覧を取得
+   * 承認依頼一覧を取得
    */
-  async getPendingRequests(): Promise<ApprovalRequestListItem[]> {
-    const response = await api.get('/approval-requests/pending')
+  async getApprovalRequests(params?: {
+    page?: number
+    per_page?: number
+    filter?: ApprovalRequestFilter
+    sort?: string
+  }): Promise<ApprovalRequestListResponse> {
+    const response = await api.get('/approval-requests', { params })
     return response.data
   }
 
   /**
-   * 承認依頼の詳細を取得
+   * 承認依頼詳細を取得
    */
-  async getApprovalRequestDetail(id: number): Promise<ApprovalRequestDetail> {
+  async getApprovalRequest(id: number): Promise<{ success: boolean; data: ApprovalRequest }> {
     const response = await api.get(`/approval-requests/${id}`)
     return response.data
   }
 
   /**
-   * 承認処理
+   * 承認依頼を作成
    */
-  async approveRequest(id: number, data: ApprovalActionRequest): Promise<ApprovalActionResponse> {
-    const response = await api.post(`/approval-requests/${id}/approve`, data)
-    return response.data
+  async createApprovalRequest(data: CreateApprovalRequestRequest): Promise<ApprovalRequest> {
+    const response = await api.post('/approval-requests', data)
+    return response.data.data
   }
 
   /**
-   * 却下処理
+   * 承認依頼を更新
    */
-  async rejectRequest(id: number, data: ApprovalActionRequest): Promise<ApprovalActionResponse> {
-    const response = await api.post(`/approval-requests/${id}/reject`, data)
-    return response.data
+  async updateApprovalRequest(id: number, data: UpdateApprovalRequestRequest): Promise<ApprovalRequest> {
+    const response = await api.put(`/approval-requests/${id}`, data)
+    return response.data.data
   }
 
   /**
-   * 差し戻し処理
+   * 承認依頼を削除
    */
-  async returnRequest(id: number, data: ApprovalActionRequest): Promise<ApprovalActionResponse> {
-    const response = await api.post(`/approval-requests/${id}/return`, data)
-    return response.data
+  async deleteApprovalRequest(id: number): Promise<void> {
+    await api.delete(`/approval-requests/${id}`)
+  }
+
+  /**
+   * 承認処理を実行
+   */
+  async performApprovalAction(id: number, data: ApprovalActionRequest): Promise<ApprovalRequest> {
+    const response = await api.post(`/approval-requests/${id}/action`, data)
+    return response.data.data
   }
 
   /**
    * 承認履歴を取得
    */
-  async getApprovalHistory(id: number): Promise<ApprovalHistory[]> {
-    const response = await api.get(`/approval-requests/${id}/history`)
-    return response.data
+  async getApprovalHistories(id: number): Promise<ApprovalHistory[]> {
+    const response = await api.get(`/approval-requests/${id}/histories`)
+    return response.data.data
   }
 
   /**
-   * 自分の承認履歴を取得
+   * 利用可能な承認フローを取得
    */
-  async getMyApprovalHistory(): Promise<ApprovalHistory[]> {
-    const response = await api.get('/approval-requests/my-history')
-    return response.data
+  async getAvailableFlows(requestType?: string): Promise<ApprovalFlow[]> {
+    const response = await api.get('/approval-flows/available', {
+      params: { request_type: requestType }
+    })
+    return response.data.data
+  }
+
+  /**
+   * 承認依頼タイプ一覧を取得
+   */
+  async getRequestTypes(): Promise<string[]> {
+    const response = await api.get('/approval-request-types')
+    return response.data.data
   }
 }
 

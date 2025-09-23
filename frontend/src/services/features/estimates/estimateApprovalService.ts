@@ -27,7 +27,7 @@ export const estimateApprovalService = {
    */
   async createApprovalRequest(
     estimateId: string | number, 
-    data: CreateApprovalRequestRequest
+    data: CreateApprovalRequestRequest = {}
   ): Promise<ApprovalRequest> {
     const response = await api.post(`/estimates/${estimateId}/approval/request`, data)
     return response.data

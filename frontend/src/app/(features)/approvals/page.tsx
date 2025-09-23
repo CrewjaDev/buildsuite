@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileText, Settings } from 'lucide-react'
 // import { SystemLevelPermissionSettings } from '@/components/features/approvals/SystemLevelPermissionSettings'
 import { ApprovalFlowManagement } from '@/components/features/approvals/ApprovalFlowManagement'
-import ApprovalRequestTypeManagement from '@/components/features/approvals/ApprovalRequestTypeManagement'
+import { ApprovalRequestManagement } from '@/components/features/approvals/ApprovalRequestManagement'
 
 export default function ApprovalsPage() {
   const [activeTab, setActiveTab] = useState('flows')
@@ -44,10 +44,10 @@ export default function ApprovalsPage() {
             <div>権限設定機能は準備中です</div>
           </TabsContent> */}
 
-          {/* 承認依頼タブ */}
-          <TabsContent value="requests" className="space-y-6">
-            <ApprovalRequestTypeManagement />
-          </TabsContent>
+                 {/* 承認依頼タブ */}
+                 <TabsContent value="requests" className="space-y-6">
+                   <ApprovalRequestManagement />
+                 </TabsContent>
         </Tabs>
       </div>
     </div>

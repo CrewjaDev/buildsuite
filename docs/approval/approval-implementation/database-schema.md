@@ -83,13 +83,27 @@ CREATE TABLE approval_flows (
     "type": "system_level",
     "value": "supervisor",
     "display_name": "上長"
-  }
+  },
 ]
 ```
 
 #### approval_steps（承認ステップ設定）
 ```json
 [
+  {
+    "step": 0,
+    "name": "承認依頼作成",
+    "approvers": [
+      {
+        "type": "system_level",
+        "value": "employee",
+        "display_name": "担当者"
+      }
+    ],
+    "available_permissions": [
+      "estimate.approval.request"
+    ]
+  },
   {
     "step": 1,
     "name": "第1承認",
@@ -99,6 +113,11 @@ CREATE TABLE approval_flows (
         "value": "supervisor",
         "display_name": "上長"
       }
+    ],
+    "available_permissions": [
+      "estimate.approval.view",
+      "estimate.approval.approve",
+      "estimate.approval.return"
     ],
     "condition": {
       "type": "required",
@@ -147,14 +166,29 @@ ApprovalFlow::create([
     ],
     'requesters' => [
         ['type' => 'department', 'value' => 1, 'display_name' => 'Aチーム'],
-        ['type' => 'department', 'value' => 2, 'display_name' => 'Bチーム']
+        ['type' => 'department', 'value' => 2, 'display_name' => 'Bチーム'],
     ],
     'approval_steps' => [
+        [
+            'step' => 0,
+            'name' => '承認依頼作成',
+            'approvers' => [
+                ['type' => 'system_level', 'value' => 'supervisor', 'display_name' => '上長']
+            ],
+            'available_permissions' => [
+                'estimate.approval.request'
+            ]
+        ],
         [
             'step' => 1,
             'name' => 'チームリーダー承認',
             'approvers' => [
                 ['type' => 'position', 'value' => 1, 'display_name' => 'チームリーダー'] // position_id
+            ],
+            'available_permissions' => [
+                'estimate.approval.view',
+                'estimate.approval.approve',
+                'estimate.approval.return'
             ],
             'condition' => ['type' => 'required', 'display_name' => '必須承認']
         ],
@@ -183,6 +217,17 @@ ApprovalFlow::create([
 - **position**: `positions.id`の値（例: 1, 2, 3）
 - **user**: `users.id`の値（例: 1, 2, 3）
 - **department**: `departments.id`の値（例: 1, 2, 3）
+
+### 承認依頼者設定について
+- **使用可能タイプ**: `system_level`, `position`, `user`, `department`のみ
+- **権限ベース**: 承認依頼者設定では使用しない
+- **権限制御**: 承認操作時（ステップの`available_permissions`）で行う
+
+### ステップ権限設定について
+- **available_permissions**: そのステップで利用可能な権限の配列
+- **ステップ0（承認依頼作成）**: `estimate.approval.request`
+- **ステップ1以降（承認操作）**: `estimate.approval.view`, `estimate.approval.approve`, `estimate.approval.reject`, `estimate.approval.return`, `estimate.approval.cancel`
+- **権限チェック**: ユーザー個別の権限チェックは不要（ステップ設定が権限を制御）
 
 ## 2. approval_requests テーブル（更新）
 
@@ -554,6 +599,10 @@ public function canApprove($userId, $approvalRequest, $step) {
                     return true;
                 }
                 break;
+            case 'permission':
+                // 承認者設定での権限ベースは削除（ステップ権限設定に統合）
+                // 権限ベースの承認者は、ステップのavailable_permissionsで制御
+                break;
         }
     }
     return false;
@@ -571,6 +620,7 @@ public function canApprove($userId, $approvalRequest, $step) {
 - **条件分岐**: JSON条件による動的な承認フロー
 - **並列承認**: 複数承認者による同時承認
 - **動的選択**: 依頼データに基づく自動フロー選択
+- **権限分離**: 承認フロー設定権限と承認操作権限の分離
 
 ### 8.3 パフォーマンス最適化
 - **GINインデックス**: JSON検索の高速化

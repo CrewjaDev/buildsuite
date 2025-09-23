@@ -62,6 +62,12 @@ export interface Estimate {
   can_edit?: boolean
   can_delete?: boolean
   can_change_status?: boolean
+  can_request_approval?: boolean
+  is_under_approval?: boolean
+  is_approved?: boolean
+  is_rejected?: boolean
+  is_returned?: boolean
+  is_cancelled?: boolean
   is_expired?: boolean
   days_until_expiry?: number
   // 見積明細

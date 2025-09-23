@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('request_id'); // 依頼元のID
             $table->string('title', 255);
             $table->text('description')->nullable();
-            $table->json('request_data')->nullable(); // 依頼データ（JSON）
+            $table->jsonb('request_data')->nullable(); // 依頼データ（JSONB）
             $table->foreignId('current_step')->nullable()->constrained('approval_steps')->onDelete('set null');
             $table->string('status', 20)->default('pending'); // pending, approved, rejected, returned, cancelled
             $table->string('priority', 20)->default('normal'); // low, normal, high, urgent

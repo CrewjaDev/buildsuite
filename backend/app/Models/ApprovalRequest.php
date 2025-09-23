@@ -67,9 +67,25 @@ class ApprovalRequest extends Model
     }
 
     /**
+     * 承認フローとのリレーション（エイリアス）
+     */
+    public function approvalFlow(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalFlow::class, 'approval_flow_id');
+    }
+
+    /**
      * 依頼者とのリレーション
      */
     public function requester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    /**
+     * 依頼者とのリレーション（エイリアス）
+     */
+    public function requestedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');
     }
@@ -83,9 +99,33 @@ class ApprovalRequest extends Model
     }
 
     /**
+     * 承認者とのリレーション（エイリアス）
+     */
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * 承認履歴とのリレーション
+     */
+    public function histories(): HasMany
+    {
+        return $this->hasMany(ApprovalHistory::class, 'approval_request_id');
+    }
+
+    /**
      * 却下者とのリレーション
      */
     public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    /**
+     * 却下者とのリレーション（エイリアス）
+     */
+    public function rejectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rejected_by');
     }
@@ -99,9 +139,25 @@ class ApprovalRequest extends Model
     }
 
     /**
+     * 差し戻し者とのリレーション（エイリアス）
+     */
+    public function returnedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'returned_by');
+    }
+
+    /**
      * キャンセル者とのリレーション
      */
     public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * キャンセル者とのリレーション（エイリアス）
+     */
+    public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
@@ -122,13 +178,6 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    /**
-     * 承認履歴とのリレーション
-     */
-    public function histories(): HasMany
-    {
-        return $this->hasMany(ApprovalHistory::class)->orderBy('created_at', 'desc');
-    }
 
     /**
      * 現在のステップとのリレーション

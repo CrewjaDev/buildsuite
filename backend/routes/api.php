@@ -17,10 +17,12 @@ use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ProjectTypeController;
 use App\Http\Controllers\ConstructionClassificationController;
 use App\Http\Controllers\EstimateApprovalController;
-use App\Http\Controllers\SystemLevelPermissionController;
+// use App\Http\Controllers\SystemLevelPermissionController;
 use App\Http\Controllers\ApprovalFlowController;
+use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\ApprovalRequestTypeController;
 use App\Http\Controllers\ApprovalRequestTemplateController;
+use App\Http\Controllers\BusinessTypeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -208,8 +210,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [ConstructionClassificationController::class, 'destroy']);
     });
 
+    // ビジネスタイプ管理
+    Route::prefix('business-types')->group(function () {
+        Route::get('/', [BusinessTypeController::class, 'index']);
+        Route::get('/active', [BusinessTypeController::class, 'getActive']);
+        Route::get('/category/{category}', [BusinessTypeController::class, 'getByCategory']);
+        Route::get('/{id}', [BusinessTypeController::class, 'show']);
+    });
+
 
             // システム権限レベル別権限管理（システム管理者のみ）
+            // TODO: SystemLevelPermissionControllerを実装後に有効化
+            /*
             Route::prefix('system-level-permissions')->group(function () {
                 Route::get('/', [SystemLevelPermissionController::class, 'index']);
                 Route::get('/{id}', [SystemLevelPermissionController::class, 'show']);
@@ -220,15 +232,35 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/approval/permissions', [SystemLevelPermissionController::class, 'approvalPermissions']);
                 Route::get('/status', [SystemLevelPermissionController::class, 'permissionStatus']);
             });
+            */
 
             // 承認フロー管理
             Route::prefix('approval-flows')->group(function () {
                 Route::get('/', [ApprovalFlowController::class, 'index']);
+                Route::post('/', [ApprovalFlowController::class, 'store']);
+                Route::get('/available', [ApprovalFlowController::class, 'available']);
                 Route::get('/templates', [ApprovalFlowController::class, 'templates']);
                 Route::post('/create-from-template', [ApprovalFlowController::class, 'createFromTemplate']);
+                Route::get('/departments', [ApprovalFlowController::class, 'departments']);
+                Route::get('/positions', [ApprovalFlowController::class, 'positions']);
+                Route::get('/system-levels', [ApprovalFlowController::class, 'systemLevels']);
+                Route::get('/users', [ApprovalFlowController::class, 'users']);
                 Route::get('/{id}', [ApprovalFlowController::class, 'show']);
                 Route::put('/{id}', [ApprovalFlowController::class, 'update']);
+                Route::post('/{id}/duplicate', [ApprovalFlowController::class, 'duplicate']);
                 Route::delete('/{id}', [ApprovalFlowController::class, 'destroy']);
+            });
+
+            // 承認依頼管理
+            Route::prefix('approval-requests')->group(function () {
+                Route::get('/', [ApprovalRequestController::class, 'index']);
+                Route::post('/', [ApprovalRequestController::class, 'store']);
+                Route::get('/{id}', [ApprovalRequestController::class, 'show']);
+                Route::get('/{id}/histories', [ApprovalRequestController::class, 'histories']);
+                Route::post('/{id}/approve', [ApprovalRequestController::class, 'approve']);
+                Route::post('/{id}/reject', [ApprovalRequestController::class, 'reject']);
+                Route::post('/{id}/return', [ApprovalRequestController::class, 'return']);
+                Route::post('/{id}/cancel', [ApprovalRequestController::class, 'cancel']);
             });
 
             // 承認依頼タイプ管理

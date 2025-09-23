@@ -29,8 +29,8 @@ export function EstimateApprovalRequestButton({
 
   // 承認依頼可能かどうかの判定
   const canRequestApproval = () => {
-    // 下書き状態で、承認依頼が未作成の場合
-    return estimate.status === 'draft' && !estimate.approval_request_id
+    // 新しいモデルのアクセサを使用
+    return estimate.can_request_approval
   }
 
   // 承認依頼の状態に応じた表示

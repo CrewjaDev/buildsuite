@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Estimate } from '@/types/features/estimates/estimate'
-import { ApprovalRequestTemplate } from '@/types/features/approvals/approvalRequestTemplates'
+import { ApprovalFlow } from '@/types/features/approvals/approvalFlows'
 import { 
   Dialog, 
   DialogContent, 
@@ -13,8 +13,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { FileText, CheckCircle } from 'lucide-react'
-import { approvalRequestTemplateService } from '@/services/features/approvals/approvalRequestTemplates'
+import { FileText, CheckCircle, Users, DollarSign } from 'lucide-react'
+import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
 import { estimateApprovalService } from '@/services/features/estimates/estimateApprovalService'
 import { useToast } from '@/components/ui/toast'
 
@@ -31,74 +31,71 @@ export function EstimateApprovalRequestDialog({
   onOpenChange,
   onSuccess
 }: EstimateApprovalRequestDialogProps) {
-  const [templates, setTemplates] = useState<ApprovalRequestTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<ApprovalRequestTemplate | null>(null)
+  const [availableFlows, setAvailableFlows] = useState<ApprovalFlow[]>([])
+  const [selectedFlow, setSelectedFlow] = useState<ApprovalFlow | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const { addToast } = useToast()
 
-  const loadTemplates = useCallback(async () => {
+  const loadAvailableFlows = useCallback(async () => {
     try {
       setLoading(true)
-      const templatesData = await approvalRequestTemplateService.getApprovalRequestTemplates()
-      // 見積関連のテンプレートのみフィルター
-      const estimateTemplates = templatesData.filter(template => 
-        template.request_type === 'estimate' || 
-        (typeof template.request_type === 'object' && template.request_type?.code === 'estimate')
-      )
-      setTemplates(estimateTemplates)
+      const flowsData = await approvalFlowService.getAvailableFlows({
+        request_type: 'estimate',
+        amount: estimate.total_amount,
+        project_type: estimate.project_type_id,
+        // その他の条件は必要に応じて追加
+      })
+      console.log('取得した承認フローデータ:', flowsData)
+      console.log('データの型:', typeof flowsData)
+      console.log('配列かどうか:', Array.isArray(flowsData))
+      
+      // 配列でない場合は空配列を設定
+      if (Array.isArray(flowsData)) {
+        setAvailableFlows(flowsData)
+      } else {
+        console.warn('承認フローデータが配列ではありません:', flowsData)
+        setAvailableFlows([])
+      }
     } catch (error) {
-      console.error('テンプレートの取得に失敗しました:', error)
+      console.error('承認フローの取得に失敗しました:', error)
       addToast({
         type: 'error',
         title: 'エラー',
-        description: 'テンプレートの取得に失敗しました',
+        description: '承認フローの取得に失敗しました',
         duration: 5000
       })
+      setAvailableFlows([])
     } finally {
       setLoading(false)
     }
-  }, [addToast])
+  }, [estimate.total_amount, estimate.project_type_id, addToast])
 
-  // テンプレート一覧の取得
+  // 利用可能な承認フローの取得
   useEffect(() => {
     if (open) {
-      loadTemplates()
+      loadAvailableFlows()
     }
-  }, [open, loadTemplates])
+  }, [open, loadAvailableFlows])
 
-  const handleTemplateSelect = (template: ApprovalRequestTemplate) => {
-    setSelectedTemplate(template)
+  const handleFlowSelect = (flow: ApprovalFlow) => {
+    setSelectedFlow(flow)
   }
 
   const handleSubmit = async () => {
-    if (!selectedTemplate) return
+    if (!selectedFlow) return
 
     try {
       setSubmitting(true)
-      
-      // デバッグ: estimate.idの値を確認
-      console.log('Estimate ID:', estimate.id, 'Type:', typeof estimate.id)
-      console.log('Estimate created_by:', estimate.created_by)
-      console.log('Current user info:', { 
-        // 現在のユーザー情報を取得（認証コンテキストから）
-        // 実際の実装では useAuth や useUser フックを使用
-      })
-      
-      console.log('estimate.id:', estimate.id, 'type:', typeof estimate.id)
       
       if (!estimate.id) {
         throw new Error('見積IDが取得できません')
       }
       
-      // UUIDは文字列のまま使用（数値に変換しない）
-      const estimateId = estimate.id
-      console.log('using estimateId as string:', estimateId)
-      
-      // 承認依頼の作成APIを呼び出し
-      const result = await estimateApprovalService.createApprovalRequest(estimateId, {
-        template_id: selectedTemplate.id,
-        template_data: selectedTemplate.template_data
+      // 承認依頼の作成APIを呼び出し（新しい動的フロー選択システム）
+      const result = await estimateApprovalService.createApprovalRequest(estimate.id, {
+        // 新しいシステムでは、バックエンドで自動的に承認フローが選択される
+        // フロントエンドからは見積情報のみを送信
       })
 
       console.log('承認依頼作成結果:', result)
@@ -106,7 +103,7 @@ export function EstimateApprovalRequestDialog({
       addToast({
         type: 'success',
         title: '承認依頼を作成しました',
-        description: '承認依頼が正常に作成されました',
+        description: `承認フロー「${selectedFlow.name}」で承認依頼が作成されました`,
         duration: 5000
       })
 
@@ -125,26 +122,32 @@ export function EstimateApprovalRequestDialog({
     }
   }
 
-  const getRequestTypeLabel = (requestType: string | object) => {
-    if (typeof requestType === 'string') {
-      switch (requestType) {
-        case 'estimate': return '見積'
-        case 'order': return '発注'
-        case 'budget': return '予算'
-        default: return requestType
-      }
+  const getFlowTypeLabel = (flowType: string) => {
+    switch (flowType) {
+      case 'estimate': return '見積'
+      case 'order': return '発注'
+      case 'budget': return '予算'
+      case 'construction': return '工事'
+      default: return flowType
     }
-    return (requestType as { name?: string })?.name || '未設定'
   }
 
-  const getRequestTypeColor = (requestType: string | object) => {
-    const type = typeof requestType === 'string' ? requestType : (requestType as { code?: string })?.code
-    switch (type) {
+  const getFlowTypeColor = (flowType: string) => {
+    switch (flowType) {
       case 'estimate': return 'bg-blue-100 text-blue-800'
       case 'order': return 'bg-green-100 text-green-800'
       case 'budget': return 'bg-purple-100 text-purple-800'
+      case 'construction': return 'bg-orange-100 text-orange-800'
       default: return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('ja-JP', {
+      style: 'currency',
+      currency: 'JPY',
+      minimumFractionDigits: 0,
+    }).format(amount)
   }
 
   return (
@@ -157,7 +160,7 @@ export function EstimateApprovalRequestDialog({
           </DialogTitle>
           <DialogDescription>
             見積「{estimate.estimate_number || estimate.project_name}」の承認依頼を作成します。
-            使用するテンプレートを選択してください。
+            適用される承認フローを確認してください。
           </DialogDescription>
         </DialogHeader>
 
@@ -180,53 +183,72 @@ export function EstimateApprovalRequestDialog({
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">見積金額:</span>
                   <span className="text-sm font-bold">
-                    ¥{estimate.total_amount?.toLocaleString() || '0'}
+                    {formatAmount(estimate.total_amount || 0)}
                   </span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* テンプレート選択 */}
+          {/* 承認フロー選択 */}
           <div className="space-y-3">
-            <h3 className="text-lg font-medium">承認依頼テンプレート</h3>
+            <h3 className="text-lg font-medium">適用される承認フロー</h3>
             
             {loading ? (
               <div className="text-center py-4 text-gray-500">
-                テンプレートを読み込み中...
+                承認フローを読み込み中...
+              </div>
+            ) : availableFlows.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                適用可能な承認フローが見つかりません
               </div>
             ) : (
               <div className="space-y-3">
-                {templates.map((template) => (
+                {availableFlows.map((flow) => (
                   <Card 
-                    key={template.id}
+                    key={flow.id}
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedTemplate?.id === template.id 
+                      selectedFlow?.id === flow.id 
                         ? 'ring-2 ring-blue-500 bg-blue-50' 
                         : 'hover:bg-gray-50'
                     }`}
-                    onClick={() => handleTemplateSelect(template)}
+                    onClick={() => handleFlowSelect(flow)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{template.name}</h4>
-                            <Badge className={getRequestTypeColor(template.request_type)}>
-                              {getRequestTypeLabel(template.request_type)}
+                            <h4 className="font-medium">{flow.name}</h4>
+                            <Badge className={getFlowTypeColor(flow.flow_type)}>
+                              {getFlowTypeLabel(flow.flow_type)}
                             </Badge>
-                            {template.is_system && (
+                            {flow.is_system && (
                               <Badge variant="outline">システム</Badge>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600">{template.description}</p>
-                          {template.usage_count > 0 && (
-                            <p className="text-xs text-gray-500">
-                              使用回数: {template.usage_count}回
-                            </p>
-                          )}
+                          <p className="text-sm text-gray-600">{flow.description}</p>
+                          
+                          {/* 承認ステップ情報 */}
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {flow.approval_steps?.length || 0}段階
+                            </div>
+                            {flow.conditions?.amount_min && (
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                最小: {formatAmount(flow.conditions.amount_min)}
+                              </div>
+                            )}
+                            {flow.conditions?.amount_max && (
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                最大: {formatAmount(flow.conditions.amount_max)}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {selectedTemplate?.id === template.id && (
+                        {selectedFlow?.id === flow.id && (
                           <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0" />
                         )}
                       </div>
@@ -248,7 +270,7 @@ export function EstimateApprovalRequestDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!selectedTemplate || submitting}
+              disabled={!selectedFlow || submitting}
             >
               {submitting ? '作成中...' : '承認依頼を作成'}
             </Button>

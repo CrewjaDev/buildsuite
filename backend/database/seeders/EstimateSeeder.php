@@ -51,6 +51,7 @@ class EstimateSeeder extends Seeder
             ]);
         }
 
+
         // 見積テストデータの作成
         $estimates = [
             [
@@ -88,7 +89,7 @@ class EstimateSeeder extends Seeder
                 'project_type_id' => $projectTypes->where('type_name', 'LIKE', '%建築一式（元請）民間%')->first()?->id ?? $projectTypes->first()->id,
                 'issue_date' => now()->subDays(15)->format('Y-m-d'),
                 'expiry_date' => now()->addDays(45)->format('Y-m-d'),
-                'status' => 'submitted',
+                'status' => 'draft',
                 'subtotal' => 15000000,
                 'tax_rate' => 0.10,
                 'tax_amount' => 1500000,
@@ -108,7 +109,7 @@ class EstimateSeeder extends Seeder
                 'project_type_id' => $projectTypes->where('type_name', 'LIKE', '%建築一式（元請）民間%')->first()?->id ?? $projectTypes->first()->id,
                 'issue_date' => now()->subDays(7)->format('Y-m-d'),
                 'expiry_date' => now()->addDays(30)->format('Y-m-d'),
-                'status' => 'approved',
+                'status' => 'draft',
                 'subtotal' => 8000000,
                 'tax_rate' => 0.10,
                 'tax_amount' => 800000,
@@ -148,7 +149,7 @@ class EstimateSeeder extends Seeder
                 'project_type_id' => $projectTypes->where('type_name', 'LIKE', '%塗装（元請）民間%')->first()?->id ?? $projectTypes->first()->id,
                 'issue_date' => now()->subDays(1)->format('Y-m-d'),
                 'expiry_date' => now()->addDays(45)->format('Y-m-d'),
-                'status' => 'rejected',
+                'status' => 'draft',
                 'subtotal' => 12000000,
                 'tax_rate' => 0.10,
                 'tax_amount' => 1200000,
@@ -163,9 +164,14 @@ class EstimateSeeder extends Seeder
         ];
 
         foreach ($estimates as $estimateData) {
-            Estimate::create($estimateData);
+            // 承認フロー関連のフィールドを除外して見積を作成
+            $estimateCreateData = $estimateData;
+            unset($estimateCreateData['approval_status']);
+            
+            $estimate = Estimate::create($estimateCreateData);
         }
 
         $this->command->info('見積テストデータを5件作成しました。');
     }
+
 }

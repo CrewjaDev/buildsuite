@@ -50,6 +50,14 @@ class ApprovalHistory extends Model
     }
 
     /**
+     * 実行者とのリレーション
+     */
+    public function actedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'acted_by');
+    }
+
+    /**
      * 承認ステップとのリレーション
      */
     public function step(): BelongsTo

@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Edit, Trash2, Eye, RefreshCw, Plus, Minus } from 'lucide-react'
 import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
-import type { ApprovalFlow } from '@/types/features/approvals/approvalFlows'
+import type { ApprovalFlow, ApprovalStep } from '@/types/features/approvals/approvalFlows'
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useToast } from '@/components/ui/toast'
 
@@ -20,9 +20,10 @@ interface ApprovalFlowListProps {
   flows: ApprovalFlow[]
   loading: boolean
   onRefresh: () => void
+  onEdit?: (flow: ApprovalFlow) => void
 }
 
-export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowListProps) {
+export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: ApprovalFlowListProps) {
   const [selectedFlow, setSelectedFlow] = useState<ApprovalFlow | null>(null)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -33,14 +34,7 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
     is_active: true,
     priority: 0
   })
-  const [editSteps, setEditSteps] = useState<Array<{
-    id?: number
-    step_order: number
-    name: string
-    approver_type: string
-    approver_id: string
-    is_required: boolean
-  }>>([])
+  const [editSteps, setEditSteps] = useState<ApprovalStep[]>([])
   const { addToast } = useToast()
   
   // システム権限レベルを取得（React Query使用）
@@ -52,29 +46,33 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
   }
 
   const handleEdit = (flow: ApprovalFlow) => {
-    setSelectedFlow(flow)
-    setEditFormData({
-      name: flow.name,
-      description: flow.description || '',
-      is_active: flow.is_active,
-      priority: flow.priority
-    })
-    
-    // ステップ情報を設定
-    if (flow.steps && flow.steps.length > 0) {
-      setEditSteps(flow.steps.map(step => ({
-        id: step.id,
-        step_order: step.step_order,
-        name: step.name,
-        approver_type: step.approver_type,
-        approver_id: step.approver_system_level?.code || step.approver_id.toString(),
-        is_required: step.is_required
-      })))
+    if (onEdit) {
+      onEdit(flow)
     } else {
-      setEditSteps([])
+      // フォールバック: 既存の編集ダイアログを開く
+      setSelectedFlow(flow)
+      setEditFormData({
+        name: flow.name,
+        description: flow.description || '',
+        is_active: flow.is_active,
+        priority: flow.priority
+      })
+      
+      // ステップ情報を設定（新しいJSONカラム設計）
+      if (flow.approval_steps && flow.approval_steps.length > 0) {
+        setEditSteps(flow.approval_steps.map(step => ({
+          step: step.step,
+          name: step.name,
+          approvers: step.approvers || [],
+          available_permissions: step.available_permissions || [],
+          condition: step.condition || { type: 'required', display_name: '必須承認' }
+        })))
+      } else {
+        setEditSteps([])
+      }
+      
+      setIsEditDialogOpen(true)
     }
-    
-    setIsEditDialogOpen(true)
   }
 
   const handleUpdate = async () => {
@@ -84,7 +82,7 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
       // ステップの変更も含めて更新データを準備
       const updateData = {
         ...editFormData,
-        steps: editSteps
+        approval_steps: editSteps
       }
       
       await approvalFlowService.updateApprovalFlow(selectedFlow.id, updateData)
@@ -116,19 +114,26 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
       ? systemLevels.sort((a, b) => a.priority - b.priority)[0]
       : null
 
-    const newStep = {
-      step_order: editSteps.length + 1,
+    const newStep: ApprovalStep = {
+      step: editSteps.length + 1,
       name: `第${editSteps.length + 1}承認`,
-      approver_type: 'system_level',
-      approver_id: defaultApprover?.code || 'supervisor',
-      is_required: true
+      approvers: [{
+        type: 'system_level' as const,
+        value: defaultApprover?.code || 'supervisor',
+        display_name: defaultApprover?.display_name || '上長'
+      }],
+      available_permissions: ['approval.view', 'approval.approve'],
+      condition: {
+        type: 'required' as const,
+        display_name: '必須承認'
+      }
     }
     setEditSteps([...editSteps, newStep])
   }
 
   const removeStep = (index: number) => {
     const newSteps = editSteps.filter((_, i) => i !== index)
-      .map((step, i) => ({ ...step, step_order: i + 1 }))
+      .map((step, i) => ({ ...step, step: i + 1 }))
     setEditSteps(newSteps)
   }
 
@@ -200,6 +205,16 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
     }
   }
 
+  const getApproverTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      system_level: 'システム権限レベル',
+      department: '部署',
+      position: '職位',
+      user: '個別ユーザー'
+    }
+    return labels[type] || type
+  }
+
   if (loading) {
     return (
       <Card>
@@ -262,8 +277,8 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
                       <Badge variant="outline">{getFlowTypeLabel(flow.flow_type)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStepBadgeColor(flow.steps?.length || 0)}>
-                        {flow.steps?.length || 0}段階
+                      <Badge className={getStepBadgeColor(flow.approval_steps?.length || 0)}>
+                        {flow.approval_steps?.length || 0}段階
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(flow)}</TableCell>
@@ -311,8 +326,8 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
 
       {/* 詳細ダイアログ */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>承認フロー詳細</DialogTitle>
             <DialogDescription>
               {selectedFlow?.name} の詳細情報
@@ -320,7 +335,7 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
           </DialogHeader>
           
           {selectedFlow && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">フロー名</label>
@@ -347,32 +362,83 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
                 </div>
               )}
               
-              {selectedFlow.steps && selectedFlow.steps.length > 0 && (
+              {selectedFlow.approval_steps && selectedFlow.approval_steps.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">承認ステップ</label>
                   <div className="mt-2 space-y-2">
-                    {selectedFlow.steps.map((step) => (
-                      <div key={step.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                        <Badge variant="outline">{step.step_order}</Badge>
-                        <span className="text-sm font-medium">{step.name}</span>
-                        <span className="text-sm text-gray-500">
-                          → {step.approver_system_level?.display_name || step.approver_id}
-                        </span>
+                    {selectedFlow.approval_steps.map((step, index) => (
+                      <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{step.step}</Badge>
+                          <span className="text-sm font-medium">{step.name}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <div className="font-medium">
+                            {step.step === 0 ? '承認依頼者:' : '承認者:'}
+                          </div>
+                          <div className="ml-2 space-y-1">
+                            {step.approvers?.map((approver, approverIndex) => (
+                              <div key={approverIndex} className="flex items-center gap-2">
+                                <span>{approver.display_name}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {getApproverTypeLabel(approver.type)}
+                                </Badge>
+                              </div>
+                            )) || (step.step === 0 ? '承認依頼者なし' : '承認者なし')}
+                          </div>
+                        </div>
+                        {step.available_permissions && step.available_permissions.length > 0 && (
+                          <div className="text-sm text-gray-600">
+                            <div className="font-medium">利用可能権限:</div>
+                            <div className="ml-2 flex flex-wrap gap-1">
+                              {step.available_permissions.map((permission, permIndex) => (
+                                <Badge key={permIndex} variant="secondary" className="text-xs">
+                                  {permission}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {step.condition && (
+                          <div className="text-sm text-gray-600">
+                            <div className="font-medium">承認条件:</div>
+                            <div className="ml-2">
+                              <Badge variant="outline" className="text-xs">
+                                {step.condition.display_name}
+                              </Badge>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
               
-              {selectedFlow.conditions && selectedFlow.conditions.length > 0 && (
+              {selectedFlow.conditions && Object.keys(selectedFlow.conditions).length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">適用条件</label>
                   <div className="mt-2 space-y-1">
-                    {selectedFlow.conditions.map((condition) => (
-                      <div key={condition.id} className="text-sm text-gray-600">
-                        {condition.field_name} {condition.operator} {String(condition.value)}
+                    {selectedFlow.conditions.amount_min !== undefined && selectedFlow.conditions.amount_min !== null && (
+                      <div className="text-sm text-gray-600">
+                        最小金額: {selectedFlow.conditions.amount_min.toLocaleString()}円
                       </div>
-                    ))}
+                    )}
+                    {selectedFlow.conditions.amount_max !== undefined && selectedFlow.conditions.amount_max !== null && (
+                      <div className="text-sm text-gray-600">
+                        最大金額: {selectedFlow.conditions.amount_max.toLocaleString()}円
+                      </div>
+                    )}
+                    {selectedFlow.conditions.departments && selectedFlow.conditions.departments.length > 0 && (
+                      <div className="text-sm text-gray-600">
+                        対象部署: {selectedFlow.conditions.departments.length} 部署
+                      </div>
+                    )}
+                    {selectedFlow.conditions.project_types && selectedFlow.conditions.project_types.length > 0 && (
+                      <div className="text-sm text-gray-600">
+                        プロジェクトタイプ: {selectedFlow.conditions.project_types.join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -459,7 +525,7 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
                 {editSteps.map((step, index) => (
                   <div key={index} className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline">ステップ {step.step_order}</Badge>
+                      <Badge variant="outline">ステップ {step.step}</Badge>
                       {editSteps.length > 1 && (
                         <Button
                           type="button"
@@ -488,8 +554,19 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
                         <Label htmlFor={`step-approver-${index}`}>承認者</Label>
                         <select
                           id={`step-approver-${index}`}
-                          value={step.approver_id}
-                          onChange={(e) => updateStep(index, 'approver_id', e.target.value)}
+                          value={step.approvers[0]?.value || ''}
+                          onChange={(e) => {
+                            const newSteps = [...editSteps]
+                            newSteps[index] = {
+                              ...newSteps[index],
+                              approvers: [{
+                                type: 'system_level' as const,
+                                value: e.target.value,
+                                display_name: systemLevels.find(l => l.code === e.target.value)?.display_name || '上長'
+                              }]
+                            }
+                            setEditSteps(newSteps)
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           disabled={systemLevelsLoading}
                         >
@@ -513,8 +590,18 @@ export function ApprovalFlowList({ flows, loading, onRefresh }: ApprovalFlowList
                     <div className="flex items-center space-x-2">
                       <Switch
                         id={`step-required-${index}`}
-                        checked={step.is_required}
-                        onCheckedChange={(checked) => updateStep(index, 'is_required', checked)}
+                        checked={step.condition.type === 'required'}
+                        onCheckedChange={(checked) => {
+                          const newSteps = [...editSteps]
+                          newSteps[index] = {
+                            ...newSteps[index],
+                            condition: {
+                              type: checked ? 'required' : 'optional',
+                              display_name: checked ? '必須承認' : '任意承認'
+                            }
+                          }
+                          setEditSteps(newSteps)
+                        }}
                       />
                       <Label htmlFor={`step-required-${index}`}>必須</Label>
                     </div>

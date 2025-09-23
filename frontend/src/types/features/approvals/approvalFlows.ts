@@ -1,3 +1,37 @@
+// 共通の型定義
+export interface ApprovalConditions {
+  amount_min?: number
+  amount_max?: number
+  departments?: number[]
+  project_types?: string[]
+  vendor_types?: string[]
+}
+
+export interface ApprovalRequester {
+  type: 'system_level' | 'department' | 'position' | 'user'
+  value: string | number
+  display_name: string
+}
+
+export interface ApprovalApprover {
+  type: 'system_level' | 'department' | 'position' | 'user'
+  value: string | number
+  display_name: string
+}
+
+export interface ApprovalStepCondition {
+  type: 'required' | 'optional' | 'majority' | 'unanimous'
+  display_name: string
+}
+
+export interface ApprovalStep {
+  step: number
+  name: string
+  approvers: ApprovalApprover[]
+  available_permissions: string[]
+  condition: ApprovalStepCondition
+}
+
 export interface ApprovalFlow {
   id: number
   name: string
@@ -10,11 +44,16 @@ export interface ApprovalFlow {
   updated_by?: number
   created_at: string
   updated_at: string
-  steps?: ApprovalStep[]
-  conditions?: ApprovalCondition[]
+  // 新しいJSONカラム設計
+  conditions?: ApprovalConditions
+  requesters?: ApprovalRequester[]
+  approval_steps?: ApprovalStep[]
+  // 旧設計との互換性のため残す
+  steps?: LegacyApprovalStep[]
+  conditions_old?: ApprovalCondition[]
 }
 
-export interface ApprovalStep {
+export interface LegacyApprovalStep {
   id: number
   approval_flow_id: number
   step_order: number
@@ -73,23 +112,26 @@ export interface ApprovalFlowTemplate {
 }
 
 export interface CreateApprovalFlowRequest {
-  template_id: string
   name: string
   description?: string
   flow_type: string
+  conditions?: ApprovalConditions
+  requesters?: ApprovalRequester[]
+  approval_steps?: ApprovalStep[]
+  priority?: number
+  is_active?: boolean
+  // テンプレートからの作成用
+  template_id?: string
   customizations?: Record<string, unknown>
 }
 
 export interface UpdateApprovalFlowRequest {
   name: string
   description?: string
+  flow_type?: string
+  conditions?: ApprovalConditions
+  requesters?: ApprovalRequester[]
+  approval_steps?: ApprovalStep[]
   is_active?: boolean
   priority?: number
-  steps?: Array<{
-    step_order: number
-    name: string
-    approver_type: string
-    approver_id: string
-    is_required: boolean
-  }>
 }

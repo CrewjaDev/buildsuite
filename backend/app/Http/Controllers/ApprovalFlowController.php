@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalFlow;
-use App\Models\ApprovalStep;
-use App\Models\ApprovalCondition;
+use App\Models\User;
+use App\Models\Department;
+use App\Models\Position;
 use App\Models\SystemLevel;
-use App\Services\ApprovalFlowService;
+use App\Services\Approval\ApprovalFlowService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -27,12 +28,19 @@ class ApprovalFlowController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $flows = ApprovalFlow::with([
-                'steps.approverSystemLevel',
-                'steps.approver',
-                'conditions'
-            ])
-                ->orderBy('priority', 'desc')
+            $query = ApprovalFlow::query();
+
+            // フロータイプでフィルタリング
+            if ($request->has('flow_type')) {
+                $query->where('flow_type', $request->flow_type);
+            }
+
+            // アクティブ状態でフィルタリング
+            if ($request->has('is_active')) {
+                $query->where('is_active', $request->boolean('is_active'));
+            }
+
+            $flows = $query->orderByRaw('COALESCE(priority, 999) ASC')
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -44,6 +52,107 @@ class ApprovalFlowController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => '承認フローの取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 利用可能な承認フロー一覧を取得
+     */
+    public function available(Request $request): JsonResponse
+    {
+        try {
+            $requestType = $request->get('request_type', 'estimate');
+            $amount = $request->get('amount');
+            $projectType = $request->get('project_type');
+            $departmentId = $request->get('department_id');
+
+            // 基本的なクエリ（シンプル版）
+            $flows = ApprovalFlow::where('is_active', true)
+                ->where('flow_type', $requestType)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $flows
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '利用可能な承認フローの取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 承認フローを作成
+     */
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'flow_type' => 'required|string|in:estimate,budget,purchase,contract,general',
+                'conditions' => 'nullable|array',
+                'priority' => 'integer|min:1',
+                'requesters' => 'required|array|min:1',
+                'requesters.*.type' => 'required|string|in:system_level,position,user,department',
+                'requesters.*.value' => 'required',
+                'requesters.*.display_name' => 'required|string',
+                'approval_steps' => 'required|array|min:1|max:5',
+                'approval_steps.*.step' => 'required|integer|min:1|max:5',
+                'approval_steps.*.name' => 'required|string|max:255',
+                'approval_steps.*.approvers' => 'required|array|min:1',
+                'approval_steps.*.condition' => 'required|array',
+                'is_active' => 'boolean'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $flow = ApprovalFlow::create([
+                'name' => $request->name,
+                'description' => $request->description,
+                'flow_type' => $request->flow_type,
+                'conditions' => $request->conditions,
+                'priority' => $request->priority ?? 1,
+                'requesters' => $request->requesters,
+                'approval_steps' => $request->approval_steps,
+                'is_active' => $request->boolean('is_active', true),
+                'is_system' => false,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+            ]);
+
+            // フローの検証
+            $errors = $this->approvalFlowService->validateFlow($flow);
+            if (!empty($errors)) {
+                $flow->delete();
+                return response()->json([
+                    'success' => false,
+                    'message' => '承認フローの設定が不正です',
+                    'errors' => $errors
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '承認フローが作成されました',
+                'data' => $flow
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '承認フローの作成に失敗しました',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -163,12 +272,7 @@ class ApprovalFlowController extends Controller
     public function show($id): JsonResponse
     {
         try {
-            $flow = ApprovalFlow::with([
-                'steps.approverSystemLevel',
-                'steps.approver',
-                'conditions'
-            ])
-                ->findOrFail($id);
+            $flow = ApprovalFlow::findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -192,14 +296,19 @@ class ApprovalFlowController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
-                'is_active' => 'boolean',
-                'priority' => 'integer|min:0',
-                'steps' => 'nullable|array',
-                'steps.*.step_order' => 'required|integer|min:1',
-                'steps.*.name' => 'required|string|max:255',
-                'steps.*.approver_type' => 'required|string|in:user,role,department,system_level',
-                'steps.*.approver_id' => 'required|string',
-                'steps.*.is_required' => 'boolean'
+                'flow_type' => 'string|in:estimate,budget,purchase,contract,general',
+                'conditions' => 'nullable|array',
+                'priority' => 'integer|min:1',
+                'requesters' => 'array|min:1',
+                'requesters.*.type' => 'string|in:system_level,position,user,department',
+                'requesters.*.value' => 'required',
+                'requesters.*.display_name' => 'string',
+                'approval_steps' => 'array|min:1|max:5',
+                'approval_steps.*.step' => 'integer|min:1|max:5',
+                'approval_steps.*.name' => 'string|max:255',
+                'approval_steps.*.approvers' => 'array|min:1',
+                'approval_steps.*.condition' => 'array',
+                'is_active' => 'boolean'
             ]);
 
             if ($validator->fails()) {
@@ -212,22 +321,34 @@ class ApprovalFlowController extends Controller
 
             $flow = ApprovalFlow::findOrFail($id);
             
-            // 基本情報を更新
-            $flow->update($request->only(['name', 'description', 'is_active', 'priority']));
+            // システムフローは一部のフィールドのみ更新可能
+            $updateData = $request->only([
+                'name', 'description', 'is_active', 'priority'
+            ]);
 
-            // ステップが提供されている場合は更新
-            if ($request->has('steps')) {
-                $this->updateApprovalSteps($flow, $request->steps);
+            if (!$flow->is_system) {
+                $updateData = array_merge($updateData, $request->only([
+                    'flow_type', 'conditions', 'requesters', 'approval_steps'
+                ]));
+            }
+
+            $updateData['updated_by'] = auth()->id();
+            $flow->update($updateData);
+
+            // フローの検証
+            $errors = $this->approvalFlowService->validateFlow($flow);
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '承認フローの設定が不正です',
+                    'errors' => $errors
+                ], 422);
             }
 
             return response()->json([
                 'success' => true,
                 'message' => '承認フローが更新されました',
-                'data' => $flow->load([
-                    'steps.approverSystemLevel',
-                    'steps.approver',
-                    'conditions'
-                ])
+                'data' => $flow
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -239,51 +360,139 @@ class ApprovalFlowController extends Controller
     }
 
     /**
-     * 承認ステップを更新
+     * 部署一覧を取得
      */
-    private function updateApprovalSteps(ApprovalFlow $flow, array $steps): void
+    public function departments(): JsonResponse
     {
-        // 既存のステップを削除
-        $flow->steps()->delete();
+        try {
+            $departments = Department::where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']);
 
-        // 新しいステップを作成
-        foreach ($steps as $stepData) {
-            $approverId = $this->resolveApproverId($stepData['approver_type'], $stepData['approver_id']);
-            
-            $flow->steps()->create([
-                'step_order' => $stepData['step_order'],
-                'name' => $stepData['name'],
-                'approver_type' => $stepData['approver_type'],
-                'approver_id' => $approverId,
-                'is_required' => $stepData['is_required'] ?? true,
-                'can_delegate' => false,
-                'is_active' => true,
-                'created_by' => auth()->id(),
-                'updated_by' => auth()->id(),
+            return response()->json([
+                'success' => true,
+                'data' => $departments
             ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '部署一覧の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
-     * 承認者IDを解決
+     * 職位一覧を取得
      */
-    private function resolveApproverId(string $approverType, string $approverCode): ?int
+    public function positions(): JsonResponse
     {
-        switch ($approverType) {
-            case 'system_level':
-                $systemLevel = SystemLevel::where('code', $approverCode)->first();
-                return $systemLevel ? $systemLevel->id : null;
-            
-            case 'user':
-                return is_numeric($approverCode) ? (int)$approverCode : null;
-            
-            case 'role':
-            case 'department':
-                // 役割や部署の場合は、将来的に実装
-                return null;
-            
-            default:
-                return null;
+        try {
+            $positions = Position::where('is_active', true)
+                ->orderBy('level')
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'level']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $positions
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '職位一覧の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * システム権限レベル一覧を取得
+     */
+    public function systemLevels(): JsonResponse
+    {
+        try {
+            $systemLevels = SystemLevel::where('is_active', true)
+                ->orderBy('level')
+                ->get(['id', 'name', 'code', 'level']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $systemLevels
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'システム権限レベル一覧の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ユーザー一覧を取得
+     */
+    public function users(): JsonResponse
+    {
+        try {
+            $users = User::with('employee')
+                ->where('is_active', true)
+                ->get(['id', 'employee_id'])
+                ->map(function ($user) {
+                    return [
+                        'id' => $user->id,
+                        'name' => $user->employee->name ?? 'Unknown',
+                        'employee_id' => $user->employee_id
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $users
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ユーザー一覧の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 承認フローを複製
+     */
+    public function duplicate(Request $request, $id): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $originalFlow = ApprovalFlow::findOrFail($id);
+            $user = auth()->user();
+
+            $newFlow = $this->approvalFlowService->duplicateFlow($originalFlow, $request->name, $user);
+
+            return response()->json([
+                'success' => true,
+                'message' => '承認フローが複製されました',
+                'data' => $newFlow
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '承認フローの複製に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
