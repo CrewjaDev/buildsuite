@@ -12,6 +12,14 @@ import type { ApprovalFlow } from '@/types/features/approvals/approvalFlows'
 
 class ApprovalRequestService {
   /**
+   * 承認待ち件数を取得（ダッシュボード用）
+   */
+  async getPendingCount(): Promise<number> {
+    const response = await api.get('/approval-requests/pending-count')
+    return response.data.count
+  }
+
+  /**
    * 承認依頼一覧を取得
    */
   async getApprovalRequests(params?: {

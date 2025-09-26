@@ -104,6 +104,9 @@ class PermissionSeeder extends Seeder
             // 承認依頼管理権限
             ['name' => 'estimate.approval.request', 'display_name' => '見積承認依頼作成', 'description' => '見積承認依頼を作成する権限', 'module' => 'estimate', 'action' => 'approval', 'resource' => 'request', 'is_system' => false],
             ['name' => 'estimate.approval.cancel', 'display_name' => '見積承認依頼キャンセル', 'description' => '見積承認依頼をキャンセルする権限', 'module' => 'estimate', 'action' => 'approval', 'resource' => 'cancel', 'is_system' => false],
+            
+            // 承認者機能利用権限
+            ['name' => 'approval.usage', 'display_name' => '承認者機能利用', 'description' => '承認者機能を利用する権限', 'module' => 'approval', 'action' => 'usage', 'resource' => null, 'is_system' => false],
         ];
 
         foreach ($permissions as $permission) {

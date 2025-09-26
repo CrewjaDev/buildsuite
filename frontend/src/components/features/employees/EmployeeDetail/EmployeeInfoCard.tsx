@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Employee } from '@/services/features/employees/employeeService'
+import { Employee } from '@/types/features/employees'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 

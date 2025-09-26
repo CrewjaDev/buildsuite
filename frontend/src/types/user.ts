@@ -30,6 +30,7 @@ export interface UserDetail {
   system_level?: string
   is_active?: boolean
   is_admin?: boolean
+  permissions?: string[]
   last_login_at?: string
   password_changed_at?: string
   password_expires_at?: string
@@ -95,6 +96,7 @@ export interface HeaderUser {
   avatar?: string
   is_admin?: boolean
   system_level?: string
+  permissions?: string[]
   primary_department?: {
     id: number
     name: string
@@ -163,6 +165,7 @@ export const createHeaderUser = (userDetail: UserDetail): HeaderUser => {
     avatar: undefined, // 既存のシステムにはアバター機能がない
     is_admin: userDetail.is_admin,
     system_level: userDetail.system_level,
+    permissions: userDetail.permissions,
     primary_department: userDetail.primary_department,
     last_login_at: userDetail.last_login_at,
     is_active: userDetail.is_active

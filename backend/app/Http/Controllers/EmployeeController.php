@@ -382,18 +382,19 @@ class EmployeeController extends Controller
         try {
             $employee = Employee::findOrFail($id);
 
-            // バリデーション
-            $validator = Validator::make($request->all(), [
+            // バリデーション（パスワードは含まない）
+            $validationRules = [
                 'login_id' => [
                     'required',
                     'string',
                     'max:255',
                     Rule::unique('users', 'login_id')->ignore($employee->user?->id),
                 ],
-                'password' => 'required|string|min:8',
                 'system_level' => 'required|string|exists:system_levels,code',
                 'is_admin' => 'boolean',
-            ]);
+            ];
+            
+            $validator = Validator::make($request->all(), $validationRules);
 
             if ($validator->fails()) {
                 return response()->json([
@@ -405,30 +406,27 @@ class EmployeeController extends Controller
 
             // 既存のユーザーレコードがあるかチェック
             if ($employee->user) {
-                // 既存ユーザーを更新
+                // 既存ユーザーを更新（パスワードは含まない）
                 $employee->user->update([
                     'login_id' => $request->login_id,
-                    'password' => bcrypt($request->password),
                     'system_level' => $request->system_level,
                     'is_admin' => $request->boolean('is_admin', false),
-                    'password_changed_at' => now(),
-                    'password_expires_at' => now()->addMonths(3),
                 ]);
                 
                 $message = 'システム利用権限が正常に更新されました';
             } else {
-                // 新規ユーザーレコードを作成
+                // 新規ユーザーレコードを作成（パスワードは空文字で初期化）
                 User::create([
                     'employee_id' => $employee->id,
                     'login_id' => $request->login_id,
-                    'password' => bcrypt($request->password),
+                    'password' => bcrypt(''), // 空文字で初期化
                     'system_level' => $request->system_level,
                     'is_admin' => $request->boolean('is_admin', false),
-                    'password_changed_at' => now(),
-                    'password_expires_at' => now()->addMonths(3),
+                    'password_changed_at' => null,
+                    'password_expires_at' => null,
                 ]);
                 
-                $message = 'システム利用権限が正常に付与されました';
+                $message = 'システム利用権限が正常に付与されました。パスワードは後で設定してください。';
             }
 
             // 更新後の社員情報を取得

@@ -51,6 +51,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('sessions/{sessionId}', [AuthController::class, 'revokeSession']);
     });
 
+    // 役割管理
+    Route::prefix('roles')->group(function () {
+        Route::get('/', [RoleController::class, 'index']);
+        Route::get('/{role}', [RoleController::class, 'show']);
+    });
+
+    // ユーザー役割管理
+    Route::prefix('users')->group(function () {
+        Route::get('/{user}/roles', [RoleController::class, 'getUserRoles']);
+        Route::put('/{user}/roles', [RoleController::class, 'updateUserRoles']);
+    });
+
     // 社員管理
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'index']);
@@ -76,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [UserController::class, 'destroy']);
         Route::post('/{id}/toggle-lock', [UserController::class, 'toggleLock']);
         Route::post('/{id}/reset-password', [UserController::class, 'resetPassword']);
+        Route::put('/{id}/password', [UserController::class, 'updatePassword']);
     });
 
     // 権限管理
@@ -253,6 +266,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // 承認依頼管理
             Route::prefix('approval-requests')->group(function () {
+                Route::get('/pending-count', [ApprovalRequestController::class, 'pendingCount']);
                 Route::get('/', [ApprovalRequestController::class, 'index']);
                 Route::post('/', [ApprovalRequestController::class, 'store']);
                 Route::get('/{id}', [ApprovalRequestController::class, 'show']);

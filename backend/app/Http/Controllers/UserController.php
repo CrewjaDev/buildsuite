@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -498,5 +499,56 @@ class UserController extends Controller
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
+    }
+
+    /**
+     * ユーザーのパスワードを変更
+     */
+    public function updatePassword(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // バリデーション
+            $validator = Validator::make($request->all(), [
+                'password' => 'required|string|min:8|confirmed',
+                'current_password' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // 現在のパスワードを確認
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '現在のパスワードが正しくありません',
+                ], 400);
+            }
+
+            // パスワードを更新
+            $user->update([
+                'password' => Hash::make($request->password),
+                'password_changed_at' => now(),
+                'password_expires_at' => now()->addMonths(3),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'パスワードが正常に変更されました',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'パスワードの変更に失敗しました',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

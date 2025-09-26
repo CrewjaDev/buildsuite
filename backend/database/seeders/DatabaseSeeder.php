@@ -20,7 +20,12 @@ class DatabaseSeeder extends Seeder
             PositionSeeder::class,
             RoleSeeder::class,
             PermissionSeeder::class,
+            SystemLevelPermissionSeeder::class,
+            RolePermissionSeeder::class,
+            PositionPermissionSeeder::class,
+            DepartmentPermissionSeeder::class,
             UserSeeder::class,
+            UserRoleSeeder::class,
             // 見積関連のマスターデータ
             PartnersSeeder::class,
             ProjectTypesSeeder::class,
@@ -31,7 +36,7 @@ class DatabaseSeeder extends Seeder
             EstimateItemNewSeeder::class,
             // 承認フローテストデータ
             BusinessTypeSeeder::class,
-        ApprovalFlowSeeder::class,
+            ApprovalFlowSeeder::class,
         ]);
     }
 }

@@ -14,10 +14,10 @@ export function EmployeeDetailPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const employeeId = Number(params.id)
+  const employeeId = Number(params?.id)
   
   // 初期モードの決定: modeパラメータが指定されていない場合は照会モード
-  const initialMode = searchParams.get('mode') === 'edit' ? 'edit' : searchParams.get('mode') === 'system-access' ? 'system-access' : 'view'
+  const initialMode = searchParams?.get('mode') === 'edit' ? 'edit' : searchParams?.get('mode') === 'system-access' ? 'system-access' : 'view'
   const [mode, setMode] = useState<'view' | 'edit' | 'system-access'>(initialMode)
 
   // データ取得
@@ -35,7 +35,7 @@ export function EmployeeDetailPage() {
   
   // URLのmodeパラメータと内部状態を同期
   useEffect(() => {
-    if (searchParams.get('mode') !== mode) {
+    if (searchParams?.get('mode') !== mode) {
       const newUrl = new URL(window.location.href)
       if (mode === 'edit') {
         newUrl.searchParams.set('mode', 'edit')
@@ -100,7 +100,7 @@ export function EmployeeDetailPage() {
         <TabsList>
           <TabsTrigger value="view">照会</TabsTrigger>
           <TabsTrigger value="edit">編集</TabsTrigger>
-          <TabsTrigger value="system-access">システム権限</TabsTrigger>
+          <TabsTrigger value="system-access">権限設定</TabsTrigger>
         </TabsList>
 
         {/* 照会タブコンテンツ */}
@@ -120,15 +120,16 @@ export function EmployeeDetailPage() {
           />
         </TabsContent>
 
-        {/* システム権限タブコンテンツ */}
+        {/* 権限管理タブコンテンツ */}
         <TabsContent value="system-access" className="mt-4">
           <div className="w-full max-w-4xl">
             <SystemAccessForm 
               employee={employee}
               onSuccess={() => {
-                // データを再取得（システム権限タブのまま表示）
+                // データを再取得
                 refetch()
-                // システム権限更新完了後、同じタブで初期状態に戻す
+                // 権限更新完了後、照会タブに切り替え
+                setMode('view')
               }}
             />
           </div>

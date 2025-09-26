@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Key } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -15,26 +15,23 @@ import { useToast } from '@/components/ui/toast'
 import { PopoverSearchFilter } from '@/components/common/data-display/DataTable/PopoverSearchFilter'
 import { useSystemLevels } from '@/hooks/features/employee/useEmployeeSelect'
 import { useGrantSystemAccess, useRevokeSystemAccess } from '@/hooks/features/employee/useSystemAccess'
-import { type Employee } from '@/services/features/employees/employeeService'
+import { useRoles, useUserRoles, useUpdateUserRoles } from '@/hooks/features/employee/useRoles'
+import { type Employee } from '@/types/features/employees'
+import { PasswordChangeDialog } from './PasswordChangeDialog'
 
-// バリデーションスキーマ
-const systemAccessSchema = z.object({
+// 権限管理用のバリデーションスキーマ（パスワードは含まない）
+const permissionManagementSchema = z.object({
   login_id: z.string().min(1, 'ログインIDは必須です'),
-  password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
-  password_confirmation: z.string().min(1, 'パスワード確認は必須です'),
   system_level: z.string().min(1, 'システムレベルは必須です'),
   is_admin: z.boolean().default(false),
-}).refine((data) => data.password === data.password_confirmation, {
-  message: 'パスワードが一致しません',
-  path: ['password_confirmation'],
+  roles: z.array(z.string()).default([]), // 役割の配列
 })
 
-type SystemAccessFormData = {
+type PermissionManagementFormData = {
   login_id: string
-  password: string
-  password_confirmation: string
   system_level: string
   is_admin: boolean
+  roles: string[]
 }
 
 interface SystemAccessFormProps {
@@ -48,24 +45,25 @@ interface SystemAccessFormProps {
 export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccessFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false)
+  const [showPasswordChangeDialog, setShowPasswordChangeDialog] = useState(false)
 
   const { addToast } = useToast()
   const { data: systemLevels, isLoading: isLoadingSystemLevels } = useSystemLevels()
+  const { data: roles, isLoading: isLoadingRoles } = useRoles()
+  const { data: userRoles, isLoading: isLoadingUserRoles } = useUserRoles(employee.user?.id || 0)
   const grantSystemAccessMutation = useGrantSystemAccess()
   const revokeSystemAccessMutation = useRevokeSystemAccess()
+  const updateUserRolesMutation = useUpdateUserRoles()
 
-  const hasSystemAccess = employee.has_system_access && employee.user
+  const hasSystemAccess = Boolean(employee.has_system_access && employee.user)
 
   // 初期値を定義
   const initialValues = useMemo(() => ({
     login_id: employee.user?.login_id || '',
-    password: '',
-    password_confirmation: '',
     system_level: employee.user?.system_level || '',
     is_admin: Boolean(employee.user?.is_admin),
-  }), [employee.user])
+    roles: userRoles?.map(role => role.id.toString()) || [],
+  }), [employee.user, userRoles])
 
   const {
     register,
@@ -75,7 +73,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
     watch,
     reset,
   } = useForm({
-    resolver: zodResolver(systemAccessSchema),
+    resolver: zodResolver(permissionManagementSchema),
     defaultValues: initialValues,
   })
 
@@ -86,13 +84,12 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
   useEffect(() => {
     const newValues = {
       login_id: employee.user?.login_id || '',
-      password: '',
-      password_confirmation: '',
       system_level: employee.user?.system_level || '',
       is_admin: Boolean(employee.user?.is_admin),
+      roles: userRoles?.map(role => role.id.toString()) || [],
     }
     reset(newValues)
-  }, [employee.user, reset])
+  }, [employee.user, userRoles, reset])
 
   // 変更検知ロジック
   const hasChanges = useMemo(() => {
@@ -100,55 +97,83 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
     if (!hasSystemAccess) {
       return Boolean(
         watchedValues.login_id?.trim() &&
-        watchedValues.password?.trim() &&
-        watchedValues.password_confirmation?.trim() &&
         watchedValues.system_level?.trim()
       )
     }
 
     // 更新の場合は、初期値から変更があるかチェック
-    return (
-      watchedValues.login_id !== initialValues.login_id ||
-      watchedValues.password !== initialValues.password ||
-      watchedValues.password_confirmation !== initialValues.password_confirmation ||
-      watchedValues.system_level !== initialValues.system_level ||
-      watchedValues.is_admin !== initialValues.is_admin
-    )
+    const loginIdChanged = watchedValues.login_id !== initialValues.login_id
+    const systemLevelChanged = watchedValues.system_level !== initialValues.system_level
+    const isAdminChanged = watchedValues.is_admin !== initialValues.is_admin
+    
+    // 配列の比較を改善
+    const currentRoles = watchedValues.roles || []
+    const initialRoles = initialValues.roles || []
+    const rolesChanged = currentRoles.length !== initialRoles.length || 
+      !currentRoles.every(role => initialRoles.includes(role))
+    
+    const hasChanges = loginIdChanged || systemLevelChanged || isAdminChanged || rolesChanged
+    
+    return hasChanges
   }, [watchedValues, initialValues, hasSystemAccess])
 
   // フォーム送信処理
-  const onSubmit = async (data: SystemAccessFormData) => {
+  const onSubmit = async (data: PermissionManagementFormData) => {
+    console.log('Form submission started:', data)
+    console.log('onSubmit function called')
     try {
       setIsSubmitting(true)
 
+      // システム権限の更新/付与
+      const requestData = {
+        login_id: data.login_id,
+        system_level: data.system_level,
+        is_admin: data.is_admin,
+      }
+      
       await grantSystemAccessMutation.mutateAsync({
         id: employee.id,
-        data: {
-          login_id: data.login_id,
-          password: data.password,
-          system_level: data.system_level,
-          is_admin: data.is_admin,
-        },
+        data: requestData,
       })
+
+      // 役割の更新（システム権限がある場合のみ）
+      if (hasSystemAccess && employee.user?.id) {
+        try {
+          const roleIds = data.roles ? data.roles.map(id => parseInt(id)) : []
+          console.log('Updating roles:', { userId: employee.user.id, roleIds })
+          await updateUserRolesMutation.mutateAsync({
+            userId: employee.user.id,
+            roleIds: roleIds,
+          })
+          console.log('Roles updated successfully')
+        } catch (roleError) {
+          console.error('Role update failed:', roleError)
+          // 役割更新が失敗しても、基本的な権限更新は続行
+        }
+      }
 
       addToast({
         title: '成功',
         description: hasSystemAccess 
-          ? 'システム利用権限が正常に更新されました'
+          ? '権限が正常に更新されました'
           : 'システム利用権限が正常に付与されました',
         type: 'success',
       })
 
-      // パスワードフィールドを明示的にクリア
-      setValue('password', '')
-      setValue('password_confirmation', '')
-
       onSuccess?.()
     } catch (error) {
       console.error('System access grant/update failed:', error)
+      
+      // バリデーションエラーの詳細をログ出力
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { errors?: unknown } } }
+        console.error('Validation errors:', axiosError.response?.data?.errors)
+        console.error('Full error response:', axiosError.response?.data)
+      }
+      
       addToast({
         title: 'エラー',
-        description: error instanceof Error ? error.message : 'システム権限の処理に失敗しました',
+        description: error instanceof Error ? error.message : '権限の処理に失敗しました',
         type: 'error',
       })
     } finally {
@@ -183,7 +208,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
     }
   }
 
-  if (isLoadingSystemLevels) {
+  if (isLoadingSystemLevels || isLoadingRoles || isLoadingUserRoles) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -247,22 +272,48 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                   }
                 </p>
               </div>
-
+            </div>
+            
+            {/* 現在の役割表示 */}
+            <div className="mt-4 pt-4 border-t">
+              <Label className="text-gray-600">現在の役割</Label>
+              <div className="mt-2">
+                {userRoles && userRoles.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {userRoles.map((role) => (
+                      <Badge key={role.id} variant="secondary">
+                        {role.display_name}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    役割は設定されていません（システム権限レベルの基本権限のみ適用）
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         )}
       </Card>
 
       {/* システム権限設定フォーム */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={(e) => {
+        console.log('Form onSubmit event triggered')
+        console.log('Form errors:', errors)
+        console.log('Form values:', watch())
+        handleSubmit(onSubmit, (errors) => {
+          console.log('Validation errors:', errors)
+        })(e)
+      }} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>
-              {hasSystemAccess ? 'システム利用権限を更新' : 'システム利用権限を付与'}
+              {hasSystemAccess ? '権限を更新' : 'システム利用権限を付与'}
             </CardTitle>
             <CardDescription>
               {hasSystemAccess 
-                ? 'ログイン情報とシステムレベルを更新できます'
+                ? 'ログイン情報、システムレベル、機能役割を更新できます'
                 : 'この社員にシステム利用権限を付与します'
               }
             </CardDescription>
@@ -307,71 +358,21 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                 )}
               </div>
 
-              {/* パスワード */}
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  パスワード <Badge variant="destructive">必須</Badge>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    {...register('password')}
-                    placeholder="8文字以上で入力"
-                    autoComplete="new-password"
-                    className="pr-10"
-                  />
+              {/* パスワード変更ボタン（既存ユーザーのみ） */}
+              {hasSystemAccess && (
+                <div className="space-y-2">
+                  <Label>パスワード</Label>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
+                    variant="outline"
+                    onClick={() => setShowPasswordChangeDialog(true)}
+                    className="w-full"
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
+                    <Key className="h-4 w-4 mr-2" />
+                    パスワードを変更
                   </Button>
                 </div>
-                {errors.password && (
-                  <p className="text-sm text-red-600">{errors.password.message}</p>
-                )}
-              </div>
-
-              {/* パスワード確認 */}
-              <div className="space-y-2">
-                <Label htmlFor="password_confirmation">
-                  パスワード確認 <Badge variant="destructive">必須</Badge>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password_confirmation"
-                    type={showPasswordConfirmation ? "text" : "password"}
-                    {...register('password_confirmation')}
-                    placeholder="パスワードを再入力"
-                    autoComplete="new-password"
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPasswordConfirmation(!showPasswordConfirmation)}
-                  >
-                    {showPasswordConfirmation ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
-                  </Button>
-                </div>
-                {errors.password_confirmation && (
-                  <p className="text-sm text-red-600">{errors.password_confirmation.message}</p>
-                )}
-              </div>
+              )}
             </div>
 
             {/* 管理者権限 */}
@@ -387,6 +388,49 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                 管理者権限を付与する
               </Label>
             </div>
+
+            {/* 役割選択（システム権限がある場合のみ表示） */}
+            {hasSystemAccess && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  機能役割 <span className="text-gray-500 font-normal">（任意）</span>
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {roles?.map((role) => (
+                    <div key={role.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`role-${role.id}`}
+                        checked={watch('roles')?.includes(role.id.toString()) || false}
+                        onChange={(e) => {
+                          const currentRoles = watch('roles') || []
+                          if (e.target.checked) {
+                            setValue('roles', [...currentRoles, role.id.toString()])
+                          } else {
+                            setValue('roles', currentRoles.filter(id => id !== role.id.toString()))
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <Label htmlFor={`role-${role.id}`} className="text-sm cursor-pointer">
+                        {role.display_name}
+                        {role.description && (
+                          <span className="text-gray-500 ml-1">({role.description})</span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">
+                    複数の役割を選択できます。選択した役割の権限が統合されます。
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    ※ 役割を設定しない場合、システム権限レベルの基本権限のみが適用されます。
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -403,6 +447,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
           <Button
             type="submit"
             disabled={!hasChanges || isSubmitting}
+            onClick={() => console.log('Submit button clicked:', { hasChanges, isSubmitting })}
           >
             {isSubmitting 
               ? (hasSystemAccess ? '更新中...' : '付与中...') 
@@ -444,6 +489,17 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
           </Card>
         </div>
       )}
+
+      {/* パスワード変更ダイアログ */}
+      <PasswordChangeDialog
+        employee={employee}
+        isOpen={showPasswordChangeDialog}
+        onClose={() => setShowPasswordChangeDialog(false)}
+        onSuccess={() => {
+          // パスワード変更成功時の処理
+          setShowPasswordChangeDialog(false)
+        }}
+      />
     </div>
   )
 }

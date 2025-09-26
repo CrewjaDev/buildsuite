@@ -468,12 +468,50 @@ class AuthController extends Controller
                     'priority' => $role->priority,
                 ];
             }),
-            'permissions' => $this->getUserPermissions($user),
+            'permissions' => $this->getUserPermissionNames($user),
         ];
     }
 
     /**
-     * ユーザーの権限一覧を取得
+     * ユーザーの権限名一覧を取得（フロントエンド用）
+     */
+    private function getUserPermissionNames(User $user): array
+    {
+        $permissions = collect();
+
+        // システム管理者は全ての権限を持つ
+        if ($user->is_admin) {
+            $permissions = Permission::where('is_active', true)->get();
+        } else {
+            // システム権限レベルによる権限
+            if ($user->systemLevel) {
+                $permissions = $permissions->merge($user->systemLevel->activePermissions);
+            }
+
+            // 役割による権限
+            $rolePermissions = $user->activeRoles()
+                ->with('permissions')
+                ->get()
+                ->flatMap(function ($role) {
+                    return $role->activePermissions;
+                });
+            $permissions = $permissions->merge($rolePermissions);
+
+            // 部署による権限（社員情報経由）
+            if ($user->employee && $user->employee->department) {
+                $departmentPermissions = $user->employee->department->activePermissions ?? collect();
+                $permissions = $permissions->merge($departmentPermissions);
+            }
+
+            // 重複を除去
+            $permissions = $permissions->unique('id');
+        }
+
+        return $permissions->pluck('name')->toArray();
+    }
+
+    /**
+     * ユーザーの権限一覧を取得（詳細情報付き）
      */
     private function getUserPermissions(User $user): array
     {

@@ -22,6 +22,75 @@ class ApprovalRequestController extends Controller
     }
 
     /**
+     * 承認待ち件数を取得（ダッシュボード用）
+     */
+    public function pendingCount(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // 承認待ちの承認依頼を取得
+            $pendingRequests = ApprovalRequest::where('status', 'pending')
+                ->with('approvalFlow')
+                ->get();
+
+            $count = 0;
+            foreach ($pendingRequests as $request) {
+                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
+                    $count++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '承認待ち件数の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ユーザーが承認者かどうかを判定
+     */
+    private function isUserApprover($user, $approvalFlow, $currentStep)
+    {
+        if (!$approvalFlow || !$approvalFlow->approval_steps) {
+            return false;
+        }
+
+        $steps = $approvalFlow->approval_steps;
+        $step = collect($steps)->firstWhere('step', $currentStep);
+        
+        if (!$step || !isset($step['approvers'])) {
+            return false;
+        }
+        
+        foreach ($step['approvers'] as $approver) {
+            switch ($approver['type']) {
+                case 'user':
+                    if ($approver['value'] == $user->id) return true;
+                    break;
+                case 'system_level':
+                    if ($approver['value'] == $user->system_level) return true;
+                    break;
+                case 'department':
+                    if ($user->employee && $approver['value'] == $user->employee->department_id) return true;
+                    break;
+                case 'position':
+                    if ($user->employee && $approver['value'] == $user->employee->position_id) return true;
+                    break;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * 承認依頼一覧を取得
      */
     public function index(Request $request): JsonResponse

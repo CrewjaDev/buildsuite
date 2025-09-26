@@ -13,57 +13,11 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
+        // 既存の役割をクリア
+        DB::table('roles')->truncate();
+        
         $roles = [
-            [
-                'name' => 'admin',
-                'display_name' => '管理者',
-                'description' => 'システム全体の管理権限を持つ',
-                'priority' => 10,
-                'is_system' => true,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'manager',
-                'display_name' => 'マネージャー',
-                'description' => '部下の業務を管理監督する権限を持つ',
-                'priority' => 5,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'user',
-                'display_name' => 'ユーザー',
-                'description' => '基本的な業務機能の利用権限',
-                'priority' => 1,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'system_admin',
-                'display_name' => 'システム管理者',
-                'description' => 'システム全体の管理権限を持つ',
-                'priority' => 8,
-                'is_system' => true,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'executive',
-                'display_name' => '最高責任者',
-                'description' => '経営判断を行う権限を持つ',
-                'priority' => 7,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
+            // 経理・財務関連
             [
                 'name' => 'accounting_manager',
                 'display_name' => '経理責任者',
@@ -75,6 +29,18 @@ class RoleSeeder extends Seeder
                 'updated_at' => now()
             ],
             [
+                'name' => 'accounting_staff',
+                'display_name' => '経理担当',
+                'description' => '経理業務に特化した権限を持つ',
+                'priority' => 2,
+                'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+
+            // 事務管理関連
+            [
                 'name' => 'office_manager',
                 'display_name' => '事務長',
                 'description' => '事務管理に特化した権限を持つ',
@@ -84,6 +50,18 @@ class RoleSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now()
             ],
+            [
+                'name' => 'office_staff',
+                'display_name' => '事務担当',
+                'description' => '事務業務に特化した権限を持つ',
+                'priority' => 2,
+                'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+
+            // 工事関連
             [
                 'name' => 'construction_manager',
                 'display_name' => '工事責任者',
@@ -95,9 +73,21 @@ class RoleSeeder extends Seeder
                 'updated_at' => now()
             ],
             [
-                'name' => 'supervisor',
-                'display_name' => '上長',
-                'description' => '部下の業務を管理監督する権限を持つ',
+                'name' => 'construction_staff',
+                'display_name' => '工事担当',
+                'description' => '工事業務に特化した権限を持つ',
+                'priority' => 2,
+                'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+
+            // 見積関連
+            [
+                'name' => 'estimator_senior',
+                'display_name' => '上級見積担当',
+                'description' => '複雑な見積業務に特化した権限を持つ',
                 'priority' => 3,
                 'is_system' => false,
                 'is_active' => true,
@@ -114,40 +104,12 @@ class RoleSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now()
             ],
+
+            // 営業関連
             [
-                'name' => 'staff',
-                'display_name' => '担当者',
-                'description' => '基本的な業務機能の利用権限',
-                'priority' => 1,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'sales',
-                'display_name' => '営業担当者',
-                'description' => '見積・受注管理を担当',
-                'priority' => 2,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'construction',
-                'display_name' => '工事担当者',
-                'description' => '工事管理・出来高管理を担当',
-                'priority' => 3,
-                'is_system' => false,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now()
-            ],
-            [
-                'name' => 'accounting',
-                'display_name' => '経理担当者',
-                'description' => '支払管理・経理処理を担当',
+                'name' => 'sales_manager',
+                'display_name' => '営業マネージャー',
+                'description' => '営業管理に特化した権限を持つ',
                 'priority' => 4,
                 'is_system' => false,
                 'is_active' => true,
@@ -155,11 +117,23 @@ class RoleSeeder extends Seeder
                 'updated_at' => now()
             ],
             [
-                'name' => 'approver',
-                'display_name' => '承認者',
-                'description' => '各種承認処理を担当',
-                'priority' => 5,
+                'name' => 'sales_staff',
+                'display_name' => '営業担当',
+                'description' => '営業業務に特化した権限を持つ',
+                'priority' => 2,
                 'is_system' => false,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+
+            // システム管理関連
+            [
+                'name' => 'system_manager',
+                'display_name' => 'システム管理者',
+                'description' => 'システム管理に特化した権限を持つ',
+                'priority' => 8,
+                'is_system' => true,
                 'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now()

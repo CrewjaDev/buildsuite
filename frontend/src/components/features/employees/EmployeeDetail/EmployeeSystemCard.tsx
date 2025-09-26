@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Employee } from '@/services/features/employees/employeeService'
+import { Employee } from '@/types/features/employees'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -69,6 +69,21 @@ export function EmployeeSystemCard({ employee }: EmployeeSystemCardProps) {
             <p className="text-sm text-gray-900">
               {String(employee.user.system_level_info?.display_name || '未設定')}
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">機能役割</label>
+            <div className="flex flex-wrap gap-1">
+              {employee.user.roles && employee.user.roles.length > 0 ? (
+                employee.user.roles.map((role) => (
+                  <Badge key={role.id} variant="outline">
+                    {(role as { display_name?: string }).display_name || role.name || 'Unknown'}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-gray-500">未設定</span>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

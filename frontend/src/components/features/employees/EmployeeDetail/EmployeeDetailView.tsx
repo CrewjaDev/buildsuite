@@ -1,6 +1,6 @@
 'use client'
 
-import { Employee } from '@/services/features/employees/employeeService'
+import { Employee } from '@/types/features/employees'
 import { EmployeeInfoCard } from './EmployeeInfoCard'
 import { EmployeeContactCard } from './EmployeeContactCard'
 import { EmployeeWorkCard } from './EmployeeWorkCard'

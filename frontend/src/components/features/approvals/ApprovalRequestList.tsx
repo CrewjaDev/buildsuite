@@ -211,7 +211,7 @@ export function ApprovalRequestList({ onViewDetail, onCreateRequest }: ApprovalR
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-500">ステータス</label>
-              <Select value={filter.status?.[0] || ''} onValueChange={(value) => handleFilterChange('status', value ? [value] : undefined)}>
+              <Select value={filter.status?.[0] || 'all'} onValueChange={(value) => handleFilterChange('status', value === 'all' ? undefined : [value])}>
                 <SelectTrigger>
                   <SelectValue placeholder="すべて" />
                 </SelectTrigger>
@@ -228,7 +228,7 @@ export function ApprovalRequestList({ onViewDetail, onCreateRequest }: ApprovalR
             
             <div>
               <label className="text-sm font-medium text-gray-500">優先度</label>
-              <Select value={filter.priority?.[0] || ''} onValueChange={(value) => handleFilterChange('priority', value ? [value] : undefined)}>
+              <Select value={filter.priority?.[0] || 'all'} onValueChange={(value) => handleFilterChange('priority', value === 'all' ? undefined : [value])}>
                 <SelectTrigger>
                   <SelectValue placeholder="すべて" />
                 </SelectTrigger>
@@ -244,7 +244,7 @@ export function ApprovalRequestList({ onViewDetail, onCreateRequest }: ApprovalR
             
             <div>
               <label className="text-sm font-medium text-gray-500">依頼タイプ</label>
-              <Select value={filter.request_type?.[0] || ''} onValueChange={(value) => handleFilterChange('request_type', value ? [value] : undefined)}>
+              <Select value={filter.request_type?.[0] || 'all'} onValueChange={(value) => handleFilterChange('request_type', value === 'all' ? undefined : [value])}>
                 <SelectTrigger>
                   <SelectValue placeholder="すべて" />
                 </SelectTrigger>
