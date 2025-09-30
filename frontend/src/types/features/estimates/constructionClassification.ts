@@ -58,7 +58,6 @@ export interface ConstructionClassificationsResponse {
 }
 
 export interface ConstructionClassificationOption {
-  value: number
-  label: string
-  code: string
+  id: number
+  name: string
 }

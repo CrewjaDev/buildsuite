@@ -110,8 +110,8 @@ class ConstructionClassificationController extends Controller
     {
         $options = ConstructionClassification::where('is_active', true)
             ->orderBy('display_order')
-            ->orderBy('name')
-            ->get(['id', 'name']);
+            ->orderBy('classification_name')
+            ->get(['id', 'classification_name as name']);
 
         return response()->json($options);
     }

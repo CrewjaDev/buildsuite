@@ -20,7 +20,9 @@ class EstimateController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = Estimate::with(['partner', 'projectType', 'constructionClassification', 'creator', 'creatorEmployee'])
+            $user = auth()->user();
+            $query = Estimate::visibleTo($user)
+                ->with(['partner', 'projectType', 'constructionClassification', 'creator', 'creatorEmployee', 'responsibleUser'])
                 ->orderBy('created_at', 'desc');
 
             // 検索条件
@@ -69,6 +71,7 @@ class EstimateController extends Controller
                 $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
                 // Employeeテーブルから社員名を取得
                 $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
+                $estimate->responsible_user_name = $estimate->responsibleUser ? $estimate->responsibleUser->name : null;
                 // フロントエンドで使用するフィールド名に合わせる
                 $estimate->estimate_date = $estimate->issue_date;
                 $estimate->construction_period_from = $estimate->project_period_start;
@@ -123,6 +126,7 @@ class EstimateController extends Controller
                 'projectType', 
                 'constructionClassification',
                 'creatorEmployee',
+                'responsibleUser',
                 'items' => function ($query) {
                     $query->orderBy('display_order', 'asc');
                 }
@@ -132,6 +136,7 @@ class EstimateController extends Controller
             $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
             $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
             $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
+            $estimate->responsible_user_name = $estimate->responsibleUser ? $estimate->responsibleUser->name : null;
             
             // フィールド名のマッピング（データベースのカラム名をフロントエンドのフィールド名に変換）
             $estimate->estimate_date = $estimate->issue_date;
@@ -179,11 +184,13 @@ class EstimateController extends Controller
                 'project_name' => 'required|string|max:255',
                 'partner_id' => 'required|exists:partners,id',
                 'project_type_id' => 'required|exists:project_types,id',
-                'construction_classification_id' => 'required|exists:construction_classifications,id',
-                'total_amount' => 'nullable|numeric|min:0',
-                'status' => 'nullable|in:draft,sent,approved,rejected',
-                'valid_until' => 'required|date|after:today',
-                'remarks' => 'nullable|string|max:1000',
+                'issue_date' => 'required|date',
+                'expiry_date' => 'required|date|after:today',
+                'notes' => 'nullable|string|max:1000',
+                'project_location' => 'nullable|string|max:255',
+                'project_period_start' => 'nullable|date',
+                'project_period_end' => 'nullable|date|after_or_equal:project_period_start',
+                'responsible_user_id' => 'nullable|exists:users,id',
             ]);
 
             if ($validator->fails()) {
@@ -196,7 +203,42 @@ class EstimateController extends Controller
             DB::beginTransaction();
 
             $data = $request->all();
-            $data['created_by'] = auth()->id() ?? 1; // 認証ユーザーIDまたはデフォルト値1
+            $user = auth()->user();
+            
+            // 作成者は認証ユーザー（自動設定）
+            $data['created_by'] = $user->id ?? 1;
+            
+            // 担当者が未設定の場合は作成者を担当者に設定
+            $data['responsible_user_id'] = $data['responsible_user_id'] ?? $user->id;
+            
+            $data['visibility'] = 'private'; // 作成時はプライベート
+            $data['department_id'] = $user->department_id ?? null; // ユーザーの部署ID
+            
+            // 必須フィールドのデフォルト値設定
+            $data['status'] = $data['status'] ?? 'draft';
+            $data['currency'] = $data['currency'] ?? 'JPY';
+            $data['subtotal'] = $data['subtotal'] ?? 0;
+            $data['overhead_rate'] = $data['overhead_rate'] ?? 0;
+            $data['overhead_amount'] = $data['overhead_amount'] ?? 0;
+            $data['cost_expense_rate'] = $data['cost_expense_rate'] ?? 0;
+            $data['cost_expense_amount'] = $data['cost_expense_amount'] ?? 0;
+            $data['material_expense_rate'] = $data['material_expense_rate'] ?? 0;
+            $data['material_expense_amount'] = $data['material_expense_amount'] ?? 0;
+            $data['tax_rate'] = $data['tax_rate'] ?? 0.10;
+            $data['tax_amount'] = $data['tax_amount'] ?? 0;
+            $data['discount_rate'] = $data['discount_rate'] ?? 0;
+            $data['discount_amount'] = $data['discount_amount'] ?? 0;
+            $data['total_amount'] = $data['total_amount'] ?? 0;
+            $data['profit_margin'] = $data['profit_margin'] ?? 0;
+            $data['profit_amount'] = $data['profit_amount'] ?? 0;
+            $data['approval_status'] = $data['approval_status'] ?? 'none';
+            
+            // 現在有効な税率を自動設定
+            $currentTaxRate = \App\Models\TaxRate::getCurrentTaxRate();
+            if ($currentTaxRate) {
+                $data['tax_rate'] = $currentTaxRate->rate;
+                $data['tax_rate_id'] = $currentTaxRate->id;
+            }
             
             \Log::info('見積作成データ', ['data' => $data]);
             

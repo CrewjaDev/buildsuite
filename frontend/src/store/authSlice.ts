@@ -6,6 +6,7 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   loading: boolean
+  effectivePermissions: string[]
 }
 
 const initialState: AuthState = {
@@ -13,15 +14,17 @@ const initialState: AuthState = {
   token: null,
   isAuthenticated: false,
   loading: false,
+  effectivePermissions: [],
 }
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setCredentials: (state, action: PayloadAction<{ user: UserDetail; token: string }>) => {
+    setCredentials: (state, action: PayloadAction<{ user: UserDetail; token: string; effectivePermissions: string[] }>) => {
       state.user = action.payload.user
       state.token = action.payload.token
+      state.effectivePermissions = action.payload.effectivePermissions
       state.isAuthenticated = true
       state.loading = false
     },
@@ -31,6 +34,7 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null
       state.token = null
+      state.effectivePermissions = []
       state.isAuthenticated = false
       state.loading = false
     },

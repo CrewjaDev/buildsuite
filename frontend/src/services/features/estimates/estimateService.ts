@@ -25,13 +25,13 @@ export const estimateService = {
   // 見積作成
   async createEstimate(data: CreateEstimateRequest): Promise<Estimate> {
     const response = await api.post('/estimates', data)
-    return response.data
+    return response.data.data
   },
 
   // 見積更新
   async updateEstimate(id: string, data: UpdateEstimateRequest): Promise<Estimate> {
     const response = await api.put(`/estimates/${id}`, data)
-    return response.data
+    return response.data.data
   },
 
   // 見積削除

@@ -104,7 +104,7 @@ class ApprovalFlowController extends Controller
                 'requesters.*.value' => 'required',
                 'requesters.*.display_name' => 'required|string',
                 'approval_steps' => 'required|array|min:1|max:5',
-                'approval_steps.*.step' => 'required|integer|min:1|max:5',
+                'approval_steps.*.step' => 'required|integer|min:0|max:5', // ステップ0を許可
                 'approval_steps.*.name' => 'required|string|max:255',
                 'approval_steps.*.approvers' => 'required|array|min:1',
                 'approval_steps.*.condition' => 'required|array',
@@ -302,9 +302,9 @@ class ApprovalFlowController extends Controller
                 'requesters' => 'array|min:1',
                 'requesters.*.type' => 'string|in:system_level,position,user,department',
                 'requesters.*.value' => 'required',
-                'requesters.*.display_name' => 'string',
+                'requesters.*.display_name' => 'required|string',
                 'approval_steps' => 'array|min:1|max:5',
-                'approval_steps.*.step' => 'integer|min:1|max:5',
+                'approval_steps.*.step' => 'integer|min:0|max:5', // ステップ0を許可
                 'approval_steps.*.name' => 'string|max:255',
                 'approval_steps.*.approvers' => 'array|min:1',
                 'approval_steps.*.condition' => 'array',

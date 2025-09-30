@@ -9,9 +9,13 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\Position;
+use App\Models\Department;
+use App\Models\Permission;
 
 class User extends Authenticatable
 {
@@ -106,6 +110,41 @@ class User extends Authenticatable
     public function systemLevel()
     {
         return $this->belongsTo(SystemLevel::class, 'system_level', 'code');
+    }
+
+    /**
+     * ユーザーの部署とのリレーション（user_departmentsテーブル経由）
+     */
+    public function departments(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'user_departments')
+            ->withPivot(['assigned_at', 'assigned_by', 'is_primary', 'is_active'])
+            ->withTimestamps();
+    }
+
+    /**
+     * ユーザーの職位とのリレーション（employee経由）
+     */
+    public function position()
+    {
+        return $this->hasOneThrough(
+            Position::class,
+            Employee::class,
+            'id', // Employee テーブルの外部キー
+            'id', // Position テーブルの外部キー
+            'employee_id', // User テーブルの外部キー
+            'position_id' // Employee テーブルの外部キー
+        );
+    }
+
+    /**
+     * ユーザーの個別権限とのリレーション
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permissions')
+            ->withPivot(['assigned_at', 'assigned_by', 'expires_at', 'is_active'])
+            ->withTimestamps();
     }
 
     /**

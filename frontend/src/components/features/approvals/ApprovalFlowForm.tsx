@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PopoverSearchFilter } from '@/components/common/data-display/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -19,11 +20,13 @@ import type {
   ApprovalRequester,
   ApprovalConditions
 } from '@/types/features/approvals/approvalFlows'
+import type { UserDetail } from '@/types/user'
 import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useActiveDepartments } from '@/hooks/useDepartments'
 import { useActivePositions } from '@/hooks/usePositions'
-import { useActiveBusinessTypes } from '@/hooks/useBusinessTypes'
+import { useUsers } from '@/hooks/useUsers'
+import { businessCodeService } from '@/services/features/business/businessCodeService'
 import { useToast } from '@/components/ui/toast'
 
 interface ApprovalFlowFormProps {
@@ -35,6 +38,38 @@ interface ApprovalFlowFormProps {
 
 
 export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalFlowFormProps) {
+  // ビジネスロジックコードのみを取得（システム管理コードは除外）
+  const [businessTypes, setBusinessTypes] = useState<Array<{id: string, name: string, code: string}>>([])
+  
+  // ビジネスコードをAPIから取得
+  useEffect(() => {
+    const loadBusinessCodes = async () => {
+      try {
+        const allBusinessCodes = await businessCodeService.getAllBusinessCodes()
+        const businessTypesData = Object.entries(allBusinessCodes)
+          .filter(([, info]) => !info.is_system)
+          .map(([code, info]) => ({
+            id: code,
+            name: info.name,
+            code: code
+          }))
+        setBusinessTypes(businessTypesData)
+      } catch (error) {
+        console.error('ビジネスコードの取得に失敗:', error)
+        // フォールバック: 基本的なビジネスコードを設定
+        setBusinessTypes([
+          { id: 'estimate', name: '見積', code: 'estimate' },
+          { id: 'budget', name: '予算', code: 'budget' },
+          { id: 'purchase', name: '発注', code: 'purchase' },
+          { id: 'construction', name: '工事', code: 'construction' },
+          { id: 'general', name: '一般', code: 'general' }
+        ])
+      }
+    }
+    
+    loadBusinessCodes()
+  }, [])
+
   const [formData, setFormData] = useState<{
     name: string
     description: string
@@ -44,7 +79,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   }>({
     name: '',
     description: '',
-    flow_type: 'estimate',
+    flow_type: 'estimate', // 初期値は固定、businessTypesが読み込まれた後に更新
     priority: 1,
     is_active: true
   })
@@ -64,7 +99,55 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   const { data: systemLevels = [] } = useActiveSystemLevels()
   const { data: departments = [] } = useActiveDepartments()
   const { data: positions = [] } = useActivePositions()
-  const { data: businessTypes = [] } = useActiveBusinessTypes()
+  const { data: usersData } = useUsers({ page: 1, pageSize: 1000, is_active: true })
+  const users = usersData?.users || []
+  
+  // ユーザーの表示ラベルを生成する関数
+  const getUserDisplayLabel = (user: UserDetail) => {
+    const parts = [user.name]
+    
+    // システム権限レベル
+    if (user.systemLevel?.display_name) {
+      parts.push(`[${user.systemLevel.display_name}]`)
+    }
+    
+    // 職位
+    if (user.position?.display_name) {
+      parts.push(`(${user.position.display_name})`)
+    }
+    
+    // 役割（最初の役割のみ表示）
+    if (user.roles && user.roles.length > 0) {
+      parts.push(`- ${user.roles[0].display_name}`)
+    }
+    
+    // 部署（プライマリ部署または最初の部署）
+    const primaryDept = user.primary_department || (user.departments && user.departments[0])
+    if (primaryDept?.name) {
+      parts.push(`@${primaryDept.name}`)
+    }
+    
+    return parts.join(' ')
+  }
+
+  const resetForm = useCallback(() => {
+    setFormData({
+      name: '',
+      description: '',
+      flow_type: businessTypes[0]?.code || 'estimate',
+      priority: 1,
+      is_active: true
+    })
+    setConditions({
+      amount_min: undefined,
+      amount_max: undefined,
+      departments: [],
+      project_types: [],
+      vendor_types: []
+    })
+    setRequesters([])
+    setApprovalSteps([])
+  }, [businessTypes])
 
   // 編集時の初期化
   useEffect(() => {
@@ -90,37 +173,28 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       
       // 承認依頼者の設定
       if (flow.requesters) {
+        console.log('承認依頼者データ:', flow.requesters)
         setRequesters(flow.requesters)
       }
       
       // 承認ステップの設定
       if (flow.approval_steps) {
-        setApprovalSteps(flow.approval_steps)
+        console.log('承認ステップデータ:', flow.approval_steps)
+        // 各ステップのconditionプロパティを適切に初期化
+        const initializedSteps = flow.approval_steps.map(step => ({
+          ...step,
+          condition: step.condition || {
+            type: 'required',
+            display_name: '必須承認'
+          }
+        }))
+        setApprovalSteps(initializedSteps)
       }
     } else if (isOpen) {
       // 新規作成時の初期化
       resetForm()
     }
-  }, [flow, isOpen])
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      flow_type: 'estimate',
-      priority: 1,
-      is_active: true
-    })
-    setConditions({
-      amount_min: undefined,
-      amount_max: undefined,
-      departments: [],
-      project_types: [],
-      vendor_types: []
-    })
-    setRequesters([])
-    setApprovalSteps([])
-  }
+  }, [flow, isOpen, resetForm])
 
   const addRequester = () => {
     const newRequester: ApprovalRequester = {
@@ -137,20 +211,35 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
 
   const updateRequester = (index: number, field: keyof ApprovalRequester, value: string | number) => {
     const newRequesters = [...requesters]
-    newRequesters[index] = { ...newRequesters[index], [field]: value }
+    
+    // タイプが変更された場合は値もリセット
+    if (field === 'type') {
+      newRequesters[index] = {
+        ...newRequesters[index],
+        [field]: value as 'system_level' | 'department' | 'position' | 'user',
+        value: '', // 値をリセット
+        display_name: '' // 表示名もリセット
+      }
+    } else {
+      newRequesters[index] = { ...newRequesters[index], [field]: value }
+    }
     
     // display_nameを更新
     if (field === 'type' || field === 'value') {
       const requester = newRequesters[index]
       if (requester.type === 'system_level') {
         const systemLevel = systemLevels.find(level => level.code === requester.value)
-        newRequesters[index].display_name = systemLevel?.display_name || '担当者'
+        newRequesters[index].display_name = systemLevel?.display_name || 'システム権限レベル'
       } else if (requester.type === 'department') {
-        const department = departments.find(dept => dept.id === requester.value)
+        const department = departments.find(dept => dept.id.toString() === String(requester.value))
         newRequesters[index].display_name = department?.name || '部署'
       } else if (requester.type === 'position') {
-        const position = positions.find(pos => pos.id === requester.value)
+        const position = positions.find(pos => pos.id.toString() === String(requester.value))
         newRequesters[index].display_name = position?.name || '職位'
+      } else if (requester.type === 'user') {
+        // 個別ユーザーの場合はユーザー一覧から名前を取得
+        const user = users.find((u) => u.id.toString() === String(requester.value))
+        newRequesters[index].display_name = user?.name || 'ユーザー'
       }
     }
     
@@ -205,27 +294,58 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   }
 
   const updateApprover = (stepIndex: number, approverIndex: number, field: string, value: string | number) => {
-    const newSteps = [...approvalSteps]
-    newSteps[stepIndex].approvers[approverIndex] = {
-      ...newSteps[stepIndex].approvers[approverIndex],
-      [field]: value
-    }
+    console.log('updateApprover called:', { stepIndex, approverIndex, field, value })
+    
+    // 完全に新しい配列を作成して強制再レンダリング
+    const newSteps = approvalSteps.map((step, sIndex) => {
+      if (sIndex === stepIndex) {
+        return {
+          ...step,
+          approvers: step.approvers.map((approver, aIndex) => {
+            if (aIndex === approverIndex) {
+              // タイプが変更された場合は値もリセット
+              if (field === 'type') {
+                console.log('Type changed, resetting value and display_name')
+                return {
+                  ...approver,
+                  [field]: value as 'system_level' | 'department' | 'position' | 'user',
+                  value: '', // 値をリセット
+                  display_name: '' // 表示名もリセット
+                }
+              } else {
+                return {
+                  ...approver,
+                  [field]: value
+                }
+              }
+            }
+            return approver
+          })
+        }
+      }
+      return step
+    })
     
     // display_nameを更新
     if (field === 'type' || field === 'value') {
       const approver = newSteps[stepIndex].approvers[approverIndex]
       if (approver.type === 'system_level') {
         const systemLevel = systemLevels.find(level => level.code === approver.value)
-        newSteps[stepIndex].approvers[approverIndex].display_name = systemLevel?.display_name || '上長'
+        newSteps[stepIndex].approvers[approverIndex].display_name = systemLevel?.display_name || 'システム権限レベル'
       } else if (approver.type === 'department') {
-        const department = departments.find(dept => dept.id === approver.value)
+        const department = departments.find(dept => dept.id.toString() === String(approver.value))
         newSteps[stepIndex].approvers[approverIndex].display_name = department?.name || '部署'
       } else if (approver.type === 'position') {
-        const position = positions.find(pos => pos.id === approver.value)
+        const position = positions.find(pos => pos.id.toString() === String(approver.value))
         newSteps[stepIndex].approvers[approverIndex].display_name = position?.name || '職位'
+      } else if (approver.type === 'user') {
+        // 個別ユーザーの場合はユーザー一覧から名前を取得
+        const user = users.find((u) => u.id.toString() === String(approver.value))
+        newSteps[stepIndex].approvers[approverIndex].display_name = user?.name || 'ユーザー'
       }
     }
     
+    console.log('Setting new approval steps:', newSteps)
     setApprovalSteps(newSteps)
   }
 
@@ -262,6 +382,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         priority: formData.priority,
         is_active: formData.is_active
       }
+      
+      console.log('送信データ:', requestData)
 
       if (flow) {
         // 更新
@@ -287,12 +409,31 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       onClose()
     } catch (error) {
       console.error('承認フローの保存に失敗しました:', error)
-      addToast({
-        type: 'error',
-        title: '保存に失敗しました',
-        description: 'エラーが発生しました。もう一度お試しください。',
-        duration: 5000
-      })
+      
+      // バリデーションエラーの詳細を表示
+      const axiosError = error as { response?: { data?: { errors?: Record<string, string[]> } } }
+      if (axiosError?.response?.data?.errors) {
+        const errors = axiosError.response.data.errors
+        console.log('バリデーションエラー詳細:', errors)
+        
+        // 最初のエラーメッセージを表示
+        const firstError = Object.values(errors)[0]
+        const errorMessage = Array.isArray(firstError) ? firstError[0] : firstError
+        
+        addToast({
+          type: 'error',
+          title: 'バリデーションエラー',
+          description: errorMessage,
+          duration: 5000
+        })
+      } else {
+        addToast({
+          type: 'error',
+          title: '保存に失敗しました',
+          description: 'エラーが発生しました。もう一度お試しください。',
+          duration: 5000
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -444,7 +585,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
               ) : (
                 <div className="space-y-3">
                   {requesters.map((requester, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
+                    <div key={`requester-${index}-${requester.type}-${requester.value}`} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <Badge variant="outline">依頼者 {index + 1}</Badge>
                         <Button
@@ -461,7 +602,14 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label htmlFor={`requester-type-${index}`}>タイプ</Label>
-                          <Select value={requester.type} onValueChange={(value) => updateRequester(index, 'type', value)}>
+                          <Select 
+                            key={`requester-type-${index}-${requester.type}`}
+                            value={requester.type} 
+                            onValueChange={(value) => {
+                              console.log('Requester type changed:', { index, oldType: requester.type, newType: value })
+                              updateRequester(index, 'type', value)
+                            }}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -477,9 +625,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         <div>
                           <Label htmlFor={`requester-value-${index}`}>値</Label>
                           {requester.type === 'system_level' ? (
-                            <Select value={requester.value as string} onValueChange={(value) => updateRequester(index, 'value', value)}>
+                            <Select 
+                              key={`requester-system-level-${index}-${requester.value}`}
+                              value={String(requester.value)} 
+                              onValueChange={(value) => updateRequester(index, 'value', value)}
+                            >
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder="システム権限レベルを選択" />
                               </SelectTrigger>
                               <SelectContent>
                                 {systemLevels.map((level) => (
@@ -490,9 +642,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               </SelectContent>
                             </Select>
                           ) : requester.type === 'department' ? (
-                            <Select value={requester.value as string} onValueChange={(value) => updateRequester(index, 'value', value)}>
+                            <Select 
+                              key={`requester-department-${index}-${requester.value}`}
+                              value={String(requester.value)} 
+                              onValueChange={(value) => updateRequester(index, 'value', value)}
+                            >
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder="部署を選択" />
                               </SelectTrigger>
                               <SelectContent>
                                 {departments.map((dept) => (
@@ -503,9 +659,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               </SelectContent>
                             </Select>
                           ) : requester.type === 'position' ? (
-                            <Select value={requester.value as string} onValueChange={(value) => updateRequester(index, 'value', value)}>
+                            <Select 
+                              key={`requester-position-${index}-${requester.value}`}
+                              value={String(requester.value)} 
+                              onValueChange={(value) => updateRequester(index, 'value', value)}
+                            >
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder="職位を選択" />
                               </SelectTrigger>
                               <SelectContent>
                                 {positions.map((pos) => (
@@ -516,12 +676,44 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Input
-                              value={requester.value as string}
-                              onChange={(e) => updateRequester(index, 'value', e.target.value)}
-                              placeholder="ユーザーIDを入力"
+                            <PopoverSearchFilter
+                              key={`requester-user-${index}-${requester.value}`}
+                              options={users.map((user) => ({
+                                value: user.id.toString(),
+                                label: getUserDisplayLabel(user)
+                              }))}
+                              value={String(requester.value)}
+                              onValueChange={(value: string) => updateRequester(index, 'value', value)}
+                              placeholder="ユーザーを選択"
+                              emptyMessage="該当するユーザーがありません"
                             />
                           )}
+                        </div>
+                      </div>
+                      
+                      {/* 利用可能権限の表示 */}
+                      <div className="text-sm text-gray-600">
+                        <div className="font-medium">利用可能権限:</div>
+                        <div className="ml-2 flex flex-wrap gap-1">
+                          {(() => {
+                            // ステップ0の利用可能権限を取得
+                            const stepZero = approvalSteps.find(step => step.step === 0);
+                            const permissions = stepZero?.available_permissions || [];
+                            
+                            if (permissions.length === 0) {
+                              return (
+                                <span className="text-gray-400 text-xs">
+                                  権限が設定されていません
+                                </span>
+                              );
+                            }
+                            
+                            return permissions.map((permission, permIndex) => (
+                              <Badge key={permIndex} variant="outline" className="text-xs">
+                                {permission}
+                              </Badge>
+                            ));
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -562,11 +754,23 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {approvalSteps.map((step, stepIndex) => (
+                  {approvalSteps.filter(step => step.step !== 0).map((step, stepIndex) => {
+                    // 安全対策: conditionプロパティの存在確認
+                    const safeCondition = step.condition || {
+                      type: 'required',
+                      display_name: '必須承認'
+                    }
+                    
+                    // ステップ0の場合は特別な表示
+                    const isStepZero = step.step === 0
+                    
+                    return (
                     <div key={stepIndex} className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <Badge variant="outline">ステップ {step.step}</Badge>
-                        {approvalSteps.length > 1 && (
+                        <Badge variant={isStepZero ? "secondary" : "outline"}>
+                          {isStepZero ? "承認依頼作成" : `ステップ ${step.step}`}
+                        </Badge>
+                        {approvalSteps.length > 1 && !isStepZero && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -592,17 +796,23 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         
                         <div>
                           <Label htmlFor={`step-condition-${stepIndex}`}>条件</Label>
-                          <Select value={step.condition.type} onValueChange={(value) => updateApprovalStep(stepIndex, 'condition', { type: value, display_name: value === 'required' ? '必須承認' : '任意承認' })}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="required">必須承認</SelectItem>
-                              <SelectItem value="optional">任意承認</SelectItem>
-                              <SelectItem value="majority">過半数承認</SelectItem>
-                              <SelectItem value="unanimous">全会一致承認</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {isStepZero ? (
+                            <div className="text-sm text-gray-500 p-2 border rounded">
+                              承認依頼作成ステップでは条件設定は不要です
+                            </div>
+                          ) : (
+                            <Select value={safeCondition.type} onValueChange={(value) => updateApprovalStep(stepIndex, 'condition', { type: value, display_name: value === 'required' ? '必須承認' : '任意承認' })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="required">必須承認</SelectItem>
+                                <SelectItem value="optional">任意承認</SelectItem>
+                                <SelectItem value="majority">過半数承認</SelectItem>
+                                <SelectItem value="unanimous">全会一致承認</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       </div>
                       
@@ -623,7 +833,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         </div>
                         
                         {step.approvers.map((approver, approverIndex) => (
-                          <div key={approverIndex} className="border rounded p-3 space-y-2">
+                          <div key={`approver-${stepIndex}-${approverIndex}-${approver.type}-${approver.value}`} className="border rounded p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <Badge variant="secondary">承認者 {approverIndex + 1}</Badge>
                               {step.approvers.length > 1 && (
@@ -642,7 +852,14 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                             <div className="grid grid-cols-2 gap-2">
                               <div>
                                 <Label htmlFor={`approver-type-${stepIndex}-${approverIndex}`}>タイプ</Label>
-                                <Select value={approver.type} onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'type', value)}>
+                                <Select 
+                                  key={`approver-type-${stepIndex}-${approverIndex}-${approver.type}`}
+                                  value={approver.type} 
+                                  onValueChange={(value) => {
+                                    console.log('Approver type changed:', { stepIndex, approverIndex, oldType: approver.type, newType: value })
+                                    updateApprover(stepIndex, approverIndex, 'type', value)
+                                  }}
+                                >
                                   <SelectTrigger>
                                     <SelectValue />
                                   </SelectTrigger>
@@ -658,9 +875,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               <div>
                                 <Label htmlFor={`approver-value-${stepIndex}-${approverIndex}`}>値</Label>
                                 {approver.type === 'system_level' ? (
-                                  <Select value={approver.value as string} onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}>
+                                  <Select 
+                                    key={`approver-system-level-${stepIndex}-${approverIndex}-${approver.value}`}
+                                    value={String(approver.value)} 
+                                    onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}
+                                  >
                                     <SelectTrigger>
-                                      <SelectValue />
+                                      <SelectValue placeholder="システム権限レベルを選択" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {systemLevels.map((level) => (
@@ -671,9 +892,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     </SelectContent>
                                   </Select>
                                 ) : approver.type === 'department' ? (
-                                  <Select value={approver.value as string} onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}>
+                                  <Select 
+                                    key={`approver-department-${stepIndex}-${approverIndex}-${approver.value}`}
+                                    value={String(approver.value)} 
+                                    onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}
+                                  >
                                     <SelectTrigger>
-                                      <SelectValue />
+                                      <SelectValue placeholder="部署を選択" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {departments.map((dept) => (
@@ -684,9 +909,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     </SelectContent>
                                   </Select>
                                 ) : approver.type === 'position' ? (
-                                  <Select value={approver.value as string} onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}>
+                                  <Select 
+                                    key={`approver-position-${stepIndex}-${approverIndex}-${approver.value}`}
+                                    value={String(approver.value)} 
+                                    onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}
+                                  >
                                     <SelectTrigger>
-                                      <SelectValue />
+                                      <SelectValue placeholder="職位を選択" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {positions.map((pos) => (
@@ -697,10 +926,16 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <Input
-                                    value={approver.value as string}
-                                    onChange={(e) => updateApprover(stepIndex, approverIndex, 'value', e.target.value)}
-                                    placeholder="ユーザーIDを入力"
+                                  <PopoverSearchFilter
+                                    key={`approver-user-${stepIndex}-${approverIndex}-${approver.value}`}
+                                    options={users.map((user) => ({
+                                      value: user.id.toString(),
+                                      label: getUserDisplayLabel(user)
+                                    }))}
+                                    value={String(approver.value)}
+                                    onValueChange={(value: string) => updateApprover(stepIndex, approverIndex, 'value', value)}
+                                    placeholder="ユーザーを選択"
+                                    emptyMessage="該当するユーザーがありません"
                                   />
                                 )}
                               </div>
@@ -709,7 +944,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         ))}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

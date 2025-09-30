@@ -362,14 +362,52 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                 </div>
               )}
               
+              {selectedFlow.requesters && selectedFlow.requesters.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">承認依頼者設定</label>
+                  <div className="mt-2 space-y-2">
+                    {selectedFlow.requesters.map((requester, index) => (
+                      <div key={index} className="p-3 bg-blue-50 rounded-lg space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{requester.display_name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {getApproverTypeLabel(requester.type)}
+                          </Badge>
+                        </div>
+                        {/* ステップ0の利用可能権限を表示 */}
+                        {selectedFlow.approval_steps && selectedFlow.approval_steps.length > 0 && (
+                          (() => {
+                            const stepZero = selectedFlow.approval_steps.find(step => step.step === 0);
+                            return stepZero && stepZero.available_permissions && stepZero.available_permissions.length > 0 ? (
+                              <div className="text-sm text-gray-600">
+                                <div className="font-medium">利用可能権限:</div>
+                                <div className="ml-2 flex flex-wrap gap-1">
+                                  {stepZero.available_permissions.map((permission, permIndex) => (
+                                    <Badge key={permIndex} variant="outline" className="text-xs">
+                                      {permission}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null;
+                          })()
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {selectedFlow.approval_steps && selectedFlow.approval_steps.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">承認ステップ</label>
                   <div className="mt-2 space-y-2">
-                    {selectedFlow.approval_steps.map((step, index) => (
+                    {selectedFlow.approval_steps.filter(step => step.step !== 0).map((step, index) => (
                       <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{step.step}</Badge>
+                          <Badge variant={step.step === 0 ? "secondary" : "outline"}>
+                            {step.step === 0 ? "承認依頼作成" : `ステップ ${step.step}`}
+                          </Badge>
                           <span className="text-sm font-medium">{step.name}</span>
                         </div>
                         <div className="text-sm text-gray-600">

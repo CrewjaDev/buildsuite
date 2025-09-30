@@ -51,6 +51,8 @@ export interface Estimate {
   notes?: string
   created_by: number
   created_by_name?: string
+  responsible_user_id?: number
+  responsible_user_name?: string
   updated_by: number
   updated_by_name?: string
   approved_by?: number
@@ -104,17 +106,18 @@ export type EstimateStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | '
 
 export interface CreateEstimateRequest {
   project_name: string
-  project_description?: string
   partner_id: number
   project_type_id: number
-  construction_classification_id: number
-  estimate_date: string
-  valid_until: string
-  tax_rate: number
-  remarks?: string
+  issue_date: string
+  expiry_date: string
+  notes?: string
   estimate_number?: string
   status?: EstimateStatus
   total_amount?: number
+  project_location?: string
+  project_period_start?: string
+  project_period_end?: string
+  responsible_user_id?: number
 }
 
 export interface UpdateEstimateRequest {
@@ -123,7 +126,6 @@ export interface UpdateEstimateRequest {
   project_location?: string
   partner_id?: number
   project_type_id?: number
-  construction_classification_id?: number
   estimate_date?: string
   issue_date?: string
   valid_until?: string
@@ -133,6 +135,7 @@ export interface UpdateEstimateRequest {
   tax_rate?: number
   notes?: string
   remarks?: string
+  responsible_user_id?: number
 }
 
 export interface EstimateSearchParams {

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Permission;
 use App\Models\UserLoginHistory;
 use App\Models\UserSession;
+use App\Services\PermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -102,6 +103,9 @@ class AuthController extends Controller
 
             // ユーザー情報を取得（権限情報を含む）
             $userData = $this->getUserData($user);
+            
+            // 統合権限リストを取得
+            $effectivePermissions = PermissionService::getUserEffectivePermissions($user);
 
             $this->logLoginAttempt($request, 'success', null, $user);
 
@@ -110,6 +114,7 @@ class AuthController extends Controller
                 'message' => 'ログインに成功しました',
                 'data' => [
                     'user' => $userData,
+                    'effective_permissions' => $effectivePermissions,
                     'token' => $token,
                     'token_type' => 'Bearer',
                 ],
@@ -174,10 +179,16 @@ class AuthController extends Controller
             }
 
             $userData = $this->getUserData($user);
+            
+            // 統合権限リストを取得
+            $effectivePermissions = PermissionService::getUserEffectivePermissions($user);
 
             return response()->json([
                 'success' => true,
-                'data' => $userData,
+                'data' => [
+                    'user' => $userData,
+                    'effective_permissions' => $effectivePermissions,
+                ],
             ], 200);
 
         } catch (\Exception $e) {

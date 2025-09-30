@@ -69,12 +69,17 @@ class Estimate extends Model
         
         // システム管理
         'created_by',
+        'responsible_user_id',
         'approved_by',
         
         // 承認関連
         'approval_request_id',
         'approval_flow_id',
         'approval_status',
+        
+        // 可視性制御
+        'visibility',
+        'department_id',
     ];
 
     protected $casts = [
@@ -132,6 +137,14 @@ class Estimate extends Model
     public function constructionClassification(): BelongsTo
     {
         return $this->belongsTo(ConstructionClassification::class);
+    }
+
+    /**
+     * 担当者とのリレーション
+     */
+    public function responsibleUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responsible_user_id');
     }
 
     /**
@@ -713,6 +726,9 @@ class Estimate extends Model
             if (!$estimate->id) {
                 $estimate->id = \Illuminate\Support\Str::uuid();
             }
+            if (!$estimate->estimate_number) {
+                $estimate->estimate_number = $estimate->generateEstimateNumber();
+            }
             if (!$estimate->issue_date) {
                 $estimate->issue_date = now();
             }
@@ -725,6 +741,36 @@ class Estimate extends Model
             if ($estimate->isDirty('status') && $estimate->status === 'approved') {
                 $estimate->approved_at = now();
             }
+        });
+    }
+
+    // ===== 可視性制御スコープ =====
+
+    /**
+     * 指定ユーザーが閲覧可能な見積を取得
+     */
+    public function scopeVisibleTo($query, $user)
+    {
+        return $query->where(function($q) use ($user) {
+            // 作成者は常に閲覧可能
+            $q->where('created_by', $user->id)
+              ->orWhere(function($subQ) use ($user) {
+                  // 部署内共有
+                  $subQ->where('visibility', 'department')
+                       ->where('department_id', $user->department_id);
+              })
+              ->orWhere(function($subQ) use ($user) {
+                  // 管理職は部署内全データ閲覧可能
+                  if ($user->role === 'manager' || $user->role === 'admin') {
+                      $subQ->where('department_id', $user->department_id);
+                  }
+              })
+              ->orWhere(function($subQ) use ($user) {
+                  // 全社共有
+                  if ($user->role === 'admin') {
+                      $subQ->where('visibility', 'company');
+                  }
+              });
         });
     }
 
@@ -820,7 +866,7 @@ class Estimate extends Model
     /**
      * 見積番号を生成
      */
-    private function generateEstimateNumber(): string
+    public function generateEstimateNumber(): string
     {
         $year = date('Y');
         $lastEstimate = static::where('estimate_number', 'like', "EST-{$year}-%")

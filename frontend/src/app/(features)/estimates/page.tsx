@@ -8,6 +8,7 @@ import { EstimateListHeader } from '@/components/features/estimates/EstimateList
 import { EstimateSearchFilters } from '@/components/features/estimates/EstimateList/EstimateSearchFilters'
 import { EstimateStatusTabs } from '@/components/features/estimates/EstimateList/EstimateStatusTabs'
 import { EstimateTable } from '@/components/features/estimates/EstimateList/EstimateTable'
+import { EstimateCreateDialog } from '@/components/features/estimates/EstimateCreate/EstimateCreateDialog'
 
 export default function EstimatesPage() {
   const router = useRouter()
@@ -22,6 +23,7 @@ export default function EstimatesPage() {
   })
   const [searchValue, setSearchValue] = useState('')
   const [filters, setFilters] = useState<Record<string, string | number | boolean | null | undefined>>({})
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
   // 全データ取得（カウンタ計算用）
   const { data: allData } = useEstimates({
@@ -140,7 +142,16 @@ export default function EstimatesPage() {
   }, [])
 
   const handleCreateNew = useCallback(() => {
-    router.push('/estimates/create')
+    setIsCreateDialogOpen(true)
+  }, [])
+
+  const handleCreateDialogClose = useCallback(() => {
+    setIsCreateDialogOpen(false)
+  }, [])
+
+  const handleCreateSuccess = useCallback((estimateId: string) => {
+    setIsCreateDialogOpen(false)
+    router.push(`/estimates/${estimateId}`)
   }, [router])
 
   const handleTabChange = useCallback((tab: EstimateStatus | 'all') => {
@@ -205,6 +216,13 @@ export default function EstimatesPage() {
           />
         </div>
       </div>
+
+      {/* 新規作成ダイアログ */}
+      <EstimateCreateDialog
+        isOpen={isCreateDialogOpen}
+        onClose={handleCreateDialogClose}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   )
 }

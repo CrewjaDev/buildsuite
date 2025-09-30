@@ -41,7 +41,7 @@ export const partnerService = {
 
   // 取引先オプション取得（ドロップダウン用）
   async getPartnerOptions(type?: string): Promise<PartnerOption[]> {
-    const params = type ? { type } : {}
+    const params = type ? { type } : { type: 'customer' } // デフォルトで顧客を取得
     const response = await api.get('/partners/options', { params })
     return response.data
   },

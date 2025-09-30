@@ -22,20 +22,25 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = User::with([
+            'employee',
             'systemLevel',
             'roles',
             'departments',
-            'position'
+            'position',
+            'permissions'
         ]);
 
         // 検索条件
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('name_kana', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('employee_id', 'like', "%{$search}%");
+                $q->where('login_id', 'like', "%{$search}%")
+                  ->orWhereHas('employee', function ($employeeQuery) use ($search) {
+                      $employeeQuery->where('name', 'like', "%{$search}%")
+                                   ->orWhere('name_kana', 'like', "%{$search}%")
+                                   ->orWhere('email', 'like', "%{$search}%")
+                                   ->orWhere('employee_id', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -84,23 +89,27 @@ class UserController extends Controller
 
         // レスポンスデータを整形
         $users->getCollection()->transform(function ($user) {
-            // プライマリ部署を取得（既に読み込まれたリレーションから）
-            $primaryDepartment = $user->departments->where('pivot.is_primary', true)->first();
-
             return [
                 'id' => $user->id,
                 'login_id' => $user->login_id,
                 'employee_id' => $user->employee_id,
-                'name' => $user->name,
-                'name_kana' => $user->name_kana,
-                'gender' => $user->gender,
-                'department' => $primaryDepartment,
+                'name' => $user->employee ? $user->employee->name : null,
+                'name_kana' => $user->employee ? $user->employee->name_kana : null,
+                'email' => $user->employee ? $user->employee->email : null,
+                'gender' => $user->employee ? $user->employee->gender : null,
+                'departments' => $user->departments,
                 'position' => $user->position,
-                'job_title' => $user->job_title,
-                'hire_date' => $user->hire_date ? $user->hire_date->toISOString() : null,
-                'status' => $user->is_active ? 'active' : 'inactive',
-                'createdAt' => $user->created_at->toISOString(),
-                'updatedAt' => $user->updated_at->toISOString(),
+                'systemLevel' => $user->systemLevel, // 追加
+                'roles' => $user->roles, // 追加
+                'primary_department' => $user->departments->where('pivot.is_primary', true)->first(), // 追加
+                'job_title' => $user->employee ? $user->employee->job_title : null,
+                'hire_date' => $user->employee && $user->employee->hire_date ? $user->employee->hire_date->toISOString() : null,
+                'system_level' => $user->system_level,
+                'is_active' => $user->is_active,
+                'is_admin' => $user->is_admin,
+                'permissions_count' => $user->permissions ? $user->permissions->count() : 0,
+                'created_at' => $user->created_at->toISOString(),
+                'updated_at' => $user->updated_at->toISOString(),
             ];
         });
 
@@ -116,9 +125,12 @@ class UserController extends Controller
     public function show(int $id): JsonResponse
     {
         $user = User::with([
+            'employee',
             'roles',
             'departments',
+            'position',
             'systemLevel',
+            'permissions',
             'sessions',
             'loginHistory'
         ])->find($id);
@@ -467,21 +479,19 @@ class UserController extends Controller
             'id' => $user->id,
             'login_id' => $user->login_id,
             'employee_id' => $user->employee_id,
-            'name' => $user->name,
-            'name_kana' => $user->name_kana,
-            'email' => $user->email,
-            'birth_date' => $user->birth_date,
-            'gender' => $user->gender,
-            'phone' => $user->phone,
-            'mobile_phone' => $user->mobile_phone,
-            'postal_code' => $user->postal_code,
-            'prefecture' => $user->prefecture,
-            'address' => $user->address,
+            'name' => $user->employee ? $user->employee->name : null,
+            'name_kana' => $user->employee ? $user->employee->name_kana : null,
+            'email' => $user->employee ? $user->employee->email : null,
+            'birth_date' => $user->employee ? $user->employee->birth_date : null,
+            'gender' => $user->employee ? $user->employee->gender : null,
+            'phone' => $user->employee ? $user->employee->phone : null,
+            'mobile_phone' => $user->employee ? $user->employee->mobile_phone : null,
+            'postal_code' => $user->employee ? $user->employee->postal_code : null,
+            'prefecture' => $user->employee ? $user->employee->prefecture : null,
+            'address' => $user->employee ? $user->employee->address : null,
             'position' => $user->position,
-            'job_title' => $user->job_title,
-            'hire_date' => $user->hire_date,
-            'service_years' => $user->service_years,
-            'service_months' => $user->service_months,
+            'job_title' => $user->employee ? $user->employee->job_title : null,
+            'hire_date' => $user->employee ? $user->employee->hire_date : null,
             'system_level' => $user->system_level,
             'is_active' => $user->is_active,
             'is_admin' => $user->is_admin,
@@ -494,8 +504,9 @@ class UserController extends Controller
             'is_password_expired' => $user->isPasswordExpired(),
             'roles' => $user->roles,
             'departments' => $user->departments,
+            'position' => $user->position,
+            'permissions' => $user->permissions,
             'system_level_info' => $user->systemLevel,
-            'primary_department' => $user->primaryDepartment(),
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
@@ -548,6 +559,180 @@ class UserController extends Controller
                 'success' => false,
                 'message' => 'パスワードの変更に失敗しました',
                 'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * ユーザーに権限を追加
+     */
+    public function addPermissions(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ユーザーが見つかりません',
+                ], 404);
+            }
+
+            // バリデーション
+            $validator = Validator::make($request->all(), [
+                'permission_ids' => 'required|array|min:1',
+                'permission_ids.*' => 'exists:permissions,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // 既存の権限をチェック
+            $existingPermissionIds = $user->permissions()->pluck('permissions.id')->toArray();
+            $newPermissionIds = array_diff($request->permission_ids, $existingPermissionIds);
+
+            if (empty($newPermissionIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '指定された権限は既に割り当てられています',
+                ], 400);
+            }
+
+            // 権限を追加
+            $permissionData = [];
+            foreach ($newPermissionIds as $permissionId) {
+                $permissionData[$permissionId] = [
+                    'granted_at' => now(),
+                    'granted_by' => auth()->id(),
+                ];
+            }
+            $user->permissions()->attach($permissionData);
+
+            // 更新されたユーザーを取得
+            $user->load(['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => count($newPermissionIds) . '個の権限が追加されました',
+                'data' => $this->formatUserData($user),
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '権限の追加中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * ユーザーから権限を削除
+     */
+    public function removePermissions(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ユーザーが見つかりません',
+                ], 404);
+            }
+
+            // バリデーション
+            $validator = Validator::make($request->all(), [
+                'permission_ids' => 'required|array|min:1',
+                'permission_ids.*' => 'exists:permissions,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // 既存の権限をチェック
+            $existingPermissionIds = $user->permissions()->pluck('permissions.id')->toArray();
+            $removablePermissionIds = array_intersect($request->permission_ids, $existingPermissionIds);
+
+            if (empty($removablePermissionIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '指定された権限は割り当てられていません',
+                ], 400);
+            }
+
+            // 権限を削除
+            $user->permissions()->detach($removablePermissionIds);
+
+            // 更新されたユーザーを取得
+            $user->load(['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => count($removablePermissionIds) . '個の権限が削除されました',
+                'data' => $this->formatUserData($user),
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '権限の削除中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * ユーザーの権限使用状況を取得
+     */
+    public function permissionUsage(int $id): JsonResponse
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ユーザーが見つかりません',
+                ], 404);
+            }
+
+            $permissions = $user->permissions()->with(['roles', 'systemLevels', 'departments'])->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => $this->formatUserData($user),
+                    'permissions' => $permissions->map(function ($permission) {
+                        return [
+                            'id' => $permission->id,
+                            'name' => $permission->name,
+                            'display_name' => $permission->display_name,
+                            'module' => $permission->module,
+                            'action' => $permission->action,
+                            'resource' => $permission->resource,
+                            'granted_at' => $permission->pivot->granted_at,
+                        ];
+                    }),
+                    'permission_count' => $permissions->count(),
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ユーザーの権限使用状況取得中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

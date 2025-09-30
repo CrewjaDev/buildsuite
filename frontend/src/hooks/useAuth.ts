@@ -2,12 +2,13 @@ import { useSelector } from 'react-redux'
 import { RootState } from '@/store/store'
 
 export const useAuth = () => {
-  const { user, isAuthenticated, loading } = useSelector((state: RootState) => state.auth)
+  const { user, isAuthenticated, loading, effectivePermissions } = useSelector((state: RootState) => state.auth)
   
   return {
     user,
     isAuthenticated,
     loading,
+    effectivePermissions,
     // ヘッダー用のユーザー情報を取得
     headerUser: user ? {
       id: user.id,

@@ -16,10 +16,11 @@ export default function EstimateDetailPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const estimateId = params.id as string
+  const estimateId = params?.id as string
+  
   
   // 初期モードの決定: modeパラメータが指定されていない場合は照会モード
-  const initialMode = searchParams.get('mode') === 'edit' ? 'edit' : 'view'
+  const initialMode = searchParams?.get('mode') === 'edit' ? 'edit' : 'view'
   const [mode, setMode] = useState<'view' | 'edit'>(initialMode)
 
   // データ取得
@@ -33,7 +34,7 @@ export default function EstimateDetailPage() {
   
   // URLのmodeパラメータと内部状態を同期
   useEffect(() => {
-    if (searchParams.get('mode') !== mode) {
+    if (searchParams?.get('mode') !== mode) {
       const newUrl = new URL(window.location.href)
       if (mode === 'edit') {
         newUrl.searchParams.set('mode', 'edit')

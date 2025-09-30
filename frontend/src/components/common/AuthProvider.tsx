@@ -48,8 +48,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         }
 
         // ユーザー情報を取得
-        const userData = await authService.me()
-        dispatch(setCredentials({ user: userData, token }))
+        const { user: userData, effectivePermissions } = await authService.me()
+        dispatch(setCredentials({ user: userData, token, effectivePermissions }))
         
         // 認証ページにいる場合はダッシュボードにリダイレクト
         if (pathname?.startsWith('/login') || pathname?.startsWith('/register')) {

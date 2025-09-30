@@ -80,7 +80,7 @@ export function EmployeeListPage() {
   // refreshパラメータを監視してデータを強制的に再取得
   const urlSearchParams = useSearchParams()
   useEffect(() => {
-    if (urlSearchParams.get('refresh') === 'true') {
+    if (urlSearchParams?.get('refresh') === 'true') {
       refetch()
       router.replace('/employees', { scroll: false }) // パラメータをクリア
     }

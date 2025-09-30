@@ -32,7 +32,11 @@ export default function LoginPage() {
       const response = await authService.login({ login_id: loginId, password })
       
       // ログイン成功時のみ認証状態を更新
-      dispatch(setCredentials(response))
+      dispatch(setCredentials({
+        user: response.user,
+        token: response.token,
+        effectivePermissions: response.effectivePermissions
+      }))
       localStorage.setItem('token', response.token)
       
       // ログイン成功後、ダッシュボードにリダイレクト

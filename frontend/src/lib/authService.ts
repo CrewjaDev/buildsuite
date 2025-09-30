@@ -9,6 +9,7 @@ export interface LoginCredentials {
 export interface LoginResponse {
   user: UserDetail
   token: string
+  effectivePermissions: string[]
 }
 
 export const authService = {
@@ -18,14 +19,19 @@ export const authService = {
       
       // レスポンス形式を確認して適切に処理
       if (response.data.success && response.data.data) {
-        // バックエンドの形式: { success: true, data: { user: {...}, token: "..." } }
+        // バックエンドの形式: { success: true, data: { user: {...}, token: "...", effective_permissions: [...] } }
         return {
           user: response.data.data.user,
-          token: response.data.data.token
+          token: response.data.data.token,
+          effectivePermissions: response.data.data.effective_permissions || []
         }
       } else {
-        // 直接形式: { user: {...}, token: "..." }
-        return response.data
+        // 直接形式: { user: {...}, token: "...", effective_permissions: [...] }
+        return {
+          user: response.data.user,
+          token: response.data.token,
+          effectivePermissions: response.data.effective_permissions || []
+        }
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -42,15 +48,21 @@ export const authService = {
     }
   },
 
-  async me(): Promise<UserDetail> {
+  async me(): Promise<{ user: UserDetail; effectivePermissions: string[] }> {
     try {
       const response = await api.get('/auth/me')
       
       // レスポンス形式を確認して適切に処理
       if (response.data.success && response.data.data) {
-        return response.data.data
+        return {
+          user: response.data.data.user,
+          effectivePermissions: response.data.data.effective_permissions || []
+        }
       } else {
-        return response.data
+        return {
+          user: response.data.user,
+          effectivePermissions: response.data.effective_permissions || []
+        }
       }
     } catch (error) {
       console.error('Me error:', error)

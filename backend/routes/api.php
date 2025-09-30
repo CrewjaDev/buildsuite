@@ -10,6 +10,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SystemLevelController;
+use App\Http\Controllers\SystemLevelPermissionController;
 use App\Http\Controllers\EstimateController;
 use App\Http\Controllers\EstimateItemController;
 use App\Http\Controllers\EstimateBreakdownController;
@@ -22,7 +23,7 @@ use App\Http\Controllers\ApprovalFlowController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\ApprovalRequestTypeController;
 use App\Http\Controllers\ApprovalRequestTemplateController;
-use App\Http\Controllers\BusinessTypeController;
+use App\Http\Controllers\BusinessCodeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,6 +90,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/toggle-lock', [UserController::class, 'toggleLock']);
         Route::post('/{id}/reset-password', [UserController::class, 'resetPassword']);
         Route::put('/{id}/password', [UserController::class, 'updatePassword']);
+        Route::post('/{id}/permissions', [UserController::class, 'addPermissions']);
+        Route::delete('/{id}/permissions', [UserController::class, 'removePermissions']);
+        Route::get('/{id}/permission-usage', [UserController::class, 'permissionUsage']);
     });
 
     // 権限管理
@@ -153,10 +157,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [SystemLevelController::class, 'show']);
         Route::put('/{id}', [SystemLevelController::class, 'update']);
         Route::delete('/{id}', [SystemLevelController::class, 'destroy']);
-        Route::post('/{id}/permissions', [SystemLevelController::class, 'addPermissions']);
-        Route::delete('/{id}/permissions', [SystemLevelController::class, 'removePermissions']);
         Route::get('/{id}/usage', [SystemLevelController::class, 'usage']);
         Route::post('/update-priorities', [SystemLevelController::class, 'updatePriorities']);
+        
+        // システム権限レベルと権限の紐づけ管理
+        Route::prefix('{id}/permissions')->group(function () {
+            Route::get('/', [SystemLevelPermissionController::class, 'index']);
+            Route::post('/', [SystemLevelPermissionController::class, 'store']);
+            Route::delete('/', [SystemLevelPermissionController::class, 'destroy']);
+            Route::put('/', [SystemLevelPermissionController::class, 'sync']);
+        });
     });
 
     // 見積管理
@@ -223,13 +233,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [ConstructionClassificationController::class, 'destroy']);
     });
 
-    // ビジネスタイプ管理
-    Route::prefix('business-types')->group(function () {
-        Route::get('/', [BusinessTypeController::class, 'index']);
-        Route::get('/active', [BusinessTypeController::class, 'getActive']);
-        Route::get('/category/{category}', [BusinessTypeController::class, 'getByCategory']);
-        Route::get('/{id}', [BusinessTypeController::class, 'show']);
-    });
 
 
             // システム権限レベル別権限管理（システム管理者のみ）
@@ -314,6 +317,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('estimate-breakdowns/tree', [EstimateBreakdownController::class, 'getTree']);
     Route::post('estimate-breakdowns/order', [EstimateBreakdownController::class, 'updateOrder']);
     Route::apiResource('estimate-breakdowns', EstimateBreakdownController::class);
+});
+
+// ビジネスコード関連のルート
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('business-codes', [BusinessCodeController::class, 'index']);
+    Route::get('business-codes/{code}', [BusinessCodeController::class, 'show']);
+    Route::get('business-codes/{code}/permissions', [BusinessCodeController::class, 'getPermissions']);
+    Route::get('business-codes/{code}/assignment-status', [BusinessCodeController::class, 'getAssignmentStatus']);
 });
 
 // ヘルスチェック
