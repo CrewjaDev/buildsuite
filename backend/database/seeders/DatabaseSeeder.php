@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -13,42 +11,30 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 初期必須データ（マスターデータ）
+        $this->command->info('データベースの初期設定を開始します...');
+        
+        // 必須のseederを実行順序で実行
         $this->call([
-            // 1. 業務タイプ定義（完全ハードコーディングのため不要）
-            // BusinessTypeSeeder::class,  // 削除：完全ハードコーディングに変更
+            // 1. 権限マスタの作成（ビジネスコードより先に必要）
+            PermissionSeeder::class,
             
-            // 2. システム基盤
+            // 2. ビジネスコードの初期設定（必須）
+            BusinessCodeSeeder::class,
+            
+            // 3. システム権限レベルの初期設定
             SystemLevelSeeder::class,
             
-            // 3. 組織構造
-            DepartmentSeeder::class,
-            PositionSeeder::class,
-            
-            // 4. 権限システム（業務タイプの後に実行）
-            RoleSeeder::class,
-            PermissionSeeder::class,          // ハイブリッド方式で権限生成
-            SystemLevelPermissionSeeder::class,
-            RolePermissionSeeder::class,
-            PositionPermissionSeeder::class,
-            DepartmentPermissionSeeder::class,
-            
-            // 5. ユーザー関連
-            UserSeeder::class,
-            UserRoleSeeder::class,
-            
-            // 6. 見積関連のマスターデータ
-            PartnersSeeder::class,
-            ProjectTypesSeeder::class,
-            ConstructionClassificationsSeeder::class,
-            
-            // 7. 見積テストデータ
-            EstimateSeeder::class,
-            EstimateBreakdownSeeder::class,
-            EstimateItemNewSeeder::class,
-            
-            // 8. 承認フローテストデータ
-            ApprovalFlowSeeder::class,
+            // 4. その他のseeder
+            // UserSeeder::class,
+            // RoleSeeder::class,
+            // DepartmentSeeder::class,
+            // PositionSeeder::class,
         ]);
+        
+        $this->command->info('データベースの初期設定が完了しました。');
+        
+        // ビジネスコードの整合性チェック
+        $businessCodeSeeder = new BusinessCodeSeeder();
+        $businessCodeSeeder->validateBusinessCodes();
     }
 }

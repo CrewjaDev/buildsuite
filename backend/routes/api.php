@@ -24,6 +24,7 @@ use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\ApprovalRequestTypeController;
 use App\Http\Controllers\ApprovalRequestTemplateController;
 use App\Http\Controllers\BusinessCodeController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,9 +49,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
         Route::post('change-password', [AuthController::class, 'changePassword']);
-        Route::get('sessions', [AuthController::class, 'sessions']);
-        Route::delete('sessions/{sessionId}', [AuthController::class, 'revokeSession']);
     });
+
+    // ダッシュボード関連
+    Route::prefix('dashboard')->group(function () {
+        Route::get('user-stats', [DashboardController::class, 'getUserStats']);
+        Route::get('manager-stats', [DashboardController::class, 'getManagerStats']);
+        Route::get('admin-stats', [DashboardController::class, 'getAdminStats']);
+    });
+
+    // セッション管理
+    Route::get('sessions', [AuthController::class, 'sessions']);
+    Route::delete('sessions/{sessionId}', [AuthController::class, 'revokeSession']);
 
     // 役割管理
     Route::prefix('roles')->group(function () {
@@ -191,6 +201,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/approval/reject', [EstimateApprovalController::class, 'reject']);
         Route::post('/{id}/approval/return', [EstimateApprovalController::class, 'return']);
         Route::post('/{id}/approval/cancel', [EstimateApprovalController::class, 'cancel']);
+        Route::get('/{id}/approval/status', [EstimateApprovalController::class, 'getApprovalStatus']);
+        Route::get('/{id}/approval/history', [EstimateApprovalController::class, 'getApprovalHistory']);
+        Route::get('/{id}/approval/approver-status', [EstimateApprovalController::class, 'getApproverStatus']);
+        Route::get('/{id}/approval/user-status', [EstimateApprovalController::class, 'getUserApprovalStatus']);
     });
 
     // 見積明細管理
@@ -325,6 +339,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('business-codes/{code}', [BusinessCodeController::class, 'show']);
     Route::get('business-codes/{code}/permissions', [BusinessCodeController::class, 'getPermissions']);
     Route::get('business-codes/{code}/assignment-status', [BusinessCodeController::class, 'getAssignmentStatus']);
+    
+    // ビジネスコードベースの権限管理
+    Route::get('business-codes/{entityType}/{entityId}/{businessCode}/permission-status', [BusinessCodeController::class, 'getBusinessCodePermissionStatus']);
+    Route::post('business-codes/{entityType}/{entityId}/{businessCode}/permissions', [BusinessCodeController::class, 'setBusinessCodePermissions']);
+    Route::get('business-codes/{businessCode}/permissions/{category}', [BusinessCodeController::class, 'getPermissionsByCategory']);
 });
 
 // ヘルスチェック

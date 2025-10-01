@@ -22,6 +22,8 @@ class Permission extends Model
         'module',
         'action',
         'resource',
+        'category',
+        'subcategory',
         'is_system',
         'is_active',
     ];
@@ -107,6 +109,30 @@ class Permission extends Model
     public function scopeByResource($query, string $resource)
     {
         return $query->where('resource', $resource);
+    }
+
+    /**
+     * カテゴリ別に権限を取得するスコープ
+     */
+    public function scopeByCategory($query, string $category)
+    {
+        return $query->where('category', $category);
+    }
+
+    /**
+     * サブカテゴリ別に権限を取得するスコープ
+     */
+    public function scopeBySubcategory($query, string $subcategory)
+    {
+        return $query->where('subcategory', $subcategory);
+    }
+
+    /**
+     * 承認ステップ用権限を取得するスコープ
+     */
+    public function scopeApprovalStep($query)
+    {
+        return $query->where('category', 'approval_step');
     }
 
     /**

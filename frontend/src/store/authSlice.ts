@@ -31,6 +31,12 @@ const authSlice = createSlice({
     updateUser: (state, action: PayloadAction<UserDetail>) => {
       state.user = action.payload
     },
+    updatePermissions: (state, action: PayloadAction<string[]>) => {
+      state.effectivePermissions = action.payload
+    },
+    clearPermissions: (state) => {
+      state.effectivePermissions = []
+    },
     logout: (state) => {
       state.user = null
       state.token = null
@@ -44,5 +50,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { setCredentials, updateUser, logout, setLoading } = authSlice.actions
+export const { setCredentials, updateUser, updatePermissions, clearPermissions, logout, setLoading } = authSlice.actions
 export default authSlice.reducer

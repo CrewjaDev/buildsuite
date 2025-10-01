@@ -30,6 +30,7 @@ export interface Estimate {
   approval_request_id?: string
   approval_flow_id?: string
   approval_status?: 'pending' | 'approved' | 'rejected' | 'returned' | 'cancelled'
+  user_approval_status?: UserApprovalStatus
   subtotal?: number
   overhead_rate?: number
   overhead_amount?: number
@@ -103,6 +104,15 @@ export interface EstimateItem {
 }
 
 export type EstimateStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'expired'
+
+// ユーザー別承認状態の型定義
+export interface UserApprovalStatus {
+  status: 'completed' | 'pending' | 'not_started' | 'finished' | 'rejected' | 'returned'
+  step: number
+  step_name: string
+  can_act: boolean
+  message: string
+}
 
 export interface CreateEstimateRequest {
   project_name: string

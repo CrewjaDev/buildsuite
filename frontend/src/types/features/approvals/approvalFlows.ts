@@ -11,12 +11,14 @@ export interface ApprovalRequester {
   type: 'system_level' | 'department' | 'position' | 'user'
   value: string | number
   display_name: string
+  required_permissions?: string[] // 必要な権限
 }
 
 export interface ApprovalApprover {
   type: 'system_level' | 'department' | 'position' | 'user'
   value: string | number
   display_name: string
+  required_permissions?: string[] // 必要な権限
 }
 
 export interface ApprovalStepCondition {
@@ -30,6 +32,7 @@ export interface ApprovalStep {
   approvers: ApprovalApprover[]
   available_permissions: string[]
   condition: ApprovalStepCondition
+  required_permissions?: string[] // ステップで必要な権限
 }
 
 export interface ApprovalFlow {

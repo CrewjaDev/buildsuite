@@ -84,6 +84,65 @@ export interface BusinessCodeAssignmentStatusResponse {
   };
 }
 
+export interface BusinessCodePermissionStatusResponse {
+  success: boolean;
+  data: {
+    business_code: string;
+    business_code_info: {
+      name: string;
+      description: string;
+      category: string;
+      is_system: boolean;
+      is_core: boolean;
+    };
+    permission_status: Array<{
+      id: number;
+      name: string;
+      display_name: string;
+      description: string;
+      module: string;
+      action: string;
+      category: string | null;
+      subcategory: string | null;
+      is_assigned: boolean;
+      assigned_at: string | null;
+      granted_by: number | null;
+    }>;
+  };
+}
+
+export interface BusinessCodePermissionsByCategoryResponse {
+  success: boolean;
+  data: {
+    business_code: string;
+    category: string;
+    permissions: Array<{
+      id: number;
+      name: string;
+      display_name: string;
+      category: string | null;
+      subcategory: string | null;
+    }>;
+  };
+}
+
+export interface SetBusinessCodePermissionsRequest {
+  permission_overrides: Array<{
+    permission_id: number;
+    is_enabled: boolean;
+  }>;
+}
+
+export interface SetBusinessCodePermissionsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    business_code: string;
+    permissions_added: number;
+    permissions_removed: number;
+  };
+}
+
 export interface UseBusinessCodesParams {
   category?: string;
 }
@@ -175,6 +234,42 @@ class BusinessCodeService {
    */
   async getBusinessCodeAssignmentStatus(code: string): Promise<BusinessCodeAssignmentStatusResponse> {
     const response = await api.get(`/business-codes/${code}/assignment-status`);
+    return response.data;
+  }
+
+  /**
+   * ビジネスコード別の権限照会
+   */
+  async getBusinessCodePermissionStatus(
+    entityType: string,
+    entityId: number,
+    businessCode: string
+  ): Promise<BusinessCodePermissionStatusResponse> {
+    const response = await api.get(`/business-codes/${entityType}/${entityId}/${businessCode}/permission-status`);
+    return response.data;
+  }
+
+  /**
+   * ビジネスコードベースの権限一括設定
+   */
+  async setBusinessCodePermissions(
+    entityType: string,
+    entityId: number,
+    businessCode: string,
+    data: SetBusinessCodePermissionsRequest
+  ): Promise<SetBusinessCodePermissionsResponse> {
+    const response = await api.post(`/business-codes/${entityType}/${entityId}/${businessCode}/permissions`, data);
+    return response.data;
+  }
+
+  /**
+   * カテゴリ別の権限を取得
+   */
+  async getPermissionsByCategory(
+    businessCode: string,
+    category: string
+  ): Promise<BusinessCodePermissionsByCategoryResponse> {
+    const response = await api.get(`/business-codes/${businessCode}/permissions/${category}`);
     return response.data;
   }
 }

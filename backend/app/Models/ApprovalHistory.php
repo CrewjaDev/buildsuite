@@ -18,6 +18,7 @@ class ApprovalHistory extends Model
     protected $fillable = [
         'approval_request_id',
         'approval_step_id',
+        'step', // ステップ番号（1-5）
         'action', // approve, reject, return, cancel, delegate
         'acted_by',
         'acted_at',
@@ -58,9 +59,9 @@ class ApprovalHistory extends Model
     }
 
     /**
-     * 承認ステップとのリレーション
+     * 承認ステップとのリレーション（approval_step_idを使用）
      */
-    public function step(): BelongsTo
+    public function approvalStep(): BelongsTo
     {
         return $this->belongsTo(ApprovalStep::class, 'approval_step_id');
     }

@@ -23,7 +23,7 @@ class PermissionSeeder extends Seeder
      */
     private function createPermissionsFromBusinessCodes(): void
     {
-        $allBusinessCodes = \App\Services\BusinessCodeService::getAllBusinessCodes();
+        $allBusinessCodes = \App\Services\BusinessCodeService::getSeederDefaultBusinessCodes();
         
         foreach ($allBusinessCodes as $code => $config) {
             foreach ($config['default_permissions'] as $permissionName) {

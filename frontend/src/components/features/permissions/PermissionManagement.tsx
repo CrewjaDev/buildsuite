@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
-import { Shield, Users, Building, Briefcase, User, Layers, Settings } from 'lucide-react'
+import { Users, Building, Briefcase, User, Layers, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 // 各タブのコンポーネント（後で実装）
-import PermissionMasterManagement from './PermissionMasterManagement'
 import SystemLevelManagement from './SystemLevelManagement'
 import RoleManagement from './RoleManagement'
 import DepartmentPermissionManagement from './DepartmentPermissionManagement'
@@ -18,7 +17,7 @@ import PermissionHierarchyView from './PermissionHierarchyView'
 import BusinessCodeManagement from '../business/BusinessCodeManagement'
 
 export default function PermissionManagement() {
-  const [activeTab, setActiveTab] = useState('permissions')
+  const [activeTab, setActiveTab] = useState('business-codes')
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
 
@@ -54,10 +53,10 @@ export default function PermissionManagement() {
 
   const tabs = [
     {
-      id: 'permissions',
-      label: '権限マスタ',
-      icon: Shield,
-      component: PermissionMasterManagement
+      id: 'business-codes',
+      label: 'ビジネスコード',
+      icon: Settings,
+      component: BusinessCodeManagement
     },
     {
       id: 'system-levels',
@@ -94,12 +93,6 @@ export default function PermissionManagement() {
       label: '権限階層表示',
       icon: Layers,
       component: PermissionHierarchyView
-    },
-    {
-      id: 'business-codes',
-      label: 'ビジネスコード',
-      icon: Settings,
-      component: BusinessCodeManagement
     }
   ]
 
@@ -108,14 +101,14 @@ export default function PermissionManagement() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">権限管理</h1>
         <p className="text-muted-foreground">
-          システム管理者向けの権限管理ページ。5階層の権限システムを統合的に管理します。
+          システム管理者向けの権限管理ページ。ビジネスコードベースの権限システムを統合的に管理します。
         </p>
       </div>
 
       <Card>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-6">
               {tabs.map((tab) => {
                 const Icon = tab.icon
                 return (

@@ -8,6 +8,7 @@ use App\Models\ApprovalFlow;
 use App\Models\Estimate;
 use App\Services\Approval\ApprovalFlowService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class EstimateApprovalController extends Controller
 {
@@ -38,11 +39,36 @@ class EstimateApprovalController extends Controller
             return response()->json(['error' => '既に承認依頼が存在します'], 400);
         }
 
-        // 動的承認フロー選択
-        $approvalFlow = $this->selectApprovalFlow($estimate, $user);
-        
-        if (!$approvalFlow) {
-            return response()->json(['error' => '適用可能な承認フローが見つかりません'], 400);
+        // デバッグ情報をログに出力
+        \Log::info('承認依頼作成開始', [
+            'estimate_id' => $estimateId,
+            'user_id' => $user->id,
+            'request_data' => $request->all(),
+            'has_approval_flow_id' => $request->has('approval_flow_id'),
+            'approval_flow_id' => $request->get('approval_flow_id')
+        ]);
+
+        // 承認フロー選択（フロントエンドから指定された場合はそれを使用、そうでなければ動的選択）
+        $approvalFlow = null;
+        if ($request->has('approval_flow_id')) {
+            $approvalFlow = ApprovalFlow::find($request->approval_flow_id);
+            \Log::info('指定された承認フローを使用', [
+                'approval_flow_id' => $request->approval_flow_id,
+                'found' => $approvalFlow ? true : false,
+                'flow_name' => $approvalFlow ? $approvalFlow->name : null
+            ]);
+            if (!$approvalFlow) {
+                return response()->json(['error' => '指定された承認フローが見つかりません'], 400);
+            }
+        } else {
+            $approvalFlow = $this->selectApprovalFlow($estimate, $user);
+            \Log::info('動的承認フロー選択', [
+                'selected_flow_id' => $approvalFlow ? $approvalFlow->id : null,
+                'selected_flow_name' => $approvalFlow ? $approvalFlow->name : null
+            ]);
+            if (!$approvalFlow) {
+                return response()->json(['error' => '適用可能な承認フローが見つかりません'], 400);
+            }
         }
 
         // 承認依頼データを準備
@@ -171,6 +197,30 @@ class EstimateApprovalController extends Controller
      */
     public function approve(Request $request, $estimateId)
     {
+        return $this->processApprovalAction($request, $estimateId, 'approve');
+    }
+
+    /**
+     * 却下処理
+     */
+    public function reject(Request $request, $estimateId)
+    {
+        return $this->processApprovalAction($request, $estimateId, 'reject');
+    }
+
+    /**
+     * 差し戻し処理
+     */
+    public function return(Request $request, $estimateId)
+    {
+        return $this->processApprovalAction($request, $estimateId, 'return');
+    }
+
+    /**
+     * 承認処理の共通メソッド
+     */
+    private function processApprovalAction(Request $request, $estimateId, $action)
+    {
         $user = auth()->user();
         
         // 見積を取得
@@ -195,10 +245,36 @@ class EstimateApprovalController extends Controller
             return response()->json(['error' => '承認権限がありません'], 403);
         }
 
-        // 承認処理実行
-        $this->processApproval($approvalRequest, $user, $request->input('comment', ''));
+        // アクション固有の権限チェック
+        $actionPermissions = [
+            'approve' => 'estimate.approval.approve',
+            'reject' => 'estimate.approval.reject',
+            'return' => 'estimate.approval.return'
+        ];
 
-        return response()->json(['message' => '承認しました']);
+        $requiredPermission = $actionPermissions[$action] ?? null;
+        if ($requiredPermission && !\App\Services\PermissionService::hasPermission($user, $requiredPermission)) {
+            return response()->json(['error' => "{$action}権限がありません"], 403);
+        }
+
+        // 承認処理実行
+        $this->processApproval($approvalRequest, $user, $request->input('comment', ''), $action);
+
+        $actionMessages = [
+            'approve' => '承認しました',
+            'reject' => '却下しました',
+            'return' => '差し戻しました'
+        ];
+
+        return response()->json([
+            'message' => $actionMessages[$action] ?? '処理しました',
+            'data' => [
+                'status' => $action === 'approve' ? 'approved' : ($action === 'reject' ? 'rejected' : 'returned'),
+                'acted_by' => $user->id,
+                'acted_at' => now()->toISOString(),
+                'comment' => $request->input('comment', '')
+            ]
+        ]);
     }
 
     /**
@@ -240,15 +316,14 @@ class EstimateApprovalController extends Controller
             return false;
         }
 
-        // 利用可能権限チェック
-        $requiredPermissions = ['estimate.approval.approve'];
-        foreach ($requiredPermissions as $permission) {
-            if (!in_array($permission, $step['available_permissions'])) {
-                return false;
-            }
-        }
-
-        return true;
+        // 利用可能権限チェック（承認ステップで許可された権限のみ）
+        $userPermissions = \App\Services\PermissionService::getUserEffectivePermissions($user);
+        $availablePermissions = $step['available_permissions'] ?? [];
+        
+        // ユーザーの権限と承認ステップで許可された権限の交集合をチェック
+        $allowedPermissions = array_intersect($userPermissions, $availablePermissions);
+        
+        return !empty($allowedPermissions);
     }
 
     /**
@@ -270,63 +345,6 @@ class EstimateApprovalController extends Controller
         }
     }
 
-    /**
-     * 却下処理
-     */
-    public function reject(Request $request, $estimateId)
-    {
-        $user = auth()->user();
-        
-        // 見積を取得
-        $estimate = Estimate::find($estimateId);
-        if (!$estimate) {
-            return response()->json(['error' => '見積データが見つかりません'], 404);
-        }
-
-        // 権限チェック
-        if (!$user->hasPermission('estimate.approval.reject')) {
-            abort(403, '却下権限がありません');
-        }
-
-        $approvalRequest = $estimate->approvalRequest;
-        if (!$approvalRequest) {
-            abort(404, '承認依頼が見つかりません');
-        }
-
-        // 却下処理実行
-        $this->processRejection($approvalRequest, $user, $request->comment);
-
-        return response()->json(['message' => '却下しました']);
-    }
-
-    /**
-     * 差し戻し処理
-     */
-    public function return(Request $request, $estimateId)
-    {
-        $user = auth()->user();
-        
-        // 見積を取得
-        $estimate = Estimate::find($estimateId);
-        if (!$estimate) {
-            return response()->json(['error' => '見積データが見つかりません'], 404);
-        }
-
-        // 権限チェック
-        if (!$user->hasPermission('estimate.approval.return')) {
-            abort(403, '差し戻し権限がありません');
-        }
-
-        $approvalRequest = $estimate->approvalRequest;
-        if (!$approvalRequest) {
-            abort(404, '承認依頼が見つかりません');
-        }
-
-        // 差し戻し処理実行
-        $this->processReturn($approvalRequest, $user, $request->comment);
-
-        return response()->json(['message' => '差し戻しました']);
-    }
 
     /**
      * 承認依頼キャンセル
@@ -365,43 +383,88 @@ class EstimateApprovalController extends Controller
     /**
      * 承認処理の実装
      */
-    private function processApproval(ApprovalRequest $approvalRequest, $user, string $comment)
+    private function processApproval(ApprovalRequest $approvalRequest, $user, string $comment, string $action = 'approve')
     {
         $currentStep = $this->getCurrentApprovalStep($approvalRequest);
+        
+        // デバッグ情報をログに出力
+        \Log::info('承認処理開始', [
+            'approval_request_id' => $approvalRequest->id,
+            'current_step' => $approvalRequest->current_step,
+            'action' => $action,
+            'user_id' => $user->id
+        ]);
         
         // 承認履歴を作成
         ApprovalHistory::create([
             'approval_request_id' => $approvalRequest->id,
-            'step' => $approvalRequest->current_step,
-            'action' => 'approve',
+            'step' => $approvalRequest->current_step ?? 1, // デフォルト値を設定
+            'action' => $action,
             'acted_by' => $user->id,
             'acted_at' => now(),
             'comment' => $comment,
         ]);
 
-        // 次のステップがあるかチェック
-        $nextStepNumber = $this->getNextStepNumber($approvalRequest);
-        
-        if ($nextStepNumber) {
-            // 次のステップに進む
+        // アクションに応じて処理を分岐
+        if ($action === 'approve') {
+            // 次のステップがあるかチェック
+            $nextStepNumber = $this->getNextStepNumber($approvalRequest);
+            
+            if ($nextStepNumber) {
+                // 次のステップに進む
+                $approvalRequest->update([
+                    'current_step' => $nextStepNumber,
+                    'status' => 'pending',
+                ]);
+            } else {
+                // 承認完了
+                $approvalRequest->update([
+                    'status' => 'approved',
+                    'approved_by' => $user->id,
+                    'approved_at' => now(),
+                ]);
+
+                // 見積のステータスを更新
+                $estimate = Estimate::find($approvalRequest->request_id);
+                if ($estimate) {
+                    $estimate->update([
+                        'approval_status' => 'approved',
+                        'status' => 'approved',
+                        'approved_by' => $user->id,
+                    ]);
+                }
+            }
+        } elseif ($action === 'reject') {
+            // 却下処理
             $approvalRequest->update([
-                'current_step' => $nextStepNumber,
-                'status' => 'pending',
-            ]);
-        } else {
-            // 承認完了
-            $approvalRequest->update([
-                'status' => 'approved',
-                'approved_by' => $user->id,
-                'approved_at' => now(),
+                'status' => 'rejected',
+                'rejected_by' => $user->id,
+                'rejected_at' => now(),
             ]);
 
             // 見積のステータスを更新
             $estimate = Estimate::find($approvalRequest->request_id);
             if ($estimate) {
                 $estimate->update([
-                    'approval_status' => 'approved',
-                    'status' => 'approved',
+                    'approval_status' => 'rejected',
+                    'status' => 'rejected',
+                    'approved_by' => $user->id,
+                ]);
+            }
+        } elseif ($action === 'return') {
+            // 差し戻し処理
+            $approvalRequest->update([
+                'status' => 'returned',
+                'returned_by' => $user->id,
+                'returned_at' => now(),
+            ]);
+
+            // 見積のステータスを更新
+            $estimate = Estimate::find($approvalRequest->request_id);
+            if ($estimate) {
+                $estimate->update([
+                    'approval_status' => 'returned',
+                    'status' => 'draft', // 差し戻し時は下書きに戻す
                     'approved_by' => $user->id,
                 ]);
             }
@@ -421,7 +484,12 @@ class EstimateApprovalController extends Controller
         $currentStepNumber = $approvalRequest->current_step;
         $nextStepNumber = null;
 
-        foreach ($flow->approval_steps as $step) {
+        // 承認ステップのみを対象とする（ステップ0は承認依頼作成なので除外）
+        $approvalSteps = array_filter($flow->approval_steps, function($step) {
+            return $step['step'] > 0; // ステップ1以上のみ
+        });
+
+        foreach ($approvalSteps as $step) {
             if ($step['step'] > $currentStepNumber) {
                 if ($nextStepNumber === null || $step['step'] < $nextStepNumber) {
                     $nextStepNumber = $step['step'];
@@ -432,71 +500,6 @@ class EstimateApprovalController extends Controller
         return $nextStepNumber;
     }
 
-    /**
-     * 却下処理の実装
-     */
-    private function processRejection(ApprovalRequest $approvalRequest, $user, string $comment)
-    {
-        // 却下履歴を作成
-        ApprovalHistory::create([
-            'approval_request_id' => $approvalRequest->id,
-            'step' => $approvalRequest->current_step,
-            'action' => 'reject',
-            'acted_by' => $user->id,
-            'acted_at' => now(),
-            'comment' => $comment,
-        ]);
-
-        // 承認依頼を却下
-        $approvalRequest->update([
-            'status' => 'rejected',
-            'approved_by' => $user->id,
-            'approved_at' => now(),
-        ]);
-
-        // 見積のステータスを更新
-        $estimate = Estimate::find($approvalRequest->request_id);
-        if ($estimate) {
-            $estimate->update([
-                'approval_status' => 'rejected',
-                'status' => 'rejected',
-                'approved_by' => $user->id,
-            ]);
-        }
-    }
-
-    /**
-     * 差し戻し処理の実装
-     */
-    private function processReturn(ApprovalRequest $approvalRequest, $user, string $comment)
-    {
-        // 差し戻し履歴を作成
-        ApprovalHistory::create([
-            'approval_request_id' => $approvalRequest->id,
-            'step' => $approvalRequest->current_step,
-            'action' => 'return',
-            'acted_by' => $user->id,
-            'acted_at' => now(),
-            'comment' => $comment,
-        ]);
-
-        // 承認依頼を差し戻し
-        $approvalRequest->update([
-            'status' => 'returned',
-            'approved_by' => $user->id,
-            'approved_at' => now(),
-        ]);
-
-        // 見積のステータスを更新
-        $estimate = Estimate::find($approvalRequest->request_id);
-        if ($estimate) {
-            $estimate->update([
-                'approval_status' => 'returned',
-                'status' => 'draft', // 差し戻し時は下書きに戻す
-                'approved_by' => $user->id,
-            ]);
-        }
-    }
 
     /**
      * キャンセル処理の実装
@@ -528,6 +531,163 @@ class EstimateApprovalController extends Controller
                 'status' => 'draft', // キャンセル時は下書きに戻す
                 'approved_by' => $user->id,
             ]);
+        }
+    }
+
+    /**
+     * 承認状態を取得
+     */
+    public function getApprovalStatus($estimateId)
+    {
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
+
+        $approvalRequest = $estimate->approvalRequest;
+        if (!$approvalRequest) {
+            return response()->json([
+                'data' => [
+                    'has_approval_request' => false,
+                    'status' => null
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'has_approval_request' => true,
+                'status' => $approvalRequest->status,
+                'current_step' => $approvalRequest->current_step,
+                'created_at' => $approvalRequest->created_at,
+                'updated_at' => $approvalRequest->updated_at
+            ]
+        ]);
+    }
+
+    /**
+     * 承認履歴を取得
+     */
+    public function getApprovalHistory($estimateId)
+    {
+        $estimate = Estimate::find($estimateId);
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
+
+        $approvalRequest = $estimate->approvalRequest;
+        if (!$approvalRequest) {
+            return response()->json(['data' => []]);
+        }
+
+        $histories = $approvalRequest->histories()
+            ->with(['actedBy.employee', 'approvalStep'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $histories->map(function ($history) {
+                return [
+                    'id' => $history->id,
+                    'action' => $history->action,
+                    'comment' => $history->comment,
+                    'acted_by' => $history->actedBy?->employee?->name ?? '不明',
+                    'acted_at' => $history->created_at,
+                    'step_name' => $history->approvalStep?->name ?? '不明'
+                ];
+            })
+        ]);
+    }
+
+    /**
+     * 承認者ステータスを取得
+     */
+    public function getApproverStatus($estimateId)
+    {
+        $user = auth()->user();
+        $estimate = Estimate::find($estimateId);
+        
+        if (!$estimate) {
+            return response()->json(['error' => '見積データが見つかりません'], 404);
+        }
+
+        $approvalRequest = $estimate->approvalRequest;
+        if (!$approvalRequest) {
+            return response()->json([
+                'data' => [
+                    'is_approver' => false,
+                    'reason' => '承認依頼が存在しません'
+                ]
+            ]);
+        }
+
+        // 現在の承認ステップを取得
+        $currentStep = $this->getCurrentApprovalStep($approvalRequest);
+        if (!$currentStep) {
+            return response()->json([
+                'data' => [
+                    'is_approver' => false,
+                    'reason' => '承認ステップが見つかりません'
+                ]
+            ]);
+        }
+
+        // 承認者権限チェック
+        $isApprover = $this->canApproveStep($currentStep, $user);
+
+        return response()->json([
+            'data' => [
+                'is_approver' => $isApprover,
+                'current_step' => $currentStep['name'] ?? '不明',
+                'approval_request_status' => $approvalRequest->status,
+                'reason' => $isApprover ? '承認者です' : '承認者ではありません'
+            ]
+        ]);
+    }
+
+    /**
+     * ユーザー別承認状態を取得
+     */
+    public function getUserApprovalStatus(string $id): JsonResponse
+    {
+        try {
+            $estimate = Estimate::findOrFail($id);
+            $user = auth()->user();
+            
+            if (!$estimate->approval_request_id) {
+                return response()->json([
+                    'status' => 'not_started',
+                    'step' => 0,
+                    'step_name' => '承認依頼なし',
+                    'can_act' => false,
+                    'message' => '承認依頼が作成されていません'
+                ]);
+            }
+            
+            $approvalRequest = ApprovalRequest::with('approvalFlow')->find($estimate->approval_request_id);
+            if (!$approvalRequest) {
+                return response()->json([
+                    'status' => 'not_started',
+                    'step' => 0,
+                    'step_name' => '承認依頼なし',
+                    'can_act' => false,
+                    'message' => '承認依頼が見つかりません'
+                ]);
+            }
+            
+            $userStatus = $approvalRequest->getUserApprovalStatus($user);
+            
+            return response()->json($userStatus);
+            
+        } catch (\Exception $e) {
+            \Log::error('ユーザー承認状態取得エラー', [
+                'estimate_id' => $id,
+                'user_id' => auth()->id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json(['error' => '承認状態の取得に失敗しました'], 500);
         }
     }
 }

@@ -4,11 +4,16 @@ import { RootState } from '@/store/store'
 export const useAuth = () => {
   const { user, isAuthenticated, loading, effectivePermissions } = useSelector((state: RootState) => state.auth)
   
+  const hasPermission = (permission: string): boolean => {
+    return effectivePermissions.includes(permission)
+  }
+  
   return {
     user,
     isAuthenticated,
     loading,
     effectivePermissions,
+    hasPermission,
     // ヘッダー用のユーザー情報を取得
     headerUser: user ? {
       id: user.id,

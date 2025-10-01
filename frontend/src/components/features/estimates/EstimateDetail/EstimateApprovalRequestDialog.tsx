@@ -92,11 +92,14 @@ export function EstimateApprovalRequestDialog({
         throw new Error('見積IDが取得できません')
       }
       
-      // 承認依頼の作成APIを呼び出し（新しい動的フロー選択システム）
-      const result = await estimateApprovalService.createApprovalRequest(estimate.id, {
-        // 新しいシステムでは、バックエンドで自動的に承認フローが選択される
-        // フロントエンドからは見積情報のみを送信
+      console.log('承認依頼作成ボタン押下時の選択状態:', {
+        selectedFlow: selectedFlow,
+        selectedFlowId: selectedFlow.id,
+        selectedFlowName: selectedFlow.name
       })
+      
+      // 承認依頼の作成APIを呼び出し（選択された承認フローを使用）
+      const result = await estimateApprovalService.createApprovalRequest(estimate.id, selectedFlow.id)
 
       console.log('承認依頼作成結果:', result)
 

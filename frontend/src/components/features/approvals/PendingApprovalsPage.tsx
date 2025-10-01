@@ -283,6 +283,11 @@ export default function PendingApprovalsPage() {
                           <Badge variant="outline">
                             {getTypeLabel(request.request_type)}
                           </Badge>
+                          {request.approval_flow && (
+                            <Badge variant="secondary">
+                              {request.approval_flow.name}
+                            </Badge>
+                          )}
                           <span className="text-sm text-gray-500">
                             ステップ {request.current_step}
                           </span>

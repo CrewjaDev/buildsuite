@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { FileText, CheckCircle, Clock, XCircle, RotateCcw, Ban } from 'lucide-react'
 import { EstimateApprovalRequestDialog } from './EstimateApprovalRequestDialog'
 import { getApprovalStatusInfo } from '@/lib/utils/approvalStatus'
+import { useAuth } from '@/hooks/useAuth'
 
 const iconMap = {
   Clock,
@@ -26,11 +27,15 @@ export function EstimateApprovalRequestButton({
   onApprovalRequestCreated 
 }: EstimateApprovalRequestButtonProps) {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
+  const { hasPermission } = useAuth()
 
   // 承認依頼可能かどうかの判定
   const canRequestApproval = () => {
-    // 新しいモデルのアクセサを使用
-    return estimate.can_request_approval
+    // バックエンドのアクセサ + フロントエンドの権限チェック
+    const backendCheck = estimate.can_request_approval
+    const frontendCheck = hasPermission('estimate.approval.request')
+    
+    return backendCheck && frontendCheck
   }
 
   // 承認依頼の状態に応じた表示

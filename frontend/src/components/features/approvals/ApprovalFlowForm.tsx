@@ -41,6 +41,23 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   // ビジネスロジックコードのみを取得（システム管理コードは除外）
   const [businessTypes, setBusinessTypes] = useState<Array<{id: string, name: string, code: string}>>([])
   
+  // 選択されたビジネスコードの承認権限情報
+  const [businessCodePermissions, setBusinessCodePermissions] = useState<Array<{id: number, name: string, display_name: string}>>([])
+  
+  const [formData, setFormData] = useState<{
+    name: string
+    description: string
+    flow_type: string
+    priority: number
+    is_active: boolean
+  }>({
+    name: '',
+    description: '',
+    flow_type: '', // 初期値は空、businessTypesが読み込まれた後に設定
+    priority: 1,
+    is_active: true
+  })
+  
   // ビジネスコードをAPIから取得
   useEffect(() => {
     const loadBusinessCodes = async () => {
@@ -54,35 +71,73 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
             code: code
           }))
         setBusinessTypes(businessTypesData)
+        
+        // フロータイプが設定されていない場合は最初のビジネスコードを設定
+        if (!formData.flow_type && businessTypesData.length > 0) {
+          setFormData(prev => ({ ...prev, flow_type: businessTypesData[0].code }))
+        }
+        
       } catch (error) {
         console.error('ビジネスコードの取得に失敗:', error)
         // フォールバック: 基本的なビジネスコードを設定
-        setBusinessTypes([
+        const fallbackBusinessTypes = [
           { id: 'estimate', name: '見積', code: 'estimate' },
           { id: 'budget', name: '予算', code: 'budget' },
           { id: 'purchase', name: '発注', code: 'purchase' },
           { id: 'construction', name: '工事', code: 'construction' },
           { id: 'general', name: '一般', code: 'general' }
-        ])
+        ]
+        setBusinessTypes(fallbackBusinessTypes)
+        
+        // フロータイプが設定されていない場合は最初のビジネスコードを設定
+        if (!formData.flow_type) {
+          setFormData(prev => ({ ...prev, flow_type: fallbackBusinessTypes[0].code }))
+        }
       }
     }
     
     loadBusinessCodes()
-  }, [])
+  }, [formData.flow_type])
 
-  const [formData, setFormData] = useState<{
-    name: string
-    description: string
-    flow_type: string
-    priority: number
-    is_active: boolean
-  }>({
-    name: '',
-    description: '',
-    flow_type: 'estimate', // 初期値は固定、businessTypesが読み込まれた後に更新
-    priority: 1,
-    is_active: true
-  })
+  // フロータイプ変更時に権限を取得
+  useEffect(() => {
+    const loadBusinessCodePermissions = async () => {
+      if (!formData.flow_type) {
+        setBusinessCodePermissions([])
+        return
+      }
+
+      
+      try {
+        const permissionStatus = await businessCodeService.getBusinessCodePermissionStatus(
+          'system_level',
+          1,
+          formData.flow_type
+        )
+        
+        if (permissionStatus.data.permission_status && permissionStatus.data.permission_status.length > 0) {
+          // カテゴリベースで承認ステップ用権限をフィルタリング
+          const approvalPermissions = permissionStatus.data.permission_status.filter(p => 
+            p.category === 'approval_step'
+          )
+          
+          
+          setBusinessCodePermissions(approvalPermissions.map(p => ({
+            id: p.id,
+            name: p.name,
+            display_name: p.display_name
+          })))
+        } else {
+          setBusinessCodePermissions([])
+        }
+      } catch (error) {
+        console.warn('ビジネスコード権限取得に失敗:', error)
+        setBusinessCodePermissions([])
+      }
+    }
+
+    loadBusinessCodePermissions()
+  }, [formData.flow_type])
   const [conditions, setConditions] = useState<ApprovalConditions>({
     amount_min: undefined,
     amount_max: undefined,
@@ -92,6 +147,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   })
   const [requesters, setRequesters] = useState<ApprovalRequester[]>([])
   const [approvalSteps, setApprovalSteps] = useState<ApprovalStep[]>([])
+
   const [loading, setLoading] = useState(false)
   const { addToast } = useToast()
   
@@ -134,7 +190,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
     setFormData({
       name: '',
       description: '',
-      flow_type: businessTypes[0]?.code || 'estimate',
+      flow_type: businessTypes[0]?.code || '',
       priority: 1,
       is_active: true
     })
@@ -173,16 +229,15 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       
       // 承認依頼者の設定
       if (flow.requesters) {
-        console.log('承認依頼者データ:', flow.requesters)
         setRequesters(flow.requesters)
       }
       
       // 承認ステップの設定
       if (flow.approval_steps) {
-        console.log('承認ステップデータ:', flow.approval_steps)
-        // 各ステップのconditionプロパティを適切に初期化
+        // 各ステップのconditionプロパティとrequired_permissionsを適切に初期化
         const initializedSteps = flow.approval_steps.map(step => ({
           ...step,
+          required_permissions: step.required_permissions || [], // 初期化
           condition: step.condition || {
             type: 'required',
             display_name: '必須承認'
@@ -209,7 +264,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
     setRequesters(requesters.filter((_, i) => i !== index))
   }
 
-  const updateRequester = (index: number, field: keyof ApprovalRequester, value: string | number) => {
+  const updateRequester = (index: number, field: keyof ApprovalRequester, value: string | number | string[]) => {
     const newRequesters = [...requesters]
     
     // タイプが変更された場合は値もリセット
@@ -256,6 +311,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         display_name: '上長'
       }],
       available_permissions: ['estimate.approval.view', 'estimate.approval.approve'],
+      required_permissions: [], // 初期化
       condition: {
         type: 'required',
         display_name: '必須承認'
@@ -294,7 +350,6 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   }
 
   const updateApprover = (stepIndex: number, approverIndex: number, field: string, value: string | number) => {
-    console.log('updateApprover called:', { stepIndex, approverIndex, field, value })
     
     // 完全に新しい配列を作成して強制再レンダリング
     const newSteps = approvalSteps.map((step, sIndex) => {
@@ -305,7 +360,6 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
             if (aIndex === approverIndex) {
               // タイプが変更された場合は値もリセット
               if (field === 'type') {
-                console.log('Type changed, resetting value and display_name')
                 return {
                   ...approver,
                   [field]: value as 'system_level' | 'department' | 'position' | 'user',
@@ -345,7 +399,6 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       }
     }
     
-    console.log('Setting new approval steps:', newSteps)
     setApprovalSteps(newSteps)
   }
 
@@ -691,37 +744,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         </div>
                       </div>
                       
-                      {/* 利用可能権限の表示 */}
-                      <div className="text-sm text-gray-600">
-                        <div className="font-medium">利用可能権限:</div>
-                        <div className="ml-2 flex flex-wrap gap-1">
-                          {(() => {
-                            // ステップ0の利用可能権限を取得
-                            const stepZero = approvalSteps.find(step => step.step === 0);
-                            const permissions = stepZero?.available_permissions || [];
-                            
-                            if (permissions.length === 0) {
-                              return (
-                                <span className="text-gray-400 text-xs">
-                                  権限が設定されていません
-                                </span>
-                              );
-                            }
-                            
-                            return permissions.map((permission, permIndex) => (
-                              <Badge key={permIndex} variant="outline" className="text-xs">
-                                {permission}
-                              </Badge>
-                            ));
-                          })()}
-                        </div>
-                      </div>
                     </div>
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
+
 
           {/* 承認ステップ設定 */}
           <Card>
@@ -754,8 +783,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {approvalSteps.filter(step => step.step !== 0).map((step, stepIndex) => {
-                    // 安全対策: conditionプロパティの存在確認
+                  {approvalSteps.filter(step => step.step !== 0).map((step) => {
+                    const stepIndex = approvalSteps.findIndex(s => s.step === step.step)
                     const safeCondition = step.condition || {
                       type: 'required',
                       display_name: '必須承認'
@@ -942,6 +971,83 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                             </div>
                           </div>
                         ))}
+                      </div>
+                      
+                      {/* ステップで利用可能な権限の設定 */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">ステップで利用可能な権限</Label>
+                        <div className="text-xs text-muted-foreground">
+                          利用可能な権限数: {businessCodePermissions.length} (承認・却下・差し戻しのみ)
+                        </div>
+                        <div className="space-y-2">
+                          {businessCodePermissions.length > 0 ? businessCodePermissions.map((permission) => {
+                            const isSelected = step.required_permissions?.includes(permission.name) || false
+                            return (
+                              <div 
+                                key={`${stepIndex}-${permission.id}-${step.required_permissions?.length || 0}`} 
+                                className="flex items-center space-x-2"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  key={`checkbox-${stepIndex}-${permission.id}-${step.required_permissions?.length || 0}`}
+                                  id={`step-${stepIndex}-permission-${permission.id}`}
+                                  checked={isSelected}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    console.log('チェックボックス直接クリック:', {
+                                      stepIndex,
+                                      permission: permission.name,
+                                      checked: e.currentTarget.checked
+                                    })
+                                  }}
+                                  onChange={(e) => {
+                                    console.log('チェックボックスクリックイベント発火:', {
+                                      stepIndex,
+                                      permission: permission.name,
+                                      checked: e.target.checked,
+                                      currentStep: step
+                                    })
+                                    
+                                    const currentPermissions = step.required_permissions || []
+                                    const newPermissions = e.target.checked
+                                      ? [...currentPermissions, permission.name]
+                                      : currentPermissions.filter(p => p !== permission.name)
+                                    
+                                    
+                                    // ステップの権限を更新
+                                    const newSteps = approvalSteps.map((s, sIndex) => {
+                                      if (sIndex === stepIndex) {
+                                        return { ...s, required_permissions: newPermissions }
+                                      }
+                                      return s
+                                    })
+                                    
+                                    console.log('新しいステップ配列:', newSteps)
+                                    setApprovalSteps(newSteps)
+                                  }}
+                                  className="rounded border-input cursor-pointer"
+                                  style={{ pointerEvents: 'auto' }}
+                                />
+                                <Label 
+                                  htmlFor={`step-${stepIndex}-permission-${permission.id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {permission.display_name}
+                                </Label>
+                                <span className="text-xs text-muted-foreground">
+                                  ({permission.name})
+                                </span>
+                              </div>
+                            )
+                          }) : (
+                            <div className="text-sm text-muted-foreground">
+                              権限情報を読み込み中...
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                     )

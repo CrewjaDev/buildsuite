@@ -292,7 +292,18 @@ class Estimate extends Model
      */
     public function canRequestApproval(): bool
     {
-        return in_array($this->status, ['draft']) && !$this->approvalRequest;
+        // ステータスと承認依頼の存在チェック
+        if (!in_array($this->status, ['draft']) || $this->approvalRequest) {
+            return false;
+        }
+
+        // 権限チェック（ログインユーザーがいる場合のみ）
+        if (auth()->check()) {
+            $user = auth()->user();
+            return \App\Services\PermissionService::hasPermission($user, 'estimate.approval.request');
+        }
+
+        return true; // ログインユーザーがいない場合は権限チェックをスキップ
     }
 
     /**

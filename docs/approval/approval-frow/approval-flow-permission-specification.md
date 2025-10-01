@@ -1,0 +1,150 @@
+# 承認フロー権限設定仕様
+
+## 概要
+
+承認フローにおける権限設定の仕様を定義します。承認依頼者と承認ステップでの権限管理について、2段階の権限チェックシステムを採用しています。
+
+## 権限チェックシステム
+
+### 基本原則
+
+承認フローでの権限チェックは以下の2段階で構成されます：
+
+1. **1段階目（必須）**: ログインユーザーが承認権限を持っているか
+2. **2段階目（制限）**: 承認ステップで許可された権限のみ利用可能
+
+### 権限チェックの論理
+
+```
+利用可能権限 = (ログインユーザーの権限 ∩ 承認ステップの許可権限)
+```
+
+## 承認依頼者の権限設定
+
+### 仕様
+- **権限設定**: 不要
+- **理由**: 承認依頼は承認フロー起動のトリガーであり、承認依頼者に権限を紐づける必要がない
+- **設定項目**: 承認依頼者の範囲のみ
+  - システム権限レベル
+  - 部署
+  - 職位
+  - 個別ユーザー
+
+### 動作フロー
+1. ログインユーザーが承認依頼権限（例：`estimate.approval.request`）を持っているかチェック
+2. ユーザーが承認フローで定義された承認依頼者の条件に合致するかチェック
+3. 両方の条件を満たした場合のみ、承認依頼ボタンが表示され、承認依頼作成が可能
+
+## 承認ステップの権限設定
+
+### 仕様
+- **権限設定**: 必須
+- **目的**: 承認者に許可する権限の種類を制限
+- **参照元**: ビジネスコード（例：見積 `estimate`）
+- **設定項目**: `{business}.approval.*` の中から以下の権限のみ選択可能
+  - `{business}.approval.approve` - 承認
+  - `{business}.approval.reject` - 却下
+  - `{business}.approval.return` - 差し戻し
+
+### 動作フロー
+1. ログインユーザーが承認権限（例：`estimate.approval.approve`）を持っているかチェック
+2. 承認フローで定義された承認ステップの権限設定で許可された権限のみ利用可能
+3. 両方の条件を満たした権限のみ実行可能
+
+## 具体例
+
+### 見積承認権限の例
+
+#### ログインユーザーAさんの権限
+- `estimate.approval.approve` - 見積承認
+- `estimate.approval.reject` - 見積却下
+- `estimate.approval.return` - 見積差し戻し
+
+#### 承認ステップの権限設定
+- `estimate.approval.approve` - 見積承認 ✅
+- `estimate.approval.return` - 見積差し戻し ✅
+- `estimate.approval.reject` - 見積却下 ❌（設定されていない）
+
+#### 結果
+Aさんが承認者として該当しても、実際に利用できる権限は：
+- ✅ **見積承認** - 実行可能
+- ✅ **見積差し戻し** - 実行可能
+- ❌ **見積却下** - 実行不可（承認ステップで許可されていない）
+
+### 例外ケース（ユーザーに権限がない場合）
+
+#### ログインユーザーBさんの権限
+- `estimate.approval.approve` - 見積承認のみ
+
+#### 承認ステップの権限設定
+- `estimate.approval.approve` - 見積承認 ✅
+- `estimate.approval.reject` - 見積却下 ✅
+
+#### 結果
+Bさんが承認者として該当しても、実際に利用できる権限は：
+- ✅ **見積承認** - 実行可能
+- ❌ **見積却下** - 実行不可（ユーザーに権限がないため）
+
+## 実装要件
+
+### 承認フロー編集ダイアログ
+
+#### 承認依頼者設定
+- 権限チェックボックスを削除
+- 承認依頼者の範囲設定のみ保持
+- タイプ選択：システム権限レベル、部署、職位、個別ユーザー
+- 値選択：選択されたタイプに応じた値の選択
+
+#### 承認ステップ設定
+- 権限チェックボックスを保持
+- フロータイプで選択されたビジネスコードの承認権限を動的に取得・表示
+- 承認ステップで利用可能な権限を選択可能
+- 権限の日本語表示名とコード名を併記
+
+### 権限チェック処理
+
+#### 承認依頼時の権限チェック
+1. ログインユーザーの権限に承認依頼権限が含まれているか
+2. ユーザーが承認フローで定義された承認依頼者の条件に合致するか
+
+#### 承認実行時の権限チェック
+1. ログインユーザーの権限に承認権限が含まれているか
+2. 承認ステップで許可された権限のみ実行可能
+
+## データ構造
+
+### 承認依頼者（ApprovalRequester）
+```typescript
+interface ApprovalRequester {
+  type: 'system_level' | 'department' | 'position' | 'user'
+  value: string
+  display_name: string
+  // required_permissions は削除
+}
+```
+
+### 承認ステップ（ApprovalStep）
+```typescript
+interface ApprovalStep {
+  step: number
+  name: string
+  approvers: ApprovalApprover[]
+  available_permissions: string[] // 保持
+  condition: ApprovalCondition
+  required_permissions?: string[] // 保持
+}
+```
+
+## 注意事項
+
+1. **権限の優先順位**: ログインユーザーの権限が最優先、承認ステップの権限設定は制限として機能
+2. **権限の動的取得**: フロータイプ変更時に、選択されたビジネスコードの承認権限を動的に取得
+3. **権限のフィルタリング**: 承認関連の権限のみを表示（`.approval.`を含む権限）
+4. **エラーハンドリング**: 権限取得に失敗した場合は空の配列を設定
+
+## 関連ファイル
+
+- `frontend/src/components/features/approvals/ApprovalFlowForm.tsx`
+- `frontend/src/types/features/approvals/approvalFlows.ts`
+- `backend/app/Http/Controllers/BusinessCodeController.php`
+- `backend/app/Services/BusinessCodeService.php`

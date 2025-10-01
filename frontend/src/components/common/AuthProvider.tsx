@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAppDispatch, useAppSelector } from '@/lib/hooks'
 import { authService } from '@/lib/authService'
-import { setCredentials, logout } from '@/store/authSlice'
+import { setCredentials, logout, updatePermissions } from '@/store/authSlice'
 import { useRouter, usePathname } from 'next/navigation'
 
 interface AuthProviderProps {
@@ -73,6 +73,43 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
     initializeAuth()
   }, [dispatch, router, pathname])
+
+  // 権限の定期更新とページフォーカス時の更新
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const refreshPermissions = async () => {
+      try {
+        const { effectivePermissions } = await authService.me()
+        dispatch(updatePermissions(effectivePermissions))
+      } catch (error: unknown) {
+        console.error('Permission update failed:', error)
+        // 認証エラーの場合はログアウト
+        if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
+          localStorage.removeItem('token')
+          dispatch(logout())
+          router.push('/login')
+        }
+      }
+    }
+
+    // ページフォーカス時の更新
+    const handleFocus = () => {
+      refreshPermissions()
+    }
+
+    // 定期更新（30秒間隔）
+    const interval = setInterval(refreshPermissions, 30000)
+
+    // イベントリスナーの登録
+    window.addEventListener('focus', handleFocus)
+    
+    // クリーンアップ
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
+    }
+  }, [isAuthenticated, dispatch, router])
 
   // 認証ページでは初期化チェックをスキップ
   if (pathname?.startsWith('/login') || pathname?.startsWith('/register')) {

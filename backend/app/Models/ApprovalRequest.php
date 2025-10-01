@@ -446,4 +446,162 @@ class ApprovalRequest extends Model
     {
         return $query->where('requested_by', $user->id);
     }
+
+    /**
+     * 指定されたユーザーの承認状態を取得
+     */
+    public function getUserApprovalStatus(User $user): array
+    {
+        // 承認フロー全体の状態をチェック
+        if ($this->status === 'approved') {
+            return [
+                'status' => 'finished',
+                'step' => $this->current_step,
+                'step_name' => '承認完了',
+                'can_act' => false,
+                'message' => '承認が完了しました'
+            ];
+        }
+        
+        if (in_array($this->status, ['rejected', 'returned'])) {
+            return [
+                'status' => $this->status,
+                'step' => $this->current_step,
+                'step_name' => $this->status === 'rejected' ? '却下' : '差し戻し',
+                'can_act' => false,
+                'message' => $this->status === 'rejected' ? '承認が却下されました' : '承認が差し戻しされました'
+            ];
+        }
+        
+        // ユーザーが担当するステップを特定
+        $userStep = $this->getUserStep($user);
+        
+        if (!$userStep) {
+            return [
+                'status' => 'not_started',
+                'step' => 0,
+                'step_name' => '対象外',
+                'can_act' => false,
+                'message' => '承認対象ではありません'
+            ];
+        }
+        
+        // ユーザーのステップと現在のステップを比較
+        if ($userStep['step'] < $this->current_step) {
+            // ユーザーのステップは既に完了
+            return [
+                'status' => 'completed',
+                'step' => $userStep['step'],
+                'step_name' => $userStep['name'],
+                'can_act' => false,
+                'message' => '承認済み'
+            ];
+        }
+        
+        if ($userStep['step'] === $this->current_step) {
+            // ユーザーのステップが現在のステップ
+            \Log::info('ユーザー承認状態判定 - pending', [
+                'user_id' => $user->id,
+                'user_step' => $userStep['step'],
+                'current_step' => $this->current_step,
+                'can_act' => true
+            ]);
+            
+            return [
+                'status' => 'pending',
+                'step' => $userStep['step'],
+                'step_name' => $userStep['name'],
+                'can_act' => true,
+                'message' => '承認待ち'
+            ];
+        }
+        
+        // ユーザーのステップはまだ開始されていない
+        return [
+            'status' => 'not_started',
+            'step' => $userStep['step'],
+            'step_name' => $userStep['name'],
+            'can_act' => false,
+            'message' => '承認待ち（未開始）'
+        ];
+    }
+    
+    /**
+     * 指定されたユーザーが担当するステップを取得
+     */
+    private function getUserStep(User $user): ?array
+    {
+        $flow = $this->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            \Log::info('承認フロー情報なし', [
+                'approval_request_id' => $this->id,
+                'flow_exists' => $flow ? true : false,
+                'steps_exists' => $flow && $flow->approval_steps ? true : false
+            ]);
+            return null;
+        }
+        
+        \Log::info('承認フローステップ検索開始', [
+            'user_id' => $user->id,
+            'approval_steps' => $flow->approval_steps
+        ]);
+        
+        foreach ($flow->approval_steps as $step) {
+            if ($step['step'] === 0) continue; // ステップ0は承認依頼作成なので除外
+            
+            // ユーザーがこのステップの承認者かチェック
+            if ($this->isUserApproverForStep($user, $step)) {
+                \Log::info('ユーザーの担当ステップ発見', [
+                    'user_id' => $user->id,
+                    'step' => $step
+                ]);
+                return $step;
+            }
+        }
+        
+        \Log::info('ユーザーの担当ステップなし', [
+            'user_id' => $user->id
+        ]);
+        
+        return null;
+    }
+    
+    /**
+     * ユーザーが指定されたステップの承認者かチェック
+     */
+    private function isUserApproverForStep(User $user, array $step): bool
+    {
+        if (!isset($step['approvers'])) {
+            return false;
+        }
+        
+        foreach ($step['approvers'] as $approver) {
+            if ($this->checkApproverMatch($user, $approver)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 承認者条件とユーザーの一致をチェック
+     */
+    private function checkApproverMatch(User $user, array $approver): bool
+    {
+        switch ($approver['type']) {
+            case 'user':
+                return $user->id == $approver['value'];
+            case 'system_level':
+                return $user->system_level === $approver['value'];
+            case 'department':
+                $employee = $user->employee;
+                return $employee && $employee->department_id == $approver['value'];
+            case 'position':
+                $employee = $user->employee;
+                return $employee && $employee->position_id == $approver['value'];
+            default:
+                return false;
+        }
+    }
 }

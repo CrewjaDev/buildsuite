@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import { approvalFlowService } from '@/services/features/approvals/approvalFlows
 import type { ApprovalFlow, ApprovalStep } from '@/types/features/approvals/approvalFlows'
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useToast } from '@/components/ui/toast'
+import { permissionService, type Permission } from '@/services/features/permission/permissionService'
 
 interface ApprovalFlowListProps {
   flows: ApprovalFlow[]
@@ -35,14 +36,56 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
     priority: 0
   })
   const [editSteps, setEditSteps] = useState<ApprovalStep[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const { addToast } = useToast()
   
   // システム権限レベルを取得（React Query使用）
   const { data: systemLevels = [], isLoading: systemLevelsLoading } = useActiveSystemLevels()
 
+  // 権限一覧を取得
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await permissionService.getPermissions({ per_page: 1000 })
+        // レスポンス構造を確認して適切に設定
+        if (response && Array.isArray(response)) {
+          setPermissions(response)
+        } else if (response && response.data && Array.isArray(response.data)) {
+          setPermissions(response.data)
+        } else {
+          setPermissions([])
+        }
+      } catch (error) {
+        console.error('権限一覧の取得に失敗しました:', error)
+        setPermissions([])
+      }
+    }
+    fetchPermissions()
+  }, [])
+
+  // 権限コードから日本語名を取得する関数
+  const getPermissionDisplayName = (permissionCode: string): string => {
+    if (!Array.isArray(permissions)) {
+      return permissionCode
+    }
+    
+    const permission = permissions.find(p => p.name === permissionCode)
+    if (permission) {
+      return permission.display_name || permissionCode
+    }
+    
+    // データベースに権限が見つからない場合は、権限コードをそのまま返す
+    return permissionCode
+  }
+
   const handleViewDetail = (flow: ApprovalFlow) => {
     setSelectedFlow(flow)
     setIsDetailDialogOpen(true)
+    console.log('権限データ状態:', { 
+      permissionsCount: permissions.length, 
+      permissions: permissions.slice(0, 5),
+      estimatePermissions: permissions.filter(p => p.name.includes('estimate.approval'))
+    })
   }
 
   const handleEdit = (flow: ApprovalFlow) => {
@@ -374,24 +417,6 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                             {getApproverTypeLabel(requester.type)}
                           </Badge>
                         </div>
-                        {/* ステップ0の利用可能権限を表示 */}
-                        {selectedFlow.approval_steps && selectedFlow.approval_steps.length > 0 && (
-                          (() => {
-                            const stepZero = selectedFlow.approval_steps.find(step => step.step === 0);
-                            return stepZero && stepZero.available_permissions && stepZero.available_permissions.length > 0 ? (
-                              <div className="text-sm text-gray-600">
-                                <div className="font-medium">利用可能権限:</div>
-                                <div className="ml-2 flex flex-wrap gap-1">
-                                  {stepZero.available_permissions.map((permission, permIndex) => (
-                                    <Badge key={permIndex} variant="outline" className="text-xs">
-                                      {permission}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : null;
-                          })()
-                        )}
                       </div>
                     ))}
                   </div>
@@ -425,13 +450,13 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                             )) || (step.step === 0 ? '承認依頼者なし' : '承認者なし')}
                           </div>
                         </div>
-                        {step.available_permissions && step.available_permissions.length > 0 && (
+                        {step.required_permissions && step.required_permissions.length > 0 && (
                           <div className="text-sm text-gray-600">
-                            <div className="font-medium">利用可能権限:</div>
+                            <div className="font-medium">必要な権限:</div>
                             <div className="ml-2 flex flex-wrap gap-1">
-                              {step.available_permissions.map((permission, permIndex) => (
+                              {step.required_permissions.map((permission, permIndex) => (
                                 <Badge key={permIndex} variant="secondary" className="text-xs">
-                                  {permission}
+                                  {getPermissionDisplayName(permission)}
                                 </Badge>
                               ))}
                             </div>

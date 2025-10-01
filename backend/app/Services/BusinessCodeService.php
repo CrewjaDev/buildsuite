@@ -5,10 +5,10 @@ namespace App\Services;
 class BusinessCodeService
 {
     /**
-     * 全業務コード定数（システム固定 + ビジネスロジック）
-     * データ削除リスクを回避するため、すべてハードコーディング
+     * シーダー用のデフォルト業務コード定義
+     * 初期データベース設定用のみ。実行時はデータベースから取得
      */
-    private const ALL_BUSINESS_CODES = [
+    private const SEEDER_DEFAULT_BUSINESS_CODES = [
         // システム固定コード
         'role' => [
             'name' => '役割管理',
@@ -234,14 +234,45 @@ class BusinessCodeService
     ];
 
     /**
-     * 全業務コードを取得（完全ハードコーディング）
-     * データ削除リスクを回避するため、データベースに依存しない
+     * シーダー用のデフォルト業務コード定義を取得
+     * 初期データベース設定用のみ
+     * 
+     * @return array
+     */
+    public static function getSeederDefaultBusinessCodes(): array
+    {
+        return self::SEEDER_DEFAULT_BUSINESS_CODES;
+    }
+
+    /**
+     * 全業務コードを取得（データベースから取得）
+     * 実行時はデータベースから動的に取得
      * 
      * @return array
      */
     public static function getAllBusinessCodes(): array
     {
-        return self::ALL_BUSINESS_CODES;
+        try {
+            $businessCodes = \App\Models\BusinessCode::with('permissions')->get();
+            
+            return $businessCodes->mapWithKeys(function ($businessCode) {
+                return [
+                    $businessCode->code => [
+                        'name' => $businessCode->name,
+                        'description' => $businessCode->description,
+                        'category' => $businessCode->category,
+                        'is_system' => $businessCode->is_system,
+                        'is_core' => $businessCode->is_core,
+                        'default_permissions' => $businessCode->permissions->pluck('name')->toArray(),
+                        'settings' => $businessCode->settings ?? []
+                    ]
+                ];
+            })->toArray();
+        } catch (\Exception $e) {
+            // データベースエラーの場合はフォールバック
+            \Log::warning('ビジネスコードのデータベース取得に失敗、フォールバックを使用: ' . $e->getMessage());
+            return self::SEEDER_DEFAULT_BUSINESS_CODES;
+        }
     }
 
     /**
@@ -251,7 +282,7 @@ class BusinessCodeService
      */
     public static function getSystemBusinessCodes(): array
     {
-        return array_filter(self::ALL_BUSINESS_CODES, function ($config) {
+        return array_filter(self::SEEDER_DEFAULT_BUSINESS_CODES, function ($config) {
             return $config['is_system'] === true;
         });
     }
@@ -263,7 +294,7 @@ class BusinessCodeService
      */
     public static function getBusinessLogicCodes(): array
     {
-        return array_filter(self::ALL_BUSINESS_CODES, function ($config) {
+        return array_filter(self::SEEDER_DEFAULT_BUSINESS_CODES, function ($config) {
             return $config['is_system'] === false;
         });
     }
@@ -275,7 +306,7 @@ class BusinessCodeService
      */
     public static function getCoreBusinessCodes(): array
     {
-        return array_filter(self::ALL_BUSINESS_CODES, function ($config) {
+        return array_filter(self::SEEDER_DEFAULT_BUSINESS_CODES, function ($config) {
             return $config['is_core'] === true;
         });
     }
@@ -287,7 +318,7 @@ class BusinessCodeService
      */
     public static function getExtensibleBusinessCodes(): array
     {
-        return array_filter(self::ALL_BUSINESS_CODES, function ($config) {
+        return array_filter(self::SEEDER_DEFAULT_BUSINESS_CODES, function ($config) {
             return $config['is_core'] === false;
         });
     }
@@ -320,8 +351,8 @@ class BusinessCodeService
      */
     public static function isSystemCode(string $code): bool
     {
-        return isset(self::ALL_BUSINESS_CODES[$code]) && 
-               self::ALL_BUSINESS_CODES[$code]['is_system'] === true;
+        return isset(self::SEEDER_DEFAULT_BUSINESS_CODES[$code]) && 
+               self::SEEDER_DEFAULT_BUSINESS_CODES[$code]['is_system'] === true;
     }
 
     /**
@@ -332,8 +363,8 @@ class BusinessCodeService
      */
     public static function isBusinessLogicCode(string $code): bool
     {
-        return isset(self::ALL_BUSINESS_CODES[$code]) && 
-               self::ALL_BUSINESS_CODES[$code]['is_system'] === false;
+        return isset(self::SEEDER_DEFAULT_BUSINESS_CODES[$code]) && 
+               self::SEEDER_DEFAULT_BUSINESS_CODES[$code]['is_system'] === false;
     }
 
     /**
@@ -344,8 +375,8 @@ class BusinessCodeService
      */
     public static function isCoreCode(string $code): bool
     {
-        return isset(self::ALL_BUSINESS_CODES[$code]) && 
-               self::ALL_BUSINESS_CODES[$code]['is_core'] === true;
+        return isset(self::SEEDER_DEFAULT_BUSINESS_CODES[$code]) && 
+               self::SEEDER_DEFAULT_BUSINESS_CODES[$code]['is_core'] === true;
     }
 
     /**
@@ -356,8 +387,8 @@ class BusinessCodeService
      */
     public static function isExtensibleCode(string $code): bool
     {
-        return isset(self::ALL_BUSINESS_CODES[$code]) && 
-               self::ALL_BUSINESS_CODES[$code]['is_core'] === false;
+        return isset(self::SEEDER_DEFAULT_BUSINESS_CODES[$code]) && 
+               self::SEEDER_DEFAULT_BUSINESS_CODES[$code]['is_core'] === false;
     }
 
     /**
@@ -369,19 +400,35 @@ class BusinessCodeService
      */
     public static function getBusinessCodeInfo(string $code): ?array
     {
-        return self::ALL_BUSINESS_CODES[$code] ?? null;
+        return self::SEEDER_DEFAULT_BUSINESS_CODES[$code] ?? null;
     }
 
     /**
-     * 業務コードのデフォルト権限を取得
+     * 業務コードのデフォルト権限を取得（データベースから取得）
      * 
      * @param string $code
      * @return array
      */
     public static function getDefaultPermissions(string $code): array
     {
-        $info = self::getBusinessCodeInfo($code);
-        return $info['default_permissions'] ?? [];
+        try {
+            $businessCode = \App\Models\BusinessCode::where('code', $code)
+                ->with('permissions')
+                ->first();
+            
+            if ($businessCode) {
+                return $businessCode->permissions->pluck('name')->toArray();
+            }
+            
+            // データベースに見つからない場合はフォールバック
+            $info = self::getBusinessCodeInfo($code);
+            return $info['default_permissions'] ?? [];
+        } catch (\Exception $e) {
+            // データベースエラーの場合はフォールバック
+            \Log::warning("ビジネスコード '{$code}' の権限取得に失敗、フォールバックを使用: " . $e->getMessage());
+            $info = self::getBusinessCodeInfo($code);
+            return $info['default_permissions'] ?? [];
+        }
     }
 
     /**
@@ -404,7 +451,7 @@ class BusinessCodeService
      */
     public static function getBusinessCodesByCategory(string $category): array
     {
-        $allCodes = self::getAllBusinessCodes();
+        $allCodes = self::SEEDER_DEFAULT_BUSINESS_CODES;
         
         return array_filter($allCodes, function ($config) use ($category) {
             return $config['category'] === $category;

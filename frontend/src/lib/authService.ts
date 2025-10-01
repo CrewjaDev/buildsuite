@@ -64,8 +64,17 @@ export const authService = {
           effectivePermissions: response.data.effective_permissions || []
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Me error:', error)
+      
+      // エラーオブジェクトにstatusプロパティを追加
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status: number } }
+        if (axiosError.response) {
+          (error as unknown as { status: number }).status = axiosError.response.status
+        }
+      }
+      
       throw error
     }
   },

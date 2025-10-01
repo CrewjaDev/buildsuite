@@ -523,7 +523,7 @@ class UserController extends Controller
             // バリデーション
             $validator = Validator::make($request->all(), [
                 'password' => 'required|string|min:8|confirmed',
-                'current_password' => 'required|string',
+                // 'current_password' は管理者による変更の場合は不要
             ]);
 
             if ($validator->fails()) {
@@ -534,13 +534,6 @@ class UserController extends Controller
                 ], 422);
             }
 
-            // 現在のパスワードを確認
-            if (!Hash::check($request->current_password, $user->password)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => '現在のパスワードが正しくありません',
-                ], 400);
-            }
 
             // パスワードを更新
             $user->update([

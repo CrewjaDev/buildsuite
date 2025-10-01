@@ -10,6 +10,7 @@ use App\Models\SystemLevel;
 use App\Models\Role;
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\User;
 
 class BusinessCodeController extends Controller
 {
@@ -384,5 +385,303 @@ class BusinessCodeController extends Controller
         }
         
         return $status;
+    }
+
+    /**
+     * ビジネスコード別の権限照会
+     */
+    public function getBusinessCodePermissionStatus(string $entityType, int $entityId, string $businessCode): JsonResponse
+    {
+        try {
+            // ビジネスコードの存在確認
+            $businessCodeInfo = BusinessCodeService::getBusinessCodeInfo($businessCode);
+            if (!$businessCodeInfo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '指定されたビジネスコードが見つかりません'
+                ], 404);
+            }
+
+            // ビジネスコードに紐づく権限一覧を取得
+            $businessCodePermissions = BusinessCodeService::getDefaultPermissions($businessCode);
+            
+            // エンティティに付与されている権限を取得
+            $assignedPermissions = $this->getEntityPermissions($entityType, $entityId);
+            
+            // ビジネスコード権限と付与状況をマッピング
+            $permissionStatus = [];
+            foreach ($businessCodePermissions as $permissionName) {
+                $permission = Permission::where('name', $permissionName)->first();
+                if ($permission) {
+                    $isAssigned = $assignedPermissions->contains('id', $permission->id);
+                    $assignedPermission = $assignedPermissions->where('id', $permission->id)->first();
+                    
+                    $permissionStatus[] = [
+                        'id' => $permission->id,
+                        'name' => $permission->name,
+                        'display_name' => $permission->display_name,
+                        'description' => $permission->description,
+                        'module' => $permission->module,
+                        'action' => $permission->action,
+                        'category' => $permission->category,
+                        'subcategory' => $permission->subcategory,
+                        'is_assigned' => $isAssigned,
+                        'assigned_at' => $assignedPermission?->pivot?->granted_at ?? null,
+                        'granted_by' => $assignedPermission?->pivot?->granted_by ?? null
+                    ];
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'business_code' => $businessCode,
+                    'business_code_info' => $businessCodeInfo,
+                    'permission_status' => $permissionStatus
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '権限照会に失敗しました',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * ビジネスコードベースの権限一括設定
+     */
+    public function setBusinessCodePermissions(string $entityType, int $entityId, string $businessCode, Request $request): JsonResponse
+    {
+        try {
+            // ビジネスコードの存在確認
+            $businessCodeInfo = BusinessCodeService::getBusinessCodeInfo($businessCode);
+            if (!$businessCodeInfo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '指定されたビジネスコードが見つかりません'
+                ], 404);
+            }
+
+            // リクエストデータの検証
+            $request->validate([
+                'permission_overrides' => 'array',
+                'permission_overrides.*.permission_id' => 'required|integer|exists:permissions,id',
+                'permission_overrides.*.is_enabled' => 'required|boolean'
+            ]);
+
+            $permissionOverrides = $request->input('permission_overrides', []);
+            
+            // ビジネスコードに紐づく権限一覧を取得
+            $businessCodePermissions = BusinessCodeService::getDefaultPermissions($businessCode);
+            
+            // エンティティに付与されている権限を取得
+            $assignedPermissions = $this->getEntityPermissions($entityType, $entityId);
+            
+            // 権限の追加・削除を決定
+            $permissionsToAdd = [];
+            $permissionsToRemove = [];
+            
+            foreach ($businessCodePermissions as $permissionName) {
+                $permission = Permission::where('name', $permissionName)->first();
+                if (!$permission) continue;
+                
+                // オーバーライド設定を確認
+                $override = collect($permissionOverrides)->firstWhere('permission_id', $permission->id);
+                $shouldBeAssigned = $override ? $override['is_enabled'] : true; // デフォルトは有効
+                
+                $isCurrentlyAssigned = $assignedPermissions->contains('id', $permission->id);
+                
+                if ($shouldBeAssigned && !$isCurrentlyAssigned) {
+                    $permissionsToAdd[] = $permission->id;
+                } elseif (!$shouldBeAssigned && $isCurrentlyAssigned) {
+                    $permissionsToRemove[] = $permission->id;
+                }
+            }
+            
+            // 権限の追加
+            if (!empty($permissionsToAdd)) {
+                $this->addEntityPermissions($entityType, $entityId, $permissionsToAdd);
+            }
+            
+            // 権限の削除
+            if (!empty($permissionsToRemove)) {
+                $this->removeEntityPermissions($entityType, $entityId, $permissionsToRemove);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => '権限が正常に設定されました',
+                'data' => [
+                    'business_code' => $businessCode,
+                    'permissions_added' => count($permissionsToAdd),
+                    'permissions_removed' => count($permissionsToRemove)
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '権限設定に失敗しました',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * エンティティの権限を取得
+     */
+    private function getEntityPermissions(string $entityType, int $entityId)
+    {
+        switch ($entityType) {
+            case 'system_level':
+                $entity = SystemLevel::with('permissions')->find($entityId);
+                return $entity ? $entity->permissions : collect();
+            case 'role':
+                $entity = Role::with('permissions')->find($entityId);
+                return $entity ? $entity->permissions : collect();
+            case 'department':
+                $entity = Department::with('permissions')->find($entityId);
+                return $entity ? $entity->permissions : collect();
+            case 'position':
+                $entity = Position::with('permissions')->find($entityId);
+                return $entity ? $entity->permissions : collect();
+            case 'user':
+                $entity = User::with('permissions')->find($entityId);
+                return $entity ? $entity->permissions : collect();
+            default:
+                return collect();
+        }
+    }
+
+    /**
+     * エンティティに権限を追加
+     */
+    private function addEntityPermissions(string $entityType, int $entityId, array $permissionIds): void
+    {
+        switch ($entityType) {
+            case 'system_level':
+                $entity = SystemLevel::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->syncWithoutDetaching($permissionIds);
+                }
+                break;
+            case 'role':
+                $entity = Role::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->syncWithoutDetaching($permissionIds);
+                }
+                break;
+            case 'department':
+                $entity = Department::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->syncWithoutDetaching($permissionIds);
+                }
+                break;
+            case 'position':
+                $entity = Position::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->syncWithoutDetaching($permissionIds);
+                }
+                break;
+            case 'user':
+                $entity = User::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->syncWithoutDetaching($permissionIds);
+                }
+                break;
+        }
+    }
+
+    /**
+     * エンティティから権限を削除
+     */
+    private function removeEntityPermissions(string $entityType, int $entityId, array $permissionIds): void
+    {
+        switch ($entityType) {
+            case 'system_level':
+                $entity = SystemLevel::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->detach($permissionIds);
+                }
+                break;
+            case 'role':
+                $entity = Role::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->detach($permissionIds);
+                }
+                break;
+            case 'department':
+                $entity = Department::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->detach($permissionIds);
+                }
+                break;
+            case 'position':
+                $entity = Position::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->detach($permissionIds);
+                }
+                break;
+            case 'user':
+                $entity = User::find($entityId);
+                if ($entity) {
+                    $entity->permissions()->detach($permissionIds);
+                }
+                break;
+        }
+    }
+
+    /**
+     * カテゴリ別の権限を取得
+     */
+    public function getPermissionsByCategory(string $businessCode, string $category): JsonResponse
+    {
+        try {
+            // ビジネスコードの存在確認
+            $businessCodeInfo = BusinessCodeService::getBusinessCodeInfo($businessCode);
+            if (!$businessCodeInfo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '指定されたビジネスコードが見つかりません'
+                ], 404);
+            }
+
+            // ビジネスコードに紐づく権限一覧を取得
+            $businessCodePermissions = BusinessCodeService::getDefaultPermissions($businessCode);
+            
+            // 指定されたカテゴリの権限をフィルタリング
+            $permissions = Permission::whereIn('name', $businessCodePermissions)
+                ->where('category', $category)
+                ->where('is_active', true)
+                ->get();
+            
+            $permissionList = $permissions->map(function ($permission) {
+                return [
+                    'id' => $permission->id,
+                    'name' => $permission->name,
+                    'display_name' => $permission->display_name,
+                    'category' => $permission->category,
+                    'subcategory' => $permission->subcategory
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'business_code' => $businessCode,
+                    'category' => $category,
+                    'permissions' => $permissionList
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'カテゴリ別権限の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

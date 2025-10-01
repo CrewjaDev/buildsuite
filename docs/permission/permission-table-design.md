@@ -183,6 +183,8 @@ CREATE TABLE permissions (
     module VARCHAR(100) NOT NULL,
     action VARCHAR(100) NOT NULL,
     resource VARCHAR(100),
+    category VARCHAR(100) COMMENT '権限カテゴリ',
+    subcategory VARCHAR(100) COMMENT '権限サブカテゴリ',
     is_system BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP,
@@ -192,9 +194,25 @@ CREATE TABLE permissions (
     INDEX idx_permissions_name (name),
     INDEX idx_permissions_module (module),
     INDEX idx_permissions_action (action),
+    INDEX idx_permissions_category (category),
+    INDEX idx_permissions_subcategory (subcategory),
     INDEX idx_permissions_is_active (is_active)
 );
 ```
+
+#### 2.5.1 権限カテゴリの分類
+
+権限は以下のカテゴリに分類されます：
+
+| カテゴリ | サブカテゴリ | 説明 | 例 |
+|----------|--------------|------|-----|
+| `approval_step` | `action` | 承認ステップで利用可能な権限 | `estimate.approval.approve`, `estimate.approval.reject`, `estimate.approval.return` |
+| `approval_request` | `action` | 承認依頼作成用権限 | `estimate.approval.request` |
+| `approval_view` | `action` | 承認依頼閲覧用権限 | `estimate.approval.view` |
+| `approval_cancel` | `action` | 承認依頼キャンセル用権限 | `estimate.approval.cancel` |
+| `basic_operation` | `crud` | 基本操作権限 | `estimate.view`, `estimate.create`, `estimate.edit`, `estimate.delete` |
+| `module_access` | `use` | モジュール利用権限 | `estimate.use`, `budget.use` |
+| `system` | `management` | システム管理権限 | `system.view`, `approval.flow.create` |
 
 ### 3. 中間テーブル（権限紐づけ）
 
