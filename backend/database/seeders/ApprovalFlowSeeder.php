@@ -149,7 +149,6 @@ class ApprovalFlowSeeder extends Seeder
                         ['type' => 'user', 'value' => 2, 'display_name' => '山田太郎'], // UserSeederで作成されるユーザー
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.return',
                     ],
@@ -162,11 +161,9 @@ class ApprovalFlowSeeder extends Seeder
                         ['type' => 'user', 'value' => 1, 'display_name' => 'システム管理者'], // UserSeederで作成される管理者
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.reject',
                         'estimate.approval.return',
-                        'estimate.approval.cancel',
                     ],
                     'approval_type' => 'required',
                 ],
@@ -209,7 +206,6 @@ class ApprovalFlowSeeder extends Seeder
                         ['type' => 'system_level', 'value' => 'supervisor', 'display_name' => '上長'],
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.return',
                     ],
@@ -263,7 +259,6 @@ class ApprovalFlowSeeder extends Seeder
                         ],
                     ],
                     'available_permissions' => [
-                        'purchase.approval.view',
                         'purchase.approval.approve',
                         'purchase.approval.return',
                     ],
@@ -309,7 +304,6 @@ class ApprovalFlowSeeder extends Seeder
                         ['type' => 'user', 'value' => 4, 'display_name' => '野瀬社長'],
                     ],
                     'available_permissions' => [
-                        'contract.approval.view',
                         'contract.approval.approve',
                         'contract.approval.reject',
                         'contract.approval.return',
@@ -369,7 +363,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.return'
                     ],
@@ -389,7 +382,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.reject',
                         'estimate.approval.return'
@@ -410,11 +402,9 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'estimate.approval.view',
                         'estimate.approval.approve',
                         'estimate.approval.reject',
-                        'estimate.approval.return',
-                        'estimate.approval.cancel'
+                        'estimate.approval.return'
                     ],
                     'condition' => [
                         'type' => 'required',
@@ -473,7 +463,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'budget.approval.view',
                         'budget.approval.approve',
                         'budget.approval.return'
                     ],
@@ -493,11 +482,9 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'budget.approval.view',
                         'budget.approval.approve',
                         'budget.approval.reject',
-                        'budget.approval.return',
-                        'budget.approval.cancel'
+                        'budget.approval.return'
                     ],
                     'condition' => [
                         'type' => 'required',
@@ -552,7 +539,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'construction.approval.view',
                         'construction.approval.approve',
                         'construction.approval.return'
                     ],
@@ -572,7 +558,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'construction.approval.view',
                         'construction.approval.approve',
                         'construction.approval.reject',
                         'construction.approval.return'
@@ -593,11 +578,9 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'construction.approval.view',
                         'construction.approval.approve',
                         'construction.approval.reject',
-                        'construction.approval.return',
-                        'construction.approval.cancel'
+                        'construction.approval.return'
                     ],
                     'condition' => [
                         'type' => 'required',
@@ -651,7 +634,6 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'general.approval.view',
                         'general.approval.approve',
                         'general.approval.reject',
                         'general.approval.return'
@@ -705,11 +687,9 @@ class ApprovalFlowSeeder extends Seeder
                         ]
                     ],
                     'available_permissions' => [
-                        'system.approval.view',
                         'system.approval.approve',
                         'system.approval.reject',
-                        'system.approval.return',
-                        'system.approval.cancel'
+                        'system.approval.return'
                     ],
                     'condition' => [
                         'type' => 'required',

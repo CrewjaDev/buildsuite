@@ -55,6 +55,144 @@ class ApprovalRequestController extends Controller
     }
 
     /**
+     * 承認済み件数を取得（ダッシュボード用）
+     */
+    public function approvedCount(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // 承認済みの承認依頼を取得
+            $approvedRequests = ApprovalRequest::where('status', 'approved')
+                ->with('approvalFlow')
+                ->get();
+
+            $count = 0;
+            foreach ($approvedRequests as $request) {
+                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
+                    $count++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '承認済み件数の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 却下件数を取得（ダッシュボード用）
+     */
+    public function rejectedCount(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // 却下の承認依頼を取得
+            $rejectedRequests = ApprovalRequest::where('status', 'rejected')
+                ->with('approvalFlow')
+                ->get();
+
+            $count = 0;
+            foreach ($rejectedRequests as $request) {
+                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
+                    $count++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '却下件数の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 差戻し件数を取得（ダッシュボード用）
+     */
+    public function returnedCount(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // 差戻しの承認依頼を取得
+            $returnedRequests = ApprovalRequest::where('status', 'returned')
+                ->with('approvalFlow')
+                ->get();
+
+            $count = 0;
+            foreach ($returnedRequests as $request) {
+                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
+                    $count++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '差戻し件数の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 承認件数一括取得（ダッシュボード用）
+     */
+    public function approvalCounts(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // 全ての承認依頼を一度に取得
+            $allRequests = ApprovalRequest::whereIn('status', ['pending', 'approved', 'rejected', 'returned'])
+                ->with('approvalFlow')
+                ->get();
+
+            $counts = [
+                'pending' => 0,
+                'approved' => 0,
+                'rejected' => 0,
+                'returned' => 0
+            ];
+
+            foreach ($allRequests as $request) {
+                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
+                    $counts[$request->status]++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'counts' => $counts
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '承認件数の取得に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * ユーザーが承認者かどうかを判定
      */
     private function isUserApprover($user, $approvalFlow, $currentStep)
@@ -101,19 +239,52 @@ class ApprovalRequestController extends Controller
 
             // ステータスでフィルタリング
             if ($request->has('status')) {
-                $query->where('status', $request->status);
+                $status = $request->status;
+                if (is_array($status)) {
+                    $query->whereIn('status', $status);
+                } else {
+                    $query->where('status', $status);
+                }
             }
 
-            // フロータイプでフィルタリング
-            if ($request->has('flow_type')) {
-                $query->whereHas('approvalFlow', function ($q) use ($request) {
-                    $q->where('flow_type', $request->flow_type);
-                });
+            // リクエストタイプでフィルタリング
+            if ($request->has('request_type')) {
+                $requestType = $request->request_type;
+                if (is_array($requestType)) {
+                    $query->whereIn('request_type', $requestType);
+                } else {
+                    $query->where('request_type', $requestType);
+                }
+            }
+
+            // 優先度でフィルタリング
+            if ($request->has('priority')) {
+                $priority = $request->priority;
+                if (is_array($priority)) {
+                    $query->whereIn('priority', $priority);
+                } else {
+                    $query->where('priority', $priority);
+                }
             }
 
             // 依頼者でフィルタリング
             if ($request->has('requested_by')) {
-                $query->where('requested_by', $request->requested_by);
+                $requestedBy = $request->requested_by;
+                if (is_array($requestedBy)) {
+                    $query->whereIn('requested_by', $requestedBy);
+                } else {
+                    $query->where('requested_by', $requestedBy);
+                }
+            }
+
+            // 承認フローIDでフィルタリング
+            if ($request->has('approval_flow_id')) {
+                $approvalFlowId = $request->approval_flow_id;
+                if (is_array($approvalFlowId)) {
+                    $query->whereIn('approval_flow_id', $approvalFlowId);
+                } else {
+                    $query->where('approval_flow_id', $approvalFlowId);
+                }
             }
 
             // 承認待ちの依頼（現在のユーザーが承認可能なもの）

@@ -249,7 +249,8 @@ public function canCreateApprovalRequest($userId, $approvalFlowId) {
       "name": "string",
       "approvers": "array",
       "available_permissions": "array",
-      "approval_type": "string (optional)"
+      "approval_type": "string (optional)",
+      "auto_approve_if_requester": "boolean (optional)"
     }
   ]
 }
@@ -296,6 +297,16 @@ public function canCreateApprovalRequest($userId, $approvalFlowId) {
   - `"optional"`: 任意承認（1人でも承認すればOK）
 - **デフォルト**: `"required"`
 - **例**: `"majority"`
+
+##### 3.2.3.2.6 auto_approve_if_requester（オプション）
+- **型**: 真偽値
+- **制約**: `true`/`false`（クォートなし）
+- **デフォルト**: `false`
+- **用途**: 承認依頼作成者がこのステップの承認者でもある場合の自動承認設定
+- **動作**: 
+  - `true`: 承認依頼作成者が承認者でもある場合、自動的に承認処理を実行
+  - `false`: 自動承認しない（通常の承認待ち状態）
+- **例**: `true`
 
 
 
@@ -345,7 +356,8 @@ public function canCreateApprovalRequest($userId, $approvalFlowId) {
         "estimate.approval.approve",
         "estimate.approval.return"
       ],
-      "approval_type": "required"
+      "approval_type": "required",
+      "auto_approve_if_requester": true
     }
   ]
 }
@@ -504,7 +516,8 @@ public function canCreateApprovalRequest($userId, $approvalFlowId) {
         "estimate.approval.approve",
         "estimate.approval.return"
       ],
-      "approval_type": "required"
+      "approval_type": "required",
+      "auto_approve_if_requester": true
     },
     {
       "step": 2,
@@ -604,8 +617,13 @@ public function createApprovalRequest($userId, $requestData) {
         'current_step' => 1
     ]);
     
-    // 3. 第1ステップの承認者に通知
-    $this->notifyApprovers($approvalRequest, 1);
+    // 3. 自動承認チェック
+    $this->checkAndProcessAutoApproval($approvalRequest, $userId);
+    
+    // 4. 第1ステップの承認者に通知（自動承認されていない場合）
+    if ($approvalRequest->current_step == 1) {
+        $this->notifyApprovers($approvalRequest, 1);
+    }
     
     return $approvalRequest;
 }
@@ -697,6 +715,106 @@ public function canApprove($userId, $approvalRequest, $step) {
     return false;
 }
 
+### 9.4 自動承認処理
+```php
+private function checkAndProcessAutoApproval(ApprovalRequest $approvalRequest, $userId) {
+    $currentStep = $approvalRequest->current_step;
+    $flow = ApprovalFlow::find($approvalRequest->approval_flow_id);
+    $approvalSteps = $flow->approval_steps;
+    
+    // 現在のステップ設定を取得
+    $stepConfig = null;
+    foreach ($approvalSteps as $stepData) {
+        if ($stepData['step'] == $currentStep) {
+            $stepConfig = $stepData;
+            break;
+        }
+    }
+    
+    if (!$stepConfig) {
+        return; // ステップ設定が見つからない
+    }
+    
+    // 1. 自動承認設定をチェック
+    if (!($stepConfig['auto_approve_if_requester'] ?? false)) {
+        return; // 自動承認設定が無効
+    }
+    
+    // 2. 承認依頼作成者が承認者かチェック
+    if (!$this->isRequesterAlsoApprover($stepConfig, $userId)) {
+        return; // 承認依頼作成者は承認者ではない
+    }
+    
+    // 3. 自動承認処理を実行
+    $this->processAutoApproval($approvalRequest, $stepConfig, $userId);
+}
+
+private function isRequesterAlsoApprover($stepConfig, $userId) {
+    $user = User::find($userId);
+    
+    foreach ($stepConfig['approvers'] as $approver) {
+        switch ($approver['type']) {
+            case 'system_level':
+                if ($user->system_level == $approver['value']) {
+                    return true;
+                }
+                break;
+            case 'position':
+                if ($user->employee->position_id == $approver['value']) {
+                    return true;
+                }
+                break;
+            case 'user':
+                if ($userId == $approver['value']) {
+                    return true;
+                }
+                break;
+            case 'department':
+                if ($user->employee->department_id == $approver['value']) {
+                    return true;
+                }
+                break;
+        }
+    }
+    return false;
+}
+
+private function processAutoApproval(ApprovalRequest $approvalRequest, $stepConfig, $userId) {
+    $currentStep = $approvalRequest->current_step;
+    
+    // 1. 自動承認履歴を記録
+    ApprovalHistory::create([
+        'approval_request_id' => $approvalRequest->id,
+        'step' => $currentStep,
+        'approver_id' => $userId,
+        'action' => 'auto_approve',
+        'comment' => '自動承認（承認依頼作成者）',
+        'acted_at' => now()
+    ]);
+    
+    // 2. 承認条件をチェック
+    if ($this->isStepCompleted($approvalRequest, $currentStep)) {
+        // 3. 次のステップへ
+        $nextStep = $currentStep + 1;
+        $flow = $approvalRequest->approvalFlow;
+        
+        if ($nextStep <= count($flow->approval_steps) - 1) {
+            $approvalRequest->update(['current_step' => $nextStep]);
+            
+            // 次のステップでも自動承認チェック
+            $this->checkAndProcessAutoApproval($approvalRequest, $userId);
+            
+            // 自動承認されていない場合のみ通知
+            if ($approvalRequest->current_step == $nextStep) {
+                $this->notifyApprovers($approvalRequest, $nextStep);
+            }
+        } else {
+            // 最終承認完了
+            $approvalRequest->update(['status' => 'approved']);
+        }
+    }
+}
+
 ```
 
 ## 10. UI設計
@@ -719,15 +837,18 @@ public function canApprove($userId, $approvalRequest, $step) {
 │   ├── ステップ1: 第1承認
 │   │   ├── 承認者: システム権限レベル [上長]
 │   │   ├── 利用可能権限: [閲覧] [承認] [差し戻し]
-│   │   └── 承認条件: [必須承認] [過半数承認] [任意承認]
+│   │   ├── 承認条件: [必須承認] [過半数承認] [任意承認]
+│   │   └── 自動承認設定: ☑ 承認依頼作成者の場合自動承認
 │   ├── ステップ2: 第2承認
 │   │   ├── 承認者: 職位 [部長] + 個別ユーザー [佐藤花子]
 │   │   ├── 利用可能権限: [閲覧] [承認] [却下] [差し戻し]
-│   │   └── 承認条件: [必須承認] [過半数承認] [任意承認]
+│   │   ├── 承認条件: [必須承認] [過半数承認] [任意承認]
+│   │   └── 自動承認設定: ☐ 承認依頼作成者の場合自動承認
 │   └── ステップ3: 最終承認
 │       ├── 承認者: システム権限レベル [最高責任者]
 │       ├── 利用可能権限: [閲覧] [承認] [却下] [差し戻し] [キャンセル]
-│       └── 承認条件: [必須承認] [過半数承認] [任意承認]
+│       ├── 承認条件: [必須承認] [過半数承認] [任意承認]
+│       └── 自動承認設定: ☐ 承認依頼作成者の場合自動承認
 └── 操作ボタン
     ├── [保存]
     ├── [キャンセル]
@@ -820,16 +941,18 @@ public function canPerformAction($userId, $approvalRequest, $action) {
 1. 承認フロー設定API実装
 2. 承認依頼処理API実装
 3. 承認者判定ロジック実装
+4. 自動承認処理ロジック実装
 
 ### Phase 3: フロントエンド実装
 1. 承認フロー設定画面実装
-2. 承認依頼作成画面実装
-3. 承認処理画面実装
-4. 承認履歴表示画面実装
+2. 自動承認設定UI実装
+3. 承認依頼作成画面実装
+4. 承認処理画面実装
+5. 承認履歴表示画面実装
 
 ### Phase 4: 統合・テスト
 1. フロントエンド・バックエンド統合
-2. 動作テスト
+2. 自動承認機能の動作テスト
 3. エラーハンドリング実装
 4. UI/UX改善
 
@@ -855,6 +978,12 @@ public function canPerformAction($userId, $approvalRequest, $action) {
 - 承認依頼者と承認者の明確な分離
 - 承認フロー設定権限と承認操作権限の分離
 
+### 13.5 自動承認機能のメリット
+- 承認依頼作成者が承認者でもある場合の業務効率化
+- 不要な承認待ち時間の削減
+- 承認フロー設定で柔軟に自動承認を制御可能
+- 業務要件に応じた自動承認の有効/無効設定
+
 ## 14. 注意事項
 
 ### 14.1 既存データの移行
@@ -870,3 +999,9 @@ public function canPerformAction($userId, $approvalRequest, $action) {
 ### 14.3 エラーハンドリング
 - 承認フロー設定のバリデーション
 - 承認者不在時の処理
+
+### 14.4 自動承認機能の注意事項
+- 自動承認設定の適切な運用（意図しない自動承認の防止）
+- 自動承認履歴の適切な記録と監査
+- 自動承認後の通知処理の適切な制御
+- 既存承認フローへの自動承認設定の段階的適用

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Estimate;
 use App\Models\ApprovalRequest;
 use App\Services\PermissionService;
+use App\Services\BusinessCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class DashboardController extends Controller
 
         try {
             $stats = [
-                'estimates' => $this->getEstimateStats($user),
+                'business_codes' => $this->getBusinessCodeStats($user),
                 'approvals' => $this->getApprovalStats($user),
                 'recent_activities' => $this->getRecentActivities($user),
             ];
@@ -107,6 +108,63 @@ class DashboardController extends Controller
     }
 
     /**
+     * ビジネスコード別の統計データを取得
+     */
+    private function getBusinessCodeStats(User $user): array
+    {
+        $businessCodeStats = [];
+        
+        // ビジネスロジックコードを取得
+        $businessLogicCodes = BusinessCodeService::getBusinessLogicCodes();
+        
+        foreach ($businessLogicCodes as $code => $config) {
+            // ユーザーがこのビジネスコードの権限を持っているかチェック
+            $hasPermission = false;
+            foreach ($config['default_permissions'] as $permission) {
+                if (PermissionService::hasPermission($user, $permission)) {
+                    $hasPermission = true;
+                    break;
+                }
+            }
+            
+            if ($hasPermission) {
+                $businessCodeStats[$code] = $this->getStatsForBusinessCode($user, $code, $config);
+            }
+        }
+        
+        return $businessCodeStats;
+    }
+
+    /**
+     * 特定のビジネスコードの統計データを取得
+     */
+    private function getStatsForBusinessCode(User $user, string $code, array $config): array
+    {
+        $currentMonth = now()->startOfMonth();
+        
+        switch ($code) {
+            case 'estimate':
+                return $this->getEstimateStats($user);
+            case 'budget':
+                return $this->getBudgetStats($user);
+            case 'purchase':
+                return $this->getPurchaseStats($user);
+            case 'construction':
+                return $this->getConstructionStats($user);
+            case 'general':
+                return $this->getGeneralStats($user);
+            default:
+                return [
+                    'draft_count' => 0,
+                    'pending_approval_count' => 0,
+                    'approved_count' => 0,
+                    'total_amount' => 0,
+                    'has_permission' => true
+                ];
+        }
+    }
+
+    /**
      * 見積関連の統計データを取得
      */
     private function getEstimateStats(User $user): array
@@ -124,20 +182,42 @@ class DashboardController extends Controller
             ];
         }
 
-        $estimates = Estimate::where('created_by', $user->id)
-            ->where('created_at', '>=', $currentMonth);
+        $allEstimates = Estimate::where('created_by', $user->id);
+        $monthlyEstimates = (clone $allEstimates)->where('created_at', '>=', $currentMonth);
 
-        $draftCount = (clone $estimates)->where('status', 'draft')->count();
-        $pendingApprovalCount = (clone $estimates)->where('status', 'submitted')->count();
-        $approvedCount = (clone $estimates)->where('status', 'approved')->count();
-        
-        $totalAmount = (clone $estimates)->sum('total_amount');
+        // 今月の統計
+        $monthlyDraftCount = (clone $monthlyEstimates)->where('status', 'draft')->count();
+        $monthlyPendingApprovalCount = (clone $monthlyEstimates)->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'pending');
+        })->count();
+        $monthlyApprovedCount = (clone $monthlyEstimates)->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'approved');
+        })->count();
+        $monthlyTotalAmount = (clone $monthlyEstimates)->sum('total_amount');
+
+        // 総計の統計
+        $totalDraftCount = (clone $allEstimates)->where('status', 'draft')->count();
+        $totalPendingApprovalCount = (clone $allEstimates)->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'pending');
+        })->count();
+        $totalApprovedCount = (clone $allEstimates)->whereHas('approvalRequest', function ($q) {
+            $q->where('status', 'approved');
+        })->count();
+        $totalAmount = (clone $allEstimates)->sum('total_amount');
 
         return [
-            'draft_count' => $draftCount,
-            'pending_approval_count' => $pendingApprovalCount,
-            'approved_count' => $approvedCount,
-            'total_amount' => $totalAmount,
+            'monthly' => [
+                'draft_count' => $monthlyDraftCount,
+                'pending_approval_count' => $monthlyPendingApprovalCount,
+                'approved_count' => $monthlyApprovedCount,
+                'total_amount' => $monthlyTotalAmount,
+            ],
+            'total' => [
+                'draft_count' => $totalDraftCount,
+                'pending_approval_count' => $totalPendingApprovalCount,
+                'approved_count' => $totalApprovedCount,
+                'total_amount' => $totalAmount,
+            ],
             'has_permission' => true
         ];
     }
@@ -467,5 +547,65 @@ class DashboardController extends Controller
         });
 
         return array_slice($activities, 0, 5);
+    }
+
+    /**
+     * 予算関連の統計データを取得
+     */
+    private function getBudgetStats(User $user): array
+    {
+        // 予算機能が実装されていない場合は仮のデータを返す
+        return [
+            'draft_count' => 0,
+            'pending_approval_count' => 0,
+            'approved_count' => 0,
+            'total_amount' => 0,
+            'has_permission' => true
+        ];
+    }
+
+    /**
+     * 発注関連の統計データを取得
+     */
+    private function getPurchaseStats(User $user): array
+    {
+        // 発注機能が実装されていない場合は仮のデータを返す
+        return [
+            'draft_count' => 0,
+            'pending_approval_count' => 0,
+            'approved_count' => 0,
+            'total_amount' => 0,
+            'has_permission' => true
+        ];
+    }
+
+    /**
+     * 工事関連の統計データを取得
+     */
+    private function getConstructionStats(User $user): array
+    {
+        // 工事機能が実装されていない場合は仮のデータを返す
+        return [
+            'draft_count' => 0,
+            'pending_approval_count' => 0,
+            'approved_count' => 0,
+            'total_amount' => 0,
+            'has_permission' => true
+        ];
+    }
+
+    /**
+     * 一般関連の統計データを取得
+     */
+    private function getGeneralStats(User $user): array
+    {
+        // 一般機能が実装されていない場合は仮のデータを返す
+        return [
+            'draft_count' => 0,
+            'pending_approval_count' => 0,
+            'approved_count' => 0,
+            'total_amount' => 0,
+            'has_permission' => true
+        ];
     }
 }

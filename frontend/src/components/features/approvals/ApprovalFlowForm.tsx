@@ -241,7 +241,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
           condition: step.condition || {
             type: 'required',
             display_name: '必須承認'
-          }
+          },
+          auto_approve_if_requester: step.auto_approve_if_requester || false // 自動承認設定の初期化
         }))
         setApprovalSteps(initializedSteps)
       }
@@ -315,7 +316,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       condition: {
         type: 'required',
         display_name: '必須承認'
-      }
+      },
+      auto_approve_if_requester: false // 自動承認設定の初期化
     }
     setApprovalSteps([...approvalSteps, newStep])
   }
@@ -436,7 +438,6 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         is_active: formData.is_active
       }
       
-      console.log('送信データ:', requestData)
 
       if (flow) {
         // 更新
@@ -845,6 +846,20 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         </div>
                       </div>
                       
+                      {/* 自動承認設定 */}
+                      {!isStepZero && (
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id={`auto-approve-${stepIndex}`}
+                            checked={step.auto_approve_if_requester || false}
+                            onCheckedChange={(checked) => updateApprovalStep(stepIndex, 'auto_approve_if_requester', checked)}
+                          />
+                          <Label htmlFor={`auto-approve-${stepIndex}`} className="text-sm">
+                            承認依頼作成者の場合自動承認
+                          </Label>
+                        </div>
+                      )}
+                      
                       {/* 承認者設定 */}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -981,10 +996,10 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                         </div>
                         <div className="space-y-2">
                           {businessCodePermissions.length > 0 ? businessCodePermissions.map((permission) => {
-                            const isSelected = step.required_permissions?.includes(permission.name) || false
+                            const isSelected = step.available_permissions?.includes(permission.name) || false
                             return (
                               <div 
-                                key={`${stepIndex}-${permission.id}-${step.required_permissions?.length || 0}`} 
+                                key={`${stepIndex}-${permission.id}-${step.available_permissions?.length || 0}`} 
                                 className="flex items-center space-x-2"
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -992,7 +1007,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               >
                                 <input
                                   type="checkbox"
-                                  key={`checkbox-${stepIndex}-${permission.id}-${step.required_permissions?.length || 0}`}
+                                  key={`checkbox-${stepIndex}-${permission.id}-${step.available_permissions?.length || 0}`}
                                   id={`step-${stepIndex}-permission-${permission.id}`}
                                   checked={isSelected}
                                   onClick={(e) => {
@@ -1011,7 +1026,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                       currentStep: step
                                     })
                                     
-                                    const currentPermissions = step.required_permissions || []
+                                    const currentPermissions = step.available_permissions || []
                                     const newPermissions = e.target.checked
                                       ? [...currentPermissions, permission.name]
                                       : currentPermissions.filter(p => p !== permission.name)
@@ -1020,7 +1035,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     // ステップの権限を更新
                                     const newSteps = approvalSteps.map((s, sIndex) => {
                                       if (sIndex === stepIndex) {
-                                        return { ...s, required_permissions: newPermissions }
+                                        return { ...s, available_permissions: newPermissions }
                                       }
                                       return s
                                     })

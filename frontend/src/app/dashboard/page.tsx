@@ -4,7 +4,6 @@ import { useAppSelector } from '@/lib/hooks'
 import UserDashboard from '@/components/features/dashboard/UserDashboard'
 import ManagerDashboard from '@/components/features/dashboard/ManagerDashboard'
 import AdminDashboard from '@/components/features/dashboard/AdminDashboard'
-import ApprovalDashboard from '@/components/features/dashboard/ApprovalDashboard'
 import type { HeaderUser } from '@/types/user'
 
 export default function DashboardPage() {
@@ -27,11 +26,6 @@ export default function DashboardPage() {
       return <AdminDashboard user={user} />
     }
     
-    // 承認者機能利用権限を持つユーザーには承認者ダッシュボードを表示
-    if (user.permissions?.includes('approval.usage')) {
-      return <ApprovalDashboard user={user} />
-    }
-    
     // システム権限レベルに基づく判定
     switch (user.system_level) {
       case 'admin':
@@ -39,6 +33,7 @@ export default function DashboardPage() {
       case 'manager':
         return <ManagerDashboard user={user} />
       default:
+        // 一般ユーザーはUserDashboardを使用（承認者権限がある場合は承認管理カードも表示される）
         return <UserDashboard user={user} />
     }
   }

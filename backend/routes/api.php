@@ -284,6 +284,10 @@ Route::middleware('auth:sanctum')->group(function () {
             // 承認依頼管理
             Route::prefix('approval-requests')->group(function () {
                 Route::get('/pending-count', [ApprovalRequestController::class, 'pendingCount']);
+                Route::get('/approved-count', [ApprovalRequestController::class, 'approvedCount']);
+                Route::get('/rejected-count', [ApprovalRequestController::class, 'rejectedCount']);
+                Route::get('/returned-count', [ApprovalRequestController::class, 'returnedCount']);
+                Route::get('/counts', [ApprovalRequestController::class, 'approvalCounts']);
                 Route::get('/', [ApprovalRequestController::class, 'index']);
                 Route::post('/', [ApprovalRequestController::class, 'store']);
                 Route::get('/{id}', [ApprovalRequestController::class, 'show']);

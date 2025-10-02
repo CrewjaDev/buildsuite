@@ -16,6 +16,8 @@ import type { ApprovalFlow, ApprovalStep } from '@/types/features/approvals/appr
 import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useToast } from '@/components/ui/toast'
 import { permissionService, type Permission } from '@/services/features/permission/permissionService'
+import { useBusinessCodes } from '@/hooks/features/business/useBusinessCode'
+import { APPROVER_TYPE_LABELS, STEP_BADGE_COLORS, AUTO_APPROVAL_LABELS } from '@/constants/common'
 
 interface ApprovalFlowListProps {
   flows: ApprovalFlow[]
@@ -41,17 +43,23 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
   
   // システム権限レベルを取得（React Query使用）
   const { data: systemLevels = [], isLoading: systemLevelsLoading } = useActiveSystemLevels()
+  
+  // ビジネスコードを取得
+  const { data: businessCodesData } = useBusinessCodes()
 
   // 権限一覧を取得
   useEffect(() => {
     const fetchPermissions = async () => {
       try {
         const response = await permissionService.getPermissions({ per_page: 1000 })
+        
         // レスポンス構造を確認して適切に設定
         if (response && Array.isArray(response)) {
           setPermissions(response)
         } else if (response && response.data && Array.isArray(response.data)) {
           setPermissions(response.data)
+        } else if (response && response.data && response.data.data && Array.isArray(response.data.data)) {
+          setPermissions(response.data.data)
         } else {
           setPermissions([])
         }
@@ -70,6 +78,7 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
     }
     
     const permission = permissions.find(p => p.name === permissionCode)
+    
     if (permission) {
       return permission.display_name || permissionCode
     }
@@ -81,11 +90,6 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
   const handleViewDetail = (flow: ApprovalFlow) => {
     setSelectedFlow(flow)
     setIsDetailDialogOpen(true)
-    console.log('権限データ状態:', { 
-      permissionsCount: permissions.length, 
-      permissions: permissions.slice(0, 5),
-      estimatePermissions: permissions.filter(p => p.name.includes('estimate.approval'))
-    })
   }
 
   const handleEdit = (flow: ApprovalFlow) => {
@@ -229,33 +233,26 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
   }
 
   const getFlowTypeLabel = (flowType: string) => {
-    const labels: Record<string, string> = {
-      estimate: '見積',
-      budget: '予算',
-      order: '発注',
-      progress: '進捗',
-      payment: '支払'
+    // ビジネスコードから日本語名を取得
+    if (businessCodesData?.data?.business_codes) {
+      const businessCode = businessCodesData.data.business_codes.find(
+        (bc: { code: string; name: string }) => bc.code === flowType
+      )
+      if (businessCode) {
+        return businessCode.name
+      }
     }
-    return labels[flowType] || flowType
+    
+    // ビジネスコードが見つからない場合は、フロー種別コードをそのまま返す
+    return flowType
   }
 
   const getStepBadgeColor = (stepCount: number) => {
-    switch (stepCount) {
-      case 1: return 'bg-green-100 text-green-800'
-      case 2: return 'bg-blue-100 text-blue-800'
-      case 3: return 'bg-purple-100 text-purple-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+    return STEP_BADGE_COLORS[stepCount] || 'bg-gray-100 text-gray-800'
   }
 
   const getApproverTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      system_level: 'システム権限レベル',
-      department: '部署',
-      position: '職位',
-      user: '個別ユーザー'
-    }
-    return labels[type] || type
+    return APPROVER_TYPE_LABELS[type] || type
   }
 
   if (loading) {
@@ -427,7 +424,10 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                 <div>
                   <label className="text-sm font-medium text-gray-500">承認ステップ</label>
                   <div className="mt-2 space-y-2">
-                    {selectedFlow.approval_steps.filter(step => step.step !== 0).map((step, index) => (
+                    {selectedFlow.approval_steps.filter(step => step.step !== 0).map((step, index) => {
+                      // デバッグ用ログ
+                      console.log('Step data:', step);
+                      return (
                       <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
                         <div className="flex items-center gap-2">
                           <Badge variant={step.step === 0 ? "secondary" : "outline"}>
@@ -450,11 +450,11 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                             )) || (step.step === 0 ? '承認依頼者なし' : '承認者なし')}
                           </div>
                         </div>
-                        {step.required_permissions && step.required_permissions.length > 0 && (
+                        {step.available_permissions && step.available_permissions.length > 0 && (
                           <div className="text-sm text-gray-600">
-                            <div className="font-medium">必要な権限:</div>
+                            <div className="font-medium">利用可能権限:</div>
                             <div className="ml-2 flex flex-wrap gap-1">
-                              {step.required_permissions.map((permission, permIndex) => (
+                              {step.available_permissions.map((permission, permIndex) => (
                                 <Badge key={permIndex} variant="secondary" className="text-xs">
                                   {getPermissionDisplayName(permission)}
                                 </Badge>
@@ -472,8 +472,22 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                             </div>
                           </div>
                         )}
+                        <div className="text-sm text-gray-600">
+                          <div className="font-medium">自動承認設定:</div>
+                          <div className="ml-2">
+                            <Badge variant={step.auto_approve_if_requester ? "default" : "secondary"} className="text-xs">
+                              {step.auto_approve_if_requester ? AUTO_APPROVAL_LABELS.enabled : AUTO_APPROVAL_LABELS.disabled}
+                            </Badge>
+                            {step.auto_approve_if_requester && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                (承認依頼作成者の場合自動承認)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

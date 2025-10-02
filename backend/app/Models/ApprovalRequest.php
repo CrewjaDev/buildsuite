@@ -452,11 +452,15 @@ class ApprovalRequest extends Model
      */
     public function getUserApprovalStatus(User $user): array
     {
+        // 承認フローの総ステップ数を取得
+        $totalSteps = $this->getTotalSteps();
+        
         // 承認フロー全体の状態をチェック
         if ($this->status === 'approved') {
             return [
                 'status' => 'finished',
                 'step' => $this->current_step,
+                'total_steps' => $totalSteps,
                 'step_name' => '承認完了',
                 'can_act' => false,
                 'message' => '承認が完了しました'
@@ -467,6 +471,7 @@ class ApprovalRequest extends Model
             return [
                 'status' => $this->status,
                 'step' => $this->current_step,
+                'total_steps' => $totalSteps,
                 'step_name' => $this->status === 'rejected' ? '却下' : '差し戻し',
                 'can_act' => false,
                 'message' => $this->status === 'rejected' ? '承認が却下されました' : '承認が差し戻しされました'
@@ -480,6 +485,7 @@ class ApprovalRequest extends Model
             return [
                 'status' => 'not_started',
                 'step' => 0,
+                'total_steps' => $totalSteps,
                 'step_name' => '対象外',
                 'can_act' => false,
                 'message' => '承認対象ではありません'
@@ -492,6 +498,7 @@ class ApprovalRequest extends Model
             return [
                 'status' => 'completed',
                 'step' => $userStep['step'],
+                'total_steps' => $totalSteps,
                 'step_name' => $userStep['name'],
                 'can_act' => false,
                 'message' => '承認済み'
@@ -510,6 +517,7 @@ class ApprovalRequest extends Model
             return [
                 'status' => 'pending',
                 'step' => $userStep['step'],
+                'total_steps' => $totalSteps,
                 'step_name' => $userStep['name'],
                 'can_act' => true,
                 'message' => '承認待ち'
@@ -520,10 +528,32 @@ class ApprovalRequest extends Model
         return [
             'status' => 'not_started',
             'step' => $userStep['step'],
+            'total_steps' => $totalSteps,
             'step_name' => $userStep['name'],
             'can_act' => false,
             'message' => '承認待ち（未開始）'
         ];
+    }
+    
+    /**
+     * 承認フローの総ステップ数を取得
+     */
+    public function getTotalSteps(): int
+    {
+        $flow = $this->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            return 0;
+        }
+        
+        // ステップ0（承認依頼作成）を除いた実際の承認ステップ数をカウント
+        $totalSteps = 0;
+        foreach ($flow->approval_steps as $step) {
+            if ($step['step'] > 0) { // ステップ0は除外
+                $totalSteps++;
+            }
+        }
+        
+        return $totalSteps;
     }
     
     /**

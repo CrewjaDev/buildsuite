@@ -127,6 +127,7 @@ class EstimateController extends Controller
                 'constructionClassification',
                 'creatorEmployee',
                 'responsibleUser',
+                'approvalRequest',
                 'items' => function ($query) {
                     $query->orderBy('display_order', 'asc');
                 }
@@ -156,6 +157,17 @@ class EstimateController extends Controller
                 $estimate->partner_contact_person = $estimate->partner->representative;
                 $estimate->partner_phone = $estimate->partner->phone;
                 $estimate->partner_email = $estimate->partner->email;
+            }
+            
+            // 承認フローのステップ情報を追加
+            if ($estimate->approvalRequest) {
+                $estimate->current_step = $estimate->approvalRequest->current_step;
+                $estimate->total_steps = $estimate->approvalRequest->getTotalSteps();
+                $estimate->approval_status = $estimate->approvalRequest->status;
+            } else {
+                $estimate->current_step = null;
+                $estimate->total_steps = null;
+                $estimate->approval_status = null;
             }
 
             return response()->json([

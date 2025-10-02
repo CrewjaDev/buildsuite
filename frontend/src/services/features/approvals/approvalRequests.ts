@@ -20,6 +20,43 @@ class ApprovalRequestService {
   }
 
   /**
+   * 承認済み件数を取得（ダッシュボード用）
+   */
+  async getApprovedCount(): Promise<number> {
+    const response = await api.get('/approval-requests/approved-count')
+    return response.data.count
+  }
+
+  /**
+   * 却下件数を取得（ダッシュボード用）
+   */
+  async getRejectedCount(): Promise<number> {
+    const response = await api.get('/approval-requests/rejected-count')
+    return response.data.count
+  }
+
+  /**
+   * 差戻し件数を取得（ダッシュボード用）
+   */
+  async getReturnedCount(): Promise<number> {
+    const response = await api.get('/approval-requests/returned-count')
+    return response.data.count
+  }
+
+  /**
+   * 承認件数一括取得（ダッシュボード用）
+   */
+  async getAllCounts(): Promise<{
+    pending: number
+    approved: number
+    rejected: number
+    returned: number
+  }> {
+    const response = await api.get('/approval-requests/counts')
+    return response.data.counts
+  }
+
+  /**
    * 承認依頼一覧を取得
    */
   async getApprovalRequests(params?: {
@@ -28,7 +65,28 @@ class ApprovalRequestService {
     filter?: ApprovalRequestFilter
     sort?: string
   }): Promise<ApprovalRequestListResponse> {
-    const response = await api.get('/approval-requests', { params })
+    // フィルターパラメータを展開して送信
+    const apiParams: Record<string, unknown> = {
+      page: params?.page,
+      per_page: params?.per_page,
+      sort: params?.sort
+    }
+
+    // フィルターパラメータを展開
+    if (params?.filter) {
+      const { filter } = params
+      if (filter.status) apiParams.status = filter.status
+      if (filter.request_type) apiParams.request_type = filter.request_type
+      if (filter.priority) apiParams.priority = filter.priority
+      if (filter.requested_by) apiParams.requested_by = filter.requested_by
+      if (filter.approval_flow_id) apiParams.approval_flow_id = filter.approval_flow_id
+      if (filter.created_from) apiParams.created_from = filter.created_from
+      if (filter.created_to) apiParams.created_to = filter.created_to
+      if (filter.expires_from) apiParams.expires_from = filter.expires_from
+      if (filter.expires_to) apiParams.expires_to = filter.expires_to
+    }
+
+    const response = await api.get('/approval-requests', { params: apiParams })
     return response.data
   }
 

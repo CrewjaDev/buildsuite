@@ -6,7 +6,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true, // CSRFトークン用
-  timeout: 10000,
+  timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
 })
 
 // リクエストインターセプター

@@ -1,12 +1,24 @@
 import api from '@/lib/api'
 
-export interface DashboardStats {
-  estimates: {
+export interface BusinessCodeStats {
+  monthly: {
     draft_count: number
     pending_approval_count: number
     approved_count: number
     total_amount: number
-    has_permission: boolean
+  }
+  total: {
+    draft_count: number
+    pending_approval_count: number
+    approved_count: number
+    total_amount: number
+  }
+  has_permission: boolean
+}
+
+export interface DashboardStats {
+  business_codes: {
+    [key: string]: BusinessCodeStats
   }
   approvals: {
     my_pending_requests: number

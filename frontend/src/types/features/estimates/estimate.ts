@@ -30,6 +30,8 @@ export interface Estimate {
   approval_request_id?: string
   approval_flow_id?: string
   approval_status?: 'pending' | 'approved' | 'rejected' | 'returned' | 'cancelled'
+  current_step?: number
+  total_steps?: number
   user_approval_status?: UserApprovalStatus
   subtotal?: number
   overhead_rate?: number
@@ -109,6 +111,7 @@ export type EstimateStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | '
 export interface UserApprovalStatus {
   status: 'completed' | 'pending' | 'not_started' | 'finished' | 'rejected' | 'returned'
   step: number
+  total_steps: number
   step_name: string
   can_act: boolean
   message: string

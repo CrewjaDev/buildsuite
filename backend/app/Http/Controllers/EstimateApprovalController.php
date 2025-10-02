@@ -105,6 +105,9 @@ class EstimateApprovalController extends Controller
             'status' => 'submitted', // 承認依頼提出済み状態に変更
         ]);
 
+        // 自動承認チェック
+        $this->checkAndProcessAutoApproval($approvalRequest, $user);
+
         return response()->json([
             'message' => '承認依頼を作成しました',
             'approval_request' => $approvalRequest,
@@ -320,8 +323,21 @@ class EstimateApprovalController extends Controller
         $userPermissions = \App\Services\PermissionService::getUserEffectivePermissions($user);
         $availablePermissions = $step['available_permissions'] ?? [];
         
+        // デバッグログ
+        \Log::info('承認権限チェック', [
+            'user_id' => $user->id,
+            'user_permissions' => $userPermissions,
+            'available_permissions' => $availablePermissions,
+            'step' => $step
+        ]);
+        
         // ユーザーの権限と承認ステップで許可された権限の交集合をチェック
         $allowedPermissions = array_intersect($userPermissions, $availablePermissions);
+        
+        \Log::info('承認権限チェック結果', [
+            'allowed_permissions' => $allowedPermissions,
+            'is_allowed' => !empty($allowedPermissions)
+        ]);
         
         return !empty($allowedPermissions);
     }
@@ -383,8 +399,11 @@ class EstimateApprovalController extends Controller
     /**
      * 承認処理の実装
      */
-    private function processApproval(ApprovalRequest $approvalRequest, $user, string $comment, string $action = 'approve')
+    private function processApproval(ApprovalRequest $approvalRequest, $user, ?string $comment, string $action = 'approve')
     {
+        // コメントがnullの場合は空文字列に変換
+        $comment = $comment ?? '';
+        
         $currentStep = $this->getCurrentApprovalStep($approvalRequest);
         
         // デバッグ情報をログに出力
@@ -689,5 +708,155 @@ class EstimateApprovalController extends Controller
             
             return response()->json(['error' => '承認状態の取得に失敗しました'], 500);
         }
+    }
+
+    /**
+     * 自動承認チェックと処理
+     */
+    private function checkAndProcessAutoApproval(ApprovalRequest $approvalRequest, $user)
+    {
+        $currentStep = $approvalRequest->current_step;
+        $flow = ApprovalFlow::find($approvalRequest->approval_flow_id);
+        
+        if (!$flow || !$flow->approval_steps) {
+            return; // フローまたはステップ設定が見つからない
+        }
+        
+        $approvalSteps = $flow->approval_steps;
+        
+        // 現在のステップ設定を取得
+        $stepConfig = null;
+        foreach ($approvalSteps as $stepData) {
+            if ($stepData['step'] == $currentStep) {
+                $stepConfig = $stepData;
+                break;
+            }
+        }
+        
+        if (!$stepConfig) {
+            return; // ステップ設定が見つからない
+        }
+        
+        // 1. 自動承認設定をチェック
+        if (!($stepConfig['auto_approve_if_requester'] ?? false)) {
+            return; // 自動承認設定が無効
+        }
+        
+        // 2. 承認依頼作成者が承認者かチェック
+        if (!$this->isRequesterAlsoApprover($stepConfig, $user)) {
+            return; // 承認依頼作成者は承認者ではない
+        }
+        
+        // 3. 自動承認処理を実行
+        $this->processAutoApproval($approvalRequest, $stepConfig, $user);
+    }
+
+    /**
+     * 承認依頼作成者が承認者でもあるかチェック
+     */
+    private function isRequesterAlsoApprover($stepConfig, $user)
+    {
+        foreach ($stepConfig['approvers'] as $approver) {
+            switch ($approver['type']) {
+                case 'system_level':
+                    if ($user->system_level == $approver['value']) {
+                        return true;
+                    }
+                    break;
+                case 'position':
+                    if ($user->employee && $user->employee->position_id == $approver['value']) {
+                        return true;
+                    }
+                    break;
+                case 'user':
+                    if ($user->id == $approver['value']) {
+                        return true;
+                    }
+                    break;
+                case 'department':
+                    if ($user->employee && $user->employee->department_id == $approver['value']) {
+                        return true;
+                    }
+                    break;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 自動承認処理を実行
+     */
+    private function processAutoApproval(ApprovalRequest $approvalRequest, $stepConfig, $user)
+    {
+        $currentStep = $approvalRequest->current_step;
+        
+        \Log::info('自動承認処理開始', [
+            'approval_request_id' => $approvalRequest->id,
+            'current_step' => $currentStep,
+            'user_id' => $user->id,
+            'step_config' => $stepConfig
+        ]);
+        
+        // 1. 自動承認履歴を記録
+        ApprovalHistory::create([
+            'approval_request_id' => $approvalRequest->id,
+            'step' => $currentStep,
+            'approver_id' => $user->id,
+            'acted_by' => $user->id,
+            'action' => 'auto_approve',
+            'comment' => '自動承認（承認依頼作成者）',
+            'acted_at' => now()
+        ]);
+        
+        // 2. 承認条件をチェック
+        if ($this->isStepCompleted($approvalRequest, $currentStep)) {
+            // 3. 次のステップへ
+            $nextStep = $currentStep + 1;
+            $flow = $approvalRequest->approvalFlow;
+            
+            if ($nextStep <= count($flow->approval_steps) - 1) {
+                $approvalRequest->update(['current_step' => $nextStep]);
+                
+                \Log::info('自動承認完了 - 次のステップへ', [
+                    'approval_request_id' => $approvalRequest->id,
+                    'next_step' => $nextStep
+                ]);
+                
+                // 次のステップでも自動承認チェック
+                $this->checkAndProcessAutoApproval($approvalRequest, $user);
+            } else {
+                // 最終承認完了
+                $approvalRequest->update(['status' => 'approved']);
+                
+                // 見積の承認状態も更新
+                $estimate = Estimate::where('approval_request_id', $approvalRequest->id)->first();
+                if ($estimate) {
+                    $estimate->update([
+                        'approval_status' => 'approved',
+                        'status' => 'approved'
+                    ]);
+                }
+                
+                \Log::info('自動承認完了 - 最終承認', [
+                    'approval_request_id' => $approvalRequest->id
+                ]);
+            }
+        }
+    }
+
+    /**
+     * ステップが完了したかチェック
+     */
+    private function isStepCompleted(ApprovalRequest $approvalRequest, $step)
+    {
+        // 現在のステップの承認履歴を取得（approveとauto_approveの両方を含む）
+        $approvals = ApprovalHistory::where('approval_request_id', $approvalRequest->id)
+            ->where('step', $step)
+            ->whereIn('action', ['approve', 'auto_approve'])
+            ->count();
+        
+        // 簡易実装：1人でも承認すれば完了とする
+        // 実際の実装では、approval_typeに応じて判定する必要がある
+        return $approvals > 0;
     }
 }

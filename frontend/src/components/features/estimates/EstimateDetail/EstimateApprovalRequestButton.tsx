@@ -43,7 +43,18 @@ export function EstimateApprovalRequestButton({
     if (estimate.approval_request_id) {
       // 承認状態を優先的に使用
       const approvalStatus = estimate.approval_status || estimate.status
-      return getApprovalStatusInfo(approvalStatus)
+      const statusInfo = getApprovalStatusInfo(approvalStatus)
+      
+      // ステップ情報を追加
+      if (statusInfo && estimate.current_step && estimate.total_steps) {
+        if (approvalStatus === 'pending') {
+          // current_stepは次のステップを示すので、完了したステップ数は current_step - 1
+          const completedSteps = Math.max(0, estimate.current_step - 1)
+          statusInfo.label = `承認待ち（${completedSteps}/${estimate.total_steps}）`
+        }
+      }
+      
+      return statusInfo
     }
     return null
   }

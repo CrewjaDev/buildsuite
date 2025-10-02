@@ -10,10 +10,11 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://buildsuite-backend-container:9000';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://backend:9000/api/:path*',
+        destination: `${apiBaseUrl}/api/:path*`,
       },
     ];
   },

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Estimate } from '@/types/features/estimates/estimate'
+import { Estimate, UserApprovalStatus } from '@/types/features/estimates/estimate'
 import { EstimateInfoCard } from './EstimateInfoCard'
 import { EstimateAmountCard } from './EstimateAmountCard'
 import { EstimateBreakdownStructureCard } from '../EstimateBreakdowns/EstimateBreakdownStructureCard'
@@ -26,61 +26,69 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
   const [showBreakdownEditDialog, setShowBreakdownEditDialog] = useState(false)
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject' | 'return'>('approve')
-  const [isApprover, setIsApprover] = useState(false)
-  const [approverLoading, setApproverLoading] = useState(true)
+  const [userApprovalStatus, setUserApprovalStatus] = useState<UserApprovalStatus | null>(null)
   
   const { hasPermission, effectivePermissions } = useAuth()
 
-  // 承認者ステータスをチェック
-  useEffect(() => {
-    const checkApproverStatus = async () => {
-      if (!estimate.approval_request_id) {
-        setIsApprover(false)
-        setApproverLoading(false)
-        return
-      }
 
-      try {
-        setApproverLoading(true)
-        const response = await estimateApprovalService.checkApproverStatus(estimate.id)
-        setIsApprover(response.data?.is_approver || false)
-      } catch (error) {
-        console.error('承認者ステータスの取得に失敗しました:', error)
-        setIsApprover(false)
-      } finally {
-        setApproverLoading(false)
+  // ユーザー承認状態を取得
+  useEffect(() => {
+    const fetchUserApprovalStatus = async () => {
+      if (estimate.approval_request_id) {
+        try {
+          const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+          setUserApprovalStatus(status)
+        } catch (error) {
+          console.error('ユーザー承認状態の取得に失敗:', error)
+          setUserApprovalStatus(null)
+        }
+      } else {
+        setUserApprovalStatus(null)
       }
     }
-
-    checkApproverStatus()
+    
+    fetchUserApprovalStatus()
   }, [estimate.id, estimate.approval_request_id])
 
   // 承認可能かどうかの判定
   const canApprove = () => {
-    // 承認依頼が存在し、pending状態で、現在のユーザーが承認者
-    return estimate.approval_request_id && 
-           estimate.approval_status === 'pending' && 
-           isApprover && 
-           !approverLoading
+    // ユーザー承認状態がpendingで、can_actがtrueの場合
+    return userApprovalStatus?.status === 'pending' && 
+           userApprovalStatus?.can_act === true
   }
 
-  // 承認状態バッジの取得
-  const getApprovalStatusBadge = () => {
-    if (!estimate.approval_request_id) return null
-
+  // ユーザー別承認状態バッジの取得
+  const getUserApprovalStatusBadge = () => {
+    if (!userApprovalStatus) return null
+    
     const statusMap = {
-      'pending': { label: '承認待ち', variant: 'default' as const, icon: Clock },
-      'approved': { label: '承認済み', variant: 'default' as const, icon: CheckCircle },
-      'rejected': { label: '却下', variant: 'destructive' as const, icon: XCircle },
-      'returned': { label: '差し戻し', variant: 'secondary' as const, icon: RotateCcw }
+      'completed': { label: '承認済み', variant: 'default' as const, icon: CheckCircle, color: 'bg-green-100 text-green-800' },
+      'pending': { 
+        label: userApprovalStatus.step && userApprovalStatus.total_steps 
+          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
+          : '承認待ち', 
+        variant: 'default' as const, 
+        icon: Clock, 
+        color: 'bg-yellow-100 text-yellow-800' 
+      },
+      'not_started': { 
+        label: userApprovalStatus.step && userApprovalStatus.total_steps 
+          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}（未開始）`
+          : '承認待ち（未開始）', 
+        variant: 'outline' as const, 
+        icon: Clock, 
+        color: 'bg-gray-100 text-gray-600' 
+      },
+      'finished': { label: '承認完了', variant: 'default' as const, icon: CheckCircle, color: 'bg-blue-100 text-blue-800' },
+      'rejected': { label: '却下', variant: 'destructive' as const, icon: XCircle, color: 'bg-red-100 text-red-800' },
+      'returned': { label: '差し戻し', variant: 'secondary' as const, icon: RotateCcw, color: 'bg-orange-100 text-orange-800' }
     }
-
-    const status = estimate.approval_status || 'pending'
-    const config = statusMap[status as keyof typeof statusMap] || statusMap.pending
+    
+    const config = statusMap[userApprovalStatus.status] || statusMap.pending
     const IconComponent = config.icon
-
+    
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
+      <Badge variant={config.variant} className={`flex items-center gap-1 px-3 py-1 text-sm font-semibold ${config.color}`}>
         <IconComponent className="h-4 w-4" />
         {config.label}
       </Badge>
@@ -94,7 +102,18 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
   }
 
   // 承認処理完了時のコールバック
-  const handleApprovalSuccess = () => {
+  const handleApprovalSuccess = async () => {
+    // ユーザー承認状態を再取得
+    if (estimate.approval_request_id) {
+      try {
+        const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+        setUserApprovalStatus(status)
+      } catch (error) {
+        console.error('ユーザー承認状態の再取得に失敗:', error)
+      }
+    }
+    
+    // 親コンポーネントにデータ更新を通知
     onDataUpdate?.()
   }
 
@@ -105,7 +124,7 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
         <div className="px-6 pt-2 pb-0 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold leading-none tracking-tight">基本情報</h3>
-            {getApprovalStatusBadge()}
+            {getUserApprovalStatusBadge()}
           </div>
           <div className="flex items-center gap-2">
             {/* 承認機能ボタン */}

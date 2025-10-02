@@ -111,30 +111,6 @@ Bさんが承認者として該当しても、実際に利用できる権限は�
 1. ログインユーザーの権限に承認権限が含まれているか
 2. 承認ステップで許可された権限のみ実行可能
 
-## データ構造
-
-### 承認依頼者（ApprovalRequester）
-```typescript
-interface ApprovalRequester {
-  type: 'system_level' | 'department' | 'position' | 'user'
-  value: string
-  display_name: string
-  // required_permissions は削除
-}
-```
-
-### 承認ステップ（ApprovalStep）
-```typescript
-interface ApprovalStep {
-  step: number
-  name: string
-  approvers: ApprovalApprover[]
-  available_permissions: string[] // 保持
-  condition: ApprovalCondition
-  required_permissions?: string[] // 保持
-}
-```
-
 ## 注意事項
 
 1. **権限の優先順位**: ログインユーザーの権限が最優先、承認ステップの権限設定は制限として機能

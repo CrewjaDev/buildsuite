@@ -33,6 +33,7 @@ export interface ApprovalStep {
   available_permissions: string[]
   condition: ApprovalStepCondition
   required_permissions?: string[] // ステップで必要な権限
+  auto_approve_if_requester?: boolean // 承認依頼作成者の場合自動承認
 }
 
 export interface ApprovalFlow {
