@@ -402,6 +402,27 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                 </div>
               )}
               
+              {/* フロー設定の表示 */}
+              {selectedFlow.flow_config && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">フロー設定</label>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">承認依頼後の編集:</span>
+                      <Badge variant={selectedFlow.flow_config.allow_editing_after_request ? "default" : "secondary"}>
+                        {selectedFlow.flow_config.allow_editing_after_request ? "許可" : "禁止"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">承認依頼後のキャンセル:</span>
+                      <Badge variant={selectedFlow.flow_config.allow_cancellation_after_request ? "default" : "secondary"}>
+                        {selectedFlow.flow_config.allow_cancellation_after_request ? "許可" : "禁止"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {selectedFlow.requesters && selectedFlow.requesters.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">承認依頼者設定</label>
@@ -485,6 +506,53 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                             )}
                           </div>
                         </div>
+                        
+                        {/* 詳細設定の表示 */}
+                        {(step.editing_conditions || step.cancellation_conditions) && (
+                          <div className="text-sm text-gray-600">
+                            <div className="font-medium">詳細設定:</div>
+                            <div className="ml-2 space-y-1">
+                              {step.editing_conditions && (
+                                <div>
+                                  <span className="text-xs font-medium">編集条件:</span>
+                                  <div className="ml-2 flex flex-wrap gap-1 mt-1">
+                                    {step.editing_conditions.allow_during_pending && (
+                                      <Badge variant="outline" className="text-xs">承認待ち中</Badge>
+                                    )}
+                                    {step.editing_conditions.allow_during_reviewing && (
+                                      <Badge variant="outline" className="text-xs">審査中</Badge>
+                                    )}
+                                    {step.editing_conditions.allow_during_step_approved && (
+                                      <Badge variant="outline" className="text-xs">ステップ承認後</Badge>
+                                    )}
+                                    {step.editing_conditions.allow_during_expired && (
+                                      <Badge variant="outline" className="text-xs">期限切れ後</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {step.cancellation_conditions && (
+                                <div>
+                                  <span className="text-xs font-medium">キャンセル条件:</span>
+                                  <div className="ml-2 flex flex-wrap gap-1 mt-1">
+                                    {step.cancellation_conditions.allow_during_pending && (
+                                      <Badge variant="outline" className="text-xs">承認待ち中</Badge>
+                                    )}
+                                    {step.cancellation_conditions.allow_during_reviewing && (
+                                      <Badge variant="outline" className="text-xs">審査中</Badge>
+                                    )}
+                                    {step.cancellation_conditions.allow_during_step_approved && (
+                                      <Badge variant="outline" className="text-xs">ステップ承認後</Badge>
+                                    )}
+                                    {step.cancellation_conditions.allow_during_expired && (
+                                      <Badge variant="outline" className="text-xs">期限切れ後</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       );
                     })}

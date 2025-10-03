@@ -24,30 +24,37 @@ erDiagram
 ### 概要
 承認フローの基本情報とJSON形式での柔軟な設定を管理するマスターテーブル
 
-### スキーマ
+### スキーマ（実際の定義に基づく）
 ```sql
 CREATE TABLE approval_flows (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,                    -- フロー名
-    description TEXT NULL,                         -- 説明
+    id BIGINT NOT NULL PRIMARY KEY,               -- 主キー（PostgreSQLのbigint）
+    name VARCHAR(255) NOT NULL,                   -- フロー名
+    description TEXT NULL,                        -- 説明
     flow_type VARCHAR(50) NOT NULL DEFAULT 'general', -- フロータイプ
-    conditions JSON NULL,                          -- 適用条件
-    priority INT NOT NULL DEFAULT 1,              -- 優先度
-    requesters JSON NULL,                          -- 承認依頼者設定
-    approval_steps JSON NULL,                      -- 承認ステップ設定
-    is_active BOOLEAN NOT NULL DEFAULT 1,         -- アクティブ状態
-    created_by BIGINT UNSIGNED NULL,              -- 作成者
-    updated_by BIGINT UNSIGNED NULL,              -- 更新者
+    conditions JSONB NULL,                        -- 適用条件（JSONB型）
+    priority INTEGER NOT NULL DEFAULT 1,          -- 優先度
+    requesters JSONB NULL,                        -- 承認依頼者設定（JSONB型）
+    approval_steps JSONB NULL,                    -- 承認ステップ設定（JSONB型）
+    flow_config JSONB NULL,                       -- フロー設定（編集・キャンセル制御等）（JSONB型）
+    is_active BOOLEAN NOT NULL DEFAULT true,      -- アクティブ状態
+    is_system BOOLEAN NOT NULL DEFAULT false,     -- システムフローかどうか
+    created_by BIGINT NULL,                       -- 作成者
+    updated_by BIGINT NULL,                       -- 更新者
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
-    deleted_at TIMESTAMP NULL,
+    deleted_at TIMESTAMP NULL,                    -- ソフトデリート
     
-    INDEX idx_flow_type (flow_type),
-    INDEX idx_priority (priority),
-    INDEX idx_is_active (is_active),
-    INDEX idx_conditions ON approval_flows USING GIN (conditions),
-    INDEX idx_requesters ON approval_flows USING GIN (requesters),
-    INDEX idx_approval_steps ON approval_flows USING GIN (approval_steps),
+    -- インデックス（実際の定義に基づく）
+    INDEX approval_flows_flow_type_index (flow_type),
+    INDEX approval_flows_priority_index (priority),
+    INDEX approval_flows_is_active_index (is_active),
+    INDEX approval_flows_is_system_index (is_system),
+    INDEX idx_approval_flows_conditions USING GIN (conditions),
+    INDEX idx_approval_flows_requesters USING GIN (requesters),
+    INDEX idx_approval_flows_approval_steps USING GIN (approval_steps),
+    INDEX idx_approval_flows_flow_config USING GIN (flow_config),
+    
+    -- 外部キー制約（実際の定義に基づく）
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -58,6 +65,10 @@ CREATE TABLE approval_flows (
 - **conditions**: フローの適用条件（金額、部署、プロジェクト等）
 - **requesters**: 承認依頼者設定（システム権限レベル、職位、部署、個別ユーザー）
 - **approval_steps**: 承認ステップ設定（最大5ステップ、条件分岐、並列承認対応）
+- **flow_config**: フロー設定（編集・キャンセル制御等）
+- **is_system**: システムフローかどうか（システムが自動生成したフロー）
+- **id**: PostgreSQLのbigint型（AUTO_INCREMENT相当のシーケンス使用）
+- **deleted_at**: ソフトデリート用のタイムスタンプ
 
 ### JSON構造例
 
@@ -152,6 +163,22 @@ CREATE TABLE approval_flows (
 ]
 ```
 
+#### flow_config（フロー設定）
+```json
+{
+  "editing": {
+    "allowed_sub_statuses": ["null", "editing"],
+    "exclusive_control": true,
+    "approver_priority": true
+  },
+  "cancellation": {
+    "allowed_sub_statuses": ["null", "editing"],
+    "requester_only": true,
+    "admin_override": true
+  }
+}
+```
+
 ### 使用例
 ```php
 // 見積承認フローの作成
@@ -234,47 +261,51 @@ ApprovalFlow::create([
 ### 概要
 実際の承認依頼を管理するテーブル（新仕様対応）
 
-### スキーマ
+### スキーマ（実際の定義に基づく）
 ```sql
 CREATE TABLE approval_requests (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    approval_flow_id BIGINT UNSIGNED NOT NULL,    -- 承認フローID
+    id BIGINT NOT NULL PRIMARY KEY,               -- 主キー（PostgreSQLのbigint）
+    approval_flow_id BIGINT NOT NULL,             -- 承認フローID
     request_type VARCHAR(50) NOT NULL,            -- 依頼タイプ
     request_id UUID NOT NULL,                     -- 依頼元ID（UUID対応）
     title VARCHAR(255) NOT NULL,                  -- タイトル
     description TEXT NULL,                        -- 説明
-    request_data JSON NULL,                       -- 依頼データ
-    current_step INT NOT NULL DEFAULT 1,          -- 現在のステップ番号
+    request_data JSONB NULL,                      -- 依頼データ（JSONB型）
+    current_step INTEGER NOT NULL DEFAULT 1,      -- 現在のステップ番号
     status VARCHAR(20) NOT NULL DEFAULT 'pending', -- ステータス
     priority VARCHAR(20) NOT NULL DEFAULT 'normal', -- 優先度
-    requested_by BIGINT UNSIGNED NOT NULL,        -- 依頼者
-    approved_by BIGINT UNSIGNED NULL,             -- 承認者
+    requested_by BIGINT NOT NULL,                 -- 依頼者
+    approved_by BIGINT NULL,                      -- 承認者
     approved_at TIMESTAMP NULL,                   -- 承認日時
-    rejected_by BIGINT UNSIGNED NULL,             -- 却下者
+    rejected_by BIGINT NULL,                      -- 却下者
     rejected_at TIMESTAMP NULL,                   -- 却下日時
-    returned_by BIGINT UNSIGNED NULL,             -- 差し戻し者
+    returned_by BIGINT NULL,                      -- 差し戻し者
     returned_at TIMESTAMP NULL,                   -- 差し戻し日時
-    cancelled_by BIGINT UNSIGNED NULL,            -- キャンセル者
+    cancelled_by BIGINT NULL,                     -- キャンセル者
     cancelled_at TIMESTAMP NULL,                  -- キャンセル日時
     expires_at TIMESTAMP NULL,                    -- 期限日時
-    created_by BIGINT UNSIGNED NULL,              -- 作成者
-    updated_by BIGINT UNSIGNED NULL,              -- 更新者
+    created_by BIGINT NULL,                       -- 作成者
+    updated_by BIGINT NULL,                       -- 更新者
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
-    deleted_at TIMESTAMP NULL,
+    deleted_at TIMESTAMP NULL,                    -- ソフトデリート
     
-    INDEX idx_approval_flow_id (approval_flow_id),
-    INDEX idx_request_type (request_type),
-    INDEX idx_request_id (request_id),
-    INDEX idx_current_step (current_step),
-    INDEX idx_status (status),
-    INDEX idx_priority (priority),
-    INDEX idx_requested_by (requested_by),
-    INDEX idx_approved_by (approved_by),
-    INDEX idx_rejected_by (rejected_by),
-    INDEX idx_returned_by (returned_by),
-    INDEX idx_cancelled_by (cancelled_by),
-    INDEX idx_expires_at (expires_at),
+    -- インデックス（実際の定義に基づく）
+    INDEX approval_requests_approval_flow_id_index (approval_flow_id),
+    INDEX approval_requests_request_type_index (request_type),
+    INDEX approval_requests_request_id_index (request_id),
+    INDEX idx_approval_requests_current_step (current_step),
+    INDEX approval_requests_status_index (status),
+    INDEX approval_requests_priority_index (priority),
+    INDEX approval_requests_requested_by_index (requested_by),
+    INDEX approval_requests_approved_by_index (approved_by),
+    INDEX approval_requests_rejected_by_index (rejected_by),
+    INDEX approval_requests_returned_by_index (returned_by),
+    INDEX approval_requests_cancelled_by_index (cancelled_by),
+    INDEX approval_requests_expires_at_index (expires_at),
+    INDEX idx_approval_requests_request_data USING GIN (request_data), -- JSONB用GINインデックス
+    
+    -- 外部キー制約（実際の定義に基づく）
     FOREIGN KEY (approval_flow_id) REFERENCES approval_flows(id) ON DELETE CASCADE,
     FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -289,7 +320,9 @@ CREATE TABLE approval_requests (
 ### フィールド詳細
 - **request_id**: UUID形式で依頼元のIDを格納
 - **current_step**: 現在の承認ステップ番号（1-5）
-- **request_data**: 依頼データをJSON形式で格納（条件分岐判定に使用）
+- **request_data**: 依頼データをJSONB形式で格納（条件分岐判定に使用、GINインデックス付き）
+- **id**: PostgreSQLのbigint型（AUTO_INCREMENT相当のシーケンス使用）
+- **deleted_at**: ソフトデリート用のタイムスタンプ
 
 ### ステータス
 - **pending**: 承認待ち
@@ -304,7 +337,7 @@ CREATE TABLE approval_requests (
 - **high**: 高
 - **urgent**: 緊急
 
-### request_data例
+### request_data例（JSONB形式）
 ```json
 {
   "amount": 1500000,
@@ -319,35 +352,43 @@ CREATE TABLE approval_requests (
 }
 ```
 
+### インデックス詳細
+- **GINインデックス**: `request_data`カラムにJSONB用のGINインデックスが設定済み
+- **複合インデックス**: ステータスとサブステータスの複合インデックス（実装予定）
+- **編集ロック用インデックス**: `editing_user_id`用のインデックス（実装予定）
+
 ## 3. approval_histories テーブル（更新）
 
 ### 概要
 承認処理の履歴を記録するテーブル（新仕様対応）
 
-### スキーマ
+### スキーマ（実際の定義に基づく）
 ```sql
 CREATE TABLE approval_histories (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    approval_request_id BIGINT UNSIGNED NOT NULL, -- 承認依頼ID
-    step INT NOT NULL,                            -- ステップ番号
+    id BIGINT NOT NULL PRIMARY KEY,               -- 主キー（PostgreSQLのbigint）
+    approval_request_id BIGINT NOT NULL,          -- 承認依頼ID
     action VARCHAR(20) NOT NULL,                  -- アクション
-    acted_by BIGINT UNSIGNED NOT NULL,            -- 実行者
+    acted_by BIGINT NOT NULL,                     -- 実行者
     acted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 実行日時
     comment TEXT NULL,                            -- コメント
-    delegated_to BIGINT UNSIGNED NULL,            -- 委譲先
+    delegated_to BIGINT NULL,                     -- 委譲先
     delegated_at TIMESTAMP NULL,                  -- 委譲日時
-    created_by BIGINT UNSIGNED NULL,              -- 作成者
-    updated_by BIGINT UNSIGNED NULL,              -- 更新者
+    created_by BIGINT NULL,                       -- 作成者
+    updated_by BIGINT NULL,                       -- 更新者
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
-    deleted_at TIMESTAMP NULL,
+    deleted_at TIMESTAMP NULL,                    -- ソフトデリート
+    step INTEGER NOT NULL,                        -- ステップ番号
     
-    INDEX idx_approval_request_id (approval_request_id),
-    INDEX idx_step (step),
-    INDEX idx_action (action),
-    INDEX idx_acted_by (acted_by),
-    INDEX idx_acted_at (acted_at),
-    INDEX idx_delegated_to (delegated_to),
+    -- インデックス（実際の定義に基づく）
+    INDEX approval_histories_approval_request_id_index (approval_request_id),
+    INDEX approval_histories_action_index (action),
+    INDEX approval_histories_acted_by_index (acted_by),
+    INDEX approval_histories_acted_at_index (acted_at),
+    INDEX approval_histories_delegated_to_index (delegated_to),
+    INDEX idx_approval_histories_step (step),
+    
+    -- 外部キー制約（実際の定義に基づく）
     FOREIGN KEY (approval_request_id) REFERENCES approval_requests(id) ON DELETE CASCADE,
     FOREIGN KEY (acted_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (delegated_to) REFERENCES users(id) ON DELETE SET NULL,
@@ -360,7 +401,12 @@ CREATE TABLE approval_histories (
 - **step**: 承認ステップ番号（1-5）
 - **action**: 実行されたアクション
 - **acted_by**: アクションを実行したユーザーID
-- **acted_at**: アクション実行日時
+- **acted_at**: アクション実行日時（DEFAULT CURRENT_TIMESTAMP）
+- **comment**: アクション実行時のコメント
+- **delegated_to**: 委譲先ユーザーID（委譲時のみ）
+- **delegated_at**: 委譲実行日時
+- **id**: PostgreSQLのbigint型（AUTO_INCREMENT相当のシーケンス使用）
+- **deleted_at**: ソフトデリート用のタイムスタンプ
 
 ### アクション
 - **approve**: 承認

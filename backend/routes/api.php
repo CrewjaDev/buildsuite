@@ -292,10 +292,17 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/', [ApprovalRequestController::class, 'store']);
                 Route::get('/{id}', [ApprovalRequestController::class, 'show']);
                 Route::get('/{id}/histories', [ApprovalRequestController::class, 'histories']);
+                
+                // 承認操作
                 Route::post('/{id}/approve', [ApprovalRequestController::class, 'approve']);
                 Route::post('/{id}/reject', [ApprovalRequestController::class, 'reject']);
                 Route::post('/{id}/return', [ApprovalRequestController::class, 'return']);
                 Route::post('/{id}/cancel', [ApprovalRequestController::class, 'cancel']);
+                
+                // 編集制御
+                Route::post('/{id}/start-editing', [ApprovalRequestController::class, 'startEditing']);
+                Route::post('/{id}/stop-editing', [ApprovalRequestController::class, 'stopEditing']);
+                Route::post('/{id}/start-reviewing', [ApprovalRequestController::class, 'startReviewing']);
             });
 
             // 承認依頼タイプ管理

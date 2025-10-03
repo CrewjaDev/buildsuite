@@ -48,9 +48,17 @@ export function EstimateApprovalRequestButton({
       // ステップ情報を追加
       if (statusInfo && estimate.current_step && estimate.total_steps) {
         if (approvalStatus === 'pending') {
-          // current_stepは次のステップを示すので、完了したステップ数は current_step - 1
-          const completedSteps = Math.max(0, estimate.current_step - 1)
-          statusInfo.label = `承認待ち（${completedSteps}/${estimate.total_steps}）`
+          if (estimate.sub_status === 'reviewing') {
+            // 審査中: 現在のステップ番号を表示
+            statusInfo.label = `審査中 ${estimate.current_step}/${estimate.total_steps}`
+          } else {
+            // 承認待ち: 完了したステップ数を表示
+            const completedSteps = Math.max(0, estimate.current_step - 1)
+            statusInfo.label = `承認待ち ${completedSteps}/${estimate.total_steps}`
+          }
+        } else if (approvalStatus === 'approved') {
+          // 承認完了: 全ステップ完了を表示
+          statusInfo.label = `承認完了 ${estimate.total_steps}/${estimate.total_steps}`
         }
       }
       

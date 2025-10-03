@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\ApprovalFlow;
 use App\Models\User;
 use App\Services\Approval\ApprovalFlowService;
+use App\Services\Approval\ApprovalPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -15,10 +16,12 @@ use Illuminate\Support\Str;
 class ApprovalRequestController extends Controller
 {
     protected $approvalFlowService;
+    protected $approvalPermissionService;
 
-    public function __construct(ApprovalFlowService $approvalFlowService)
+    public function __construct(ApprovalFlowService $approvalFlowService, ApprovalPermissionService $approvalPermissionService)
     {
         $this->approvalFlowService = $approvalFlowService;
+        $this->approvalPermissionService = $approvalPermissionService;
     }
 
     /**
@@ -489,6 +492,7 @@ class ApprovalRequestController extends Controller
     public function show($id): JsonResponse
     {
         try {
+            $user = auth()->user();
             $approvalRequest = ApprovalRequest::with([
                 'approvalFlow',
                 'requestedBy.employee',
@@ -496,7 +500,8 @@ class ApprovalRequestController extends Controller
                 'rejectedBy.employee',
                 'returnedBy.employee',
                 'cancelledBy.employee',
-                'histories.actedBy.employee'
+                'histories.actedBy.employee',
+                'editingUser.employee'
             ])->findOrFail($id);
 
             // 依頼者の表示名を設定
@@ -514,11 +519,25 @@ class ApprovalRequestController extends Controller
                 $approvalRequest->requester_name = $approvalRequest->requestedBy ? $approvalRequest->requestedBy->login_id : '不明';
             }
             
+            // 編集中ユーザーの表示名を設定
+            if ($approvalRequest->editingUser && $approvalRequest->editingUser->employee) {
+                $approvalRequest->editing_user_name = $approvalRequest->editingUser->employee->name;
+            } else {
+                $approvalRequest->editing_user_name = $approvalRequest->editingUser ? $approvalRequest->editingUser->login_id : null;
+            }
+            
+            // ステータス表示情報を設定
+            $approvalRequest->status_display = $approvalRequest->getStatusDisplay();
+            
+            // ユーザー権限情報を取得
+            $userPermissions = $this->approvalPermissionService->getUserPermissions($user, $approvalRequest);
+            
             \Log::info('承認依頼詳細 - requester_name: ' . $approvalRequest->requester_name);
 
             return response()->json([
                 'success' => true,
-                'data' => $approvalRequest
+                'data' => $approvalRequest,
+                'user_permissions' => $userPermissions
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -551,7 +570,7 @@ class ApprovalRequestController extends Controller
             $approvalRequest = ApprovalRequest::with('approvalFlow')->findOrFail($id);
 
             // 承認者権限をチェック
-            if (!$approvalRequest->approvalFlow->canApprove($user, $approvalRequest->current_step, $approvalRequest->request_data ?? [])) {
+            if (!$this->approvalPermissionService->canApprove($user, $approvalRequest)) {
                 return response()->json([
                     'success' => false,
                     'message' => '承認権限がありません'
@@ -569,6 +588,11 @@ class ApprovalRequestController extends Controller
             DB::beginTransaction();
 
             try {
+                // 審査中の場合は審査完了処理を実行
+                if ($approvalRequest->sub_status === 'reviewing') {
+                    $approvalRequest->completeReviewing($user);
+                }
+
                 // 承認履歴を記録
                 $approvalRequest->histories()->create([
                     'step' => $approvalRequest->current_step,
@@ -653,8 +677,8 @@ class ApprovalRequestController extends Controller
             $user = auth()->user();
             $approvalRequest = ApprovalRequest::with('approvalFlow')->findOrFail($id);
 
-            // 承認者権限をチェック
-            if (!$approvalRequest->approvalFlow->canApprove($user, $approvalRequest->current_step, $approvalRequest->request_data ?? [])) {
+            // 却下権限をチェック
+            if (!$this->approvalPermissionService->canReject($user, $approvalRequest)) {
                 return response()->json([
                     'success' => false,
                     'message' => '却下権限がありません'
@@ -672,6 +696,11 @@ class ApprovalRequestController extends Controller
             DB::beginTransaction();
 
             try {
+                // 審査中の場合は審査完了処理を実行
+                if ($approvalRequest->sub_status === 'reviewing') {
+                    $approvalRequest->completeReviewing($user);
+                }
+
                 // 却下履歴を記録
                 $approvalRequest->histories()->create([
                     'step' => $approvalRequest->current_step,
@@ -733,8 +762,8 @@ class ApprovalRequestController extends Controller
             $user = auth()->user();
             $approvalRequest = ApprovalRequest::with('approvalFlow')->findOrFail($id);
 
-            // 承認者権限をチェック
-            if (!$approvalRequest->approvalFlow->canApprove($user, $approvalRequest->current_step, $approvalRequest->request_data ?? [])) {
+            // 差し戻し権限をチェック
+            if (!$this->approvalPermissionService->canReturn($user, $approvalRequest)) {
                 return response()->json([
                     'success' => false,
                     'message' => '差し戻し権限がありません'
@@ -752,6 +781,11 @@ class ApprovalRequestController extends Controller
             DB::beginTransaction();
 
             try {
+                // 審査中の場合は審査完了処理を実行
+                if ($approvalRequest->sub_status === 'reviewing') {
+                    $approvalRequest->completeReviewing($user);
+                }
+
                 // 差し戻し履歴を記録
                 $approvalRequest->histories()->create([
                     'step' => $approvalRequest->current_step,
@@ -816,13 +850,8 @@ class ApprovalRequestController extends Controller
             $user = auth()->user();
             $approvalRequest = ApprovalRequest::findOrFail($id);
 
-            // 依頼者または承認者権限をチェック
-            $canCancel = $approvalRequest->requested_by === $user->id;
-            if (!$canCancel) {
-                $canCancel = $approvalRequest->approvalFlow->canApprove($user, $approvalRequest->current_step, $approvalRequest->request_data ?? []);
-            }
-
-            if (!$canCancel) {
+            // キャンセル権限をチェック
+            if (!$this->approvalPermissionService->canCancel($user, $approvalRequest)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'キャンセル権限がありません'
@@ -900,4 +929,123 @@ class ApprovalRequestController extends Controller
         // TODO: 通知機能の実装
         // メール通知、システム内通知、Slack通知等
     }
+
+    /**
+     * 編集開始
+     */
+    public function startEditing($id): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            $approvalRequest = ApprovalRequest::findOrFail($id);
+
+            // 権限チェック
+            if (!$this->approvalPermissionService->canEdit($user, $approvalRequest)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '編集権限がありません'
+                ], 403);
+            }
+
+            // 編集開始処理
+            if (!$approvalRequest->startEditing($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '編集を開始できませんでした'
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '編集を開始しました',
+                'data' => $approvalRequest->load(['editingUser.employee'])
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '編集開始に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 編集終了
+     */
+    public function stopEditing($id): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            $approvalRequest = ApprovalRequest::findOrFail($id);
+
+            // 編集終了処理
+            if (!$approvalRequest->stopEditing($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '編集を終了できませんでした'
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '編集を終了しました',
+                'data' => $approvalRequest
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '編集終了に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 審査開始
+     */
+    public function startReviewing($id): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            $approvalRequest = ApprovalRequest::findOrFail($id);
+
+            // 承認者かチェック
+            if (!$approvalRequest->isApprover($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '承認者ではありません'
+                ], 403);
+            }
+
+            // 審査開始処理
+            if (!$approvalRequest->startReviewing($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '審査を開始できませんでした'
+                ], 400);
+            }
+
+            // 審査開始の履歴を記録
+            $approvalRequest->histories()->create([
+                'action' => 'start_reviewing',
+                'acted_by' => $user->id,
+                'acted_at' => now(),
+                'comment' => '審査を開始しました',
+                'step' => $approvalRequest->current_step
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => '審査を開始しました',
+                'data' => $approvalRequest
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '審査開始に失敗しました',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 }

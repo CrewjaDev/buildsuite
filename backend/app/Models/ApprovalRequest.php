@@ -11,6 +11,20 @@ class ApprovalRequest extends Model
 {
     use SoftDeletes;
 
+    // メインステータス定数
+    const STATUS_PENDING = 'pending';      // 承認待ち（承認フロー進行中）
+    const STATUS_APPROVED = 'approved';    // 承認済み（全ステップ完了）
+    const STATUS_REJECTED = 'rejected';    // 却下（承認者が却下）
+    const STATUS_RETURNED = 'returned';    // 差し戻し（承認者が差し戻し）
+    const STATUS_CANCELLED = 'cancelled';  // キャンセル（申請者がキャンセル）
+    
+    // サブステータス定数（pendingステータス専用）
+    const SUB_STATUS_REVIEWING = 'reviewing';          // 審査中（承認者が内容確認中）
+    const SUB_STATUS_STEP_APPROVED = 'step_approved';  // ステップ承認済み（次のステップ待ち）
+    const SUB_STATUS_EXPIRED = 'expired';              // 期限切れ（承認期限超過）
+    const SUB_STATUS_EDITING = 'editing';              // 編集中（排他制御）
+    const SUB_STATUS_NONE = null;                      // サブステータスなし（未開封状態）
+
     /**
      * The attributes that are mass assignable.
      *
@@ -25,6 +39,7 @@ class ApprovalRequest extends Model
         'request_data', // 依頼データ（JSON）
         'current_step',
         'status', // pending, approved, rejected, returned, cancelled
+        'sub_status', // サブステータス（pendingステータス専用）
         'priority', // low, normal, high, urgent
         'requested_by',
         'approved_by',
@@ -36,6 +51,8 @@ class ApprovalRequest extends Model
         'cancelled_by',
         'cancelled_at',
         'expires_at',
+        'editing_user_id', // 編集中のユーザーID
+        'editing_started_at', // 編集開始日時
         'created_by',
         'updated_by',
     ];
@@ -55,6 +72,7 @@ class ApprovalRequest extends Model
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'expires_at' => 'datetime',
+            'editing_started_at' => 'datetime',
         ];
     }
 
@@ -178,13 +196,12 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-
     /**
-     * 現在のステップとのリレーション
+     * 編集中のユーザーとのリレーション
      */
-    public function currentStep(): BelongsTo
+    public function editingUser(): BelongsTo
     {
-        return $this->belongsTo(ApprovalStep::class, 'current_step');
+        return $this->belongsTo(User::class, 'editing_user_id');
     }
 
     /**
@@ -192,7 +209,47 @@ class ApprovalRequest extends Model
      */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    /**
+     * サブステータスが審査中かチェック
+     */
+    public function isReviewing(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->sub_status === self::SUB_STATUS_REVIEWING;
+    }
+
+    /**
+     * サブステータスが編集中かチェック
+     */
+    public function isEditing(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->sub_status === self::SUB_STATUS_EDITING;
+    }
+
+    /**
+     * サブステータスがステップ承認済みかチェック
+     */
+    public function isStepApproved(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->sub_status === self::SUB_STATUS_STEP_APPROVED;
+    }
+
+    /**
+     * サブステータスが期限切れかチェック
+     */
+    public function isSubStatusExpired(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->sub_status === self::SUB_STATUS_EXPIRED;
+    }
+
+    /**
+     * サブステータスが未開封（null）かチェック
+     */
+    public function isUnopened(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->sub_status === self::SUB_STATUS_NONE;
     }
 
     /**
@@ -236,6 +293,272 @@ class ApprovalRequest extends Model
     }
 
     /**
+     * 編集可能かチェック
+     */
+    public function canEdit(User $user): bool
+    {
+        // 承認フロー設定による制御
+        $flowConfig = $this->approvalFlow->flow_config ?? [];
+        $editingConfig = $flowConfig['editing'] ?? [];
+        
+        // 基本条件：pendingステータスで、未開封または編集中
+        if (!$this->isPending()) {
+            return false;
+        }
+        
+        // サブステータスによる制御
+        $allowedSubStatuses = $editingConfig['allowed_sub_statuses'] ?? ['null', 'editing'];
+        
+        if ($this->sub_status === null && !in_array('null', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_EDITING && !in_array('editing', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_REVIEWING && !in_array('reviewing', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_STEP_APPROVED && !in_array('step_approved', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        // 排他制御：編集中の場合は、編集中のユーザーのみ編集可能
+        if ($this->isEditing()) {
+            return $this->editing_user_id === $user->id;
+        }
+        
+        // 承認者優先：審査中の場合は、承認者のみ編集可能
+        if ($this->isReviewing()) {
+            return $this->isApprover($user);
+        }
+        
+        return true;
+    }
+
+    /**
+     * キャンセル可能かチェック
+     */
+    public function canCancel(User $user): bool
+    {
+        // 承認フロー設定による制御
+        $flowConfig = $this->approvalFlow->flow_config ?? [];
+        $cancellationConfig = $flowConfig['cancellation'] ?? [];
+        
+        // 基本条件：pendingステータス
+        if (!$this->isPending()) {
+            return false;
+        }
+        
+        // サブステータスによる制御
+        $allowedSubStatuses = $cancellationConfig['allowed_sub_statuses'] ?? ['null', 'editing'];
+        
+        if ($this->sub_status === null && !in_array('null', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_EDITING && !in_array('editing', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_REVIEWING && !in_array('reviewing', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        if ($this->sub_status === self::SUB_STATUS_STEP_APPROVED && !in_array('step_approved', $allowedSubStatuses)) {
+            return false;
+        }
+        
+        // ユーザー権限チェック
+        return $this->isRequester($user) || $user->is_admin;
+    }
+
+    /**
+     * 編集ロックを開始
+     */
+    public function startEditing(User $user): bool
+    {
+        if (!$this->canEdit($user)) {
+            return false;
+        }
+        
+        // 既に編集中の場合は、編集中のユーザーのみロック取得可能
+        if ($this->isEditing() && $this->editing_user_id !== $user->id) {
+            return false;
+        }
+        
+        $this->update([
+            'sub_status' => self::SUB_STATUS_EDITING,
+            'editing_user_id' => $user->id,
+            'editing_started_at' => now(),
+        ]);
+        
+        return true;
+    }
+
+    /**
+     * 編集ロックを解除
+     */
+    public function stopEditing(User $user): bool
+    {
+        if (!$this->isEditing() || $this->editing_user_id !== $user->id) {
+            return false;
+        }
+        
+        $this->update([
+            'sub_status' => self::SUB_STATUS_NONE,
+            'editing_user_id' => null,
+            'editing_started_at' => null,
+        ]);
+        
+        return true;
+    }
+
+    /**
+     * 審査開始（承認者が開封）
+     */
+    public function startReviewing(User $user): bool
+    {
+        if (!$this->isApprover($user) || !$this->isPending()) {
+            return false;
+        }
+        
+        // 編集中の場合は、編集中のユーザーに優先権がある
+        if ($this->isEditing()) {
+            return false;
+        }
+        
+        $this->update([
+            'sub_status' => self::SUB_STATUS_REVIEWING,
+            'editing_user_id' => null,
+            'editing_started_at' => null,
+        ]);
+        
+        return true;
+    }
+
+    /**
+     * 審査完了処理
+     */
+    public function completeReviewing(User $user): bool
+    {
+        if (!$this->isApprover($user) || !$this->isPending()) {
+            return false;
+        }
+        
+        // 審査中でない場合は処理しない
+        if ($this->sub_status !== self::SUB_STATUS_REVIEWING) {
+            return false;
+        }
+        
+        $this->update([
+            'sub_status' => null, // サブステータスをクリア
+        ]);
+        
+        return true;
+    }
+
+    /**
+     * ステップ承認完了
+     */
+    public function completeStepApproval(): bool
+    {
+        if (!$this->isPending()) {
+            return false;
+        }
+        
+        $this->update([
+            'sub_status' => self::SUB_STATUS_STEP_APPROVED,
+            'editing_user_id' => null,
+            'editing_started_at' => null,
+        ]);
+        
+        return true;
+    }
+
+    /**
+     * 状態表示用の情報を取得
+     */
+    public function getStatusDisplay(): array
+    {
+        $statusInfo = [
+            'main_status' => $this->status,
+            'sub_status' => $this->sub_status,
+            'display_text' => '',
+            'display_color' => '',
+            'icon' => '',
+            'is_editable' => false,
+            'is_cancellable' => false,
+        ];
+        
+        switch ($this->status) {
+            case self::STATUS_PENDING:
+                switch ($this->sub_status) {
+                    case self::SUB_STATUS_NONE:
+                        $statusInfo['display_text'] = '承認待ち（未開封）';
+                        $statusInfo['display_color'] = 'warning';
+                        $statusInfo['icon'] = 'clock';
+                        $statusInfo['is_editable'] = true;
+                        $statusInfo['is_cancellable'] = true;
+                        break;
+                    case self::SUB_STATUS_REVIEWING:
+                        $statusInfo['display_text'] = '審査中';
+                        $statusInfo['display_color'] = 'info';
+                        $statusInfo['icon'] = 'eye';
+                        $statusInfo['is_editable'] = false;
+                        $statusInfo['is_cancellable'] = false;
+                        break;
+                    case self::SUB_STATUS_EDITING:
+                        $statusInfo['display_text'] = '編集中';
+                        $statusInfo['display_color'] = 'primary';
+                        $statusInfo['icon'] = 'edit';
+                        $statusInfo['is_editable'] = true;
+                        $statusInfo['is_cancellable'] = true;
+                        break;
+                    case self::SUB_STATUS_STEP_APPROVED:
+                        $statusInfo['display_text'] = 'ステップ承認済み';
+                        $statusInfo['display_color'] = 'success';
+                        $statusInfo['icon'] = 'check';
+                        $statusInfo['is_editable'] = false;
+                        $statusInfo['is_cancellable'] = false;
+                        break;
+                    case self::SUB_STATUS_EXPIRED:
+                        $statusInfo['display_text'] = '期限切れ';
+                        $statusInfo['display_color'] = 'danger';
+                        $statusInfo['icon'] = 'exclamation-triangle';
+                        $statusInfo['is_editable'] = false;
+                        $statusInfo['is_cancellable'] = true;
+                        break;
+                }
+                break;
+            case self::STATUS_APPROVED:
+                $statusInfo['display_text'] = '承認済み';
+                $statusInfo['display_color'] = 'success';
+                $statusInfo['icon'] = 'check-circle';
+                break;
+            case self::STATUS_REJECTED:
+                $statusInfo['display_text'] = '却下';
+                $statusInfo['display_color'] = 'danger';
+                $statusInfo['icon'] = 'times-circle';
+                break;
+            case self::STATUS_RETURNED:
+                $statusInfo['display_text'] = '差し戻し';
+                $statusInfo['display_color'] = 'warning';
+                $statusInfo['icon'] = 'undo';
+                break;
+            case self::STATUS_CANCELLED:
+                $statusInfo['display_text'] = 'キャンセル';
+                $statusInfo['display_color'] = 'secondary';
+                $statusInfo['icon'] = 'ban';
+                break;
+        }
+        
+        return $statusInfo;
+    }
+
+    /**
      * 承認依頼が完了しているかチェック
      */
     public function isCompleted(): bool
@@ -256,11 +579,42 @@ class ApprovalRequest extends Model
      */
     public function isApprover(User $user): bool
     {
-        if (!$this->currentStep) {
+        $steps = $this->approvalFlow->approval_steps ?? [];
+        
+        if (empty($steps) || $this->current_step < 1 || $this->current_step > count($steps)) {
             return false;
         }
-
-        return $this->currentStep->isApprover($user);
+        
+        $currentStepConfig = $steps[$this->current_step - 1];
+        $approvers = $currentStepConfig['approvers'] ?? [];
+        
+        foreach ($approvers as $approver) {
+            if ($this->matchesApprover($user, $approver)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * ユーザーが承認者条件に一致するかチェック
+     */
+    private function matchesApprover(User $user, array $approver): bool
+    {
+        $type = $approver['type'] ?? '';
+        $value = $approver['value'] ?? null;
+        
+        switch ($type) {
+            case 'position_id':
+                return $user->employee && $user->employee->position_id == $value;
+            case 'department_id':
+                return $user->employee && $user->employee->department_id == $value;
+            case 'user_id':
+                return $user->id == $value;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -455,26 +809,64 @@ class ApprovalRequest extends Model
         // 承認フローの総ステップ数を取得
         $totalSteps = $this->getTotalSteps();
         
+        // 依頼者の場合は承認フローの全体状況を返す
+        if ($this->requested_by === $user->id) {
+            if ($this->status === 'approved') {
+                return [
+                    'status' => 'finished',
+                    'step' => $totalSteps, // 全ステップ完了
+                    'total_steps' => $totalSteps,
+                    'step_name' => '承認完了',
+                    'can_act' => false,
+                    'message' => '承認が完了しました'
+                ];
+            }
+            
+            if (in_array($this->status, ['rejected', 'returned'])) {
+                return [
+                    'status' => $this->status,
+                    'step' => $this->current_step - 1, // 完了したステップ数
+                    'total_steps' => $totalSteps,
+                    'step_name' => $this->status === 'rejected' ? '却下' : '差し戻し',
+                    'can_act' => false,
+                    'message' => $this->status === 'rejected' ? '承認が却下されました' : '承認が差し戻しされました'
+                ];
+            }
+            
+            // 承認フローが進行中の場合
+            return [
+                'status' => 'pending',
+                'step' => $this->current_step, // 現在のステップ番号
+                'total_steps' => $totalSteps,
+                'step_name' => '承認進行中',
+                'can_act' => false,
+                'message' => '承認フローが進行中です',
+                'sub_status' => $this->sub_status // サブステータスを追加
+            ];
+        }
+        
         // 承認フロー全体の状態をチェック
         if ($this->status === 'approved') {
             return [
                 'status' => 'finished',
-                'step' => $this->current_step,
+                'step' => $totalSteps, // 全ステップ完了
                 'total_steps' => $totalSteps,
                 'step_name' => '承認完了',
                 'can_act' => false,
-                'message' => '承認が完了しました'
+                'message' => '承認が完了しました',
+                'sub_status' => $this->sub_status
             ];
         }
         
         if (in_array($this->status, ['rejected', 'returned'])) {
             return [
                 'status' => $this->status,
-                'step' => $this->current_step,
+                'step' => $this->current_step, // 現在のステップ番号
                 'total_steps' => $totalSteps,
                 'step_name' => $this->status === 'rejected' ? '却下' : '差し戻し',
                 'can_act' => false,
-                'message' => $this->status === 'rejected' ? '承認が却下されました' : '承認が差し戻しされました'
+                'message' => $this->status === 'rejected' ? '承認が却下されました' : '承認が差し戻しされました',
+                'sub_status' => $this->sub_status
             ];
         }
         
@@ -484,11 +876,12 @@ class ApprovalRequest extends Model
         if (!$userStep) {
             return [
                 'status' => 'not_started',
-                'step' => 0,
+                'step' => $this->current_step, // 現在のステップ番号
                 'total_steps' => $totalSteps,
                 'step_name' => '対象外',
                 'can_act' => false,
-                'message' => '承認対象ではありません'
+                'message' => '承認対象ではありません',
+                'sub_status' => $this->sub_status
             ];
         }
         
@@ -497,11 +890,12 @@ class ApprovalRequest extends Model
             // ユーザーのステップは既に完了
             return [
                 'status' => 'completed',
-                'step' => $userStep['step'],
+                'step' => $userStep['step'], // 完了したステップ番号
                 'total_steps' => $totalSteps,
                 'step_name' => $userStep['name'],
                 'can_act' => false,
-                'message' => '承認済み'
+                'message' => '承認済み',
+                'sub_status' => $this->sub_status
             ];
         }
         
@@ -516,22 +910,24 @@ class ApprovalRequest extends Model
             
             return [
                 'status' => 'pending',
-                'step' => $userStep['step'],
+                'step' => $this->current_step, // 現在のステップ番号
                 'total_steps' => $totalSteps,
                 'step_name' => $userStep['name'],
                 'can_act' => true,
-                'message' => '承認待ち'
+                'message' => '承認待ち',
+                'sub_status' => $this->sub_status
             ];
         }
         
         // ユーザーのステップはまだ開始されていない
         return [
             'status' => 'not_started',
-            'step' => $userStep['step'],
+            'step' => $this->current_step, // 現在のステップ番号
             'total_steps' => $totalSteps,
             'step_name' => $userStep['name'],
             'can_act' => false,
-            'message' => '承認待ち（未開始）'
+            'message' => '承認待ち（未開始）',
+            'sub_status' => $this->sub_status
         ];
     }
     
@@ -545,15 +941,8 @@ class ApprovalRequest extends Model
             return 0;
         }
         
-        // ステップ0（承認依頼作成）を除いた実際の承認ステップ数をカウント
-        $totalSteps = 0;
-        foreach ($flow->approval_steps as $step) {
-            if ($step['step'] > 0) { // ステップ0は除外
-                $totalSteps++;
-            }
-        }
-        
-        return $totalSteps;
+        // approval_stepsの配列の長さが総ステップ数
+        return count($flow->approval_steps);
     }
     
     /**
@@ -576,16 +965,23 @@ class ApprovalRequest extends Model
             'approval_steps' => $flow->approval_steps
         ]);
         
-        foreach ($flow->approval_steps as $step) {
-            if ($step['step'] === 0) continue; // ステップ0は承認依頼作成なので除外
+        foreach ($flow->approval_steps as $index => $step) {
+            $stepNumber = $index + 1; // ステップ番号は1から開始
             
             // ユーザーがこのステップの承認者かチェック
             if ($this->isUserApproverForStep($user, $step)) {
                 \Log::info('ユーザーの担当ステップ発見', [
                     'user_id' => $user->id,
+                    'step_number' => $stepNumber,
                     'step' => $step
                 ]);
-                return $step;
+                
+                // ステップ番号を含む配列を返す
+                return [
+                    'step' => $stepNumber,
+                    'name' => $step['name'],
+                    'approvers' => $step['approvers']
+                ];
             }
         }
         
@@ -606,32 +1002,11 @@ class ApprovalRequest extends Model
         }
         
         foreach ($step['approvers'] as $approver) {
-            if ($this->checkApproverMatch($user, $approver)) {
+            if ($this->matchesApprover($user, $approver)) {
                 return true;
             }
         }
         
         return false;
-    }
-    
-    /**
-     * 承認者条件とユーザーの一致をチェック
-     */
-    private function checkApproverMatch(User $user, array $approver): bool
-    {
-        switch ($approver['type']) {
-            case 'user':
-                return $user->id == $approver['value'];
-            case 'system_level':
-                return $user->system_level === $approver['value'];
-            case 'department':
-                $employee = $user->employee;
-                return $employee && $employee->department_id == $approver['value'];
-            case 'position':
-                $employee = $user->employee;
-                return $employee && $employee->position_id == $approver['value'];
-            default:
-                return false;
-        }
     }
 }

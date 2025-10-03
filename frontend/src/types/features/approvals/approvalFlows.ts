@@ -26,6 +26,13 @@ export interface ApprovalStepCondition {
   display_name: string
 }
 
+export interface StepConditions {
+  allow_during_pending: boolean
+  allow_during_reviewing: boolean
+  allow_during_step_approved: boolean
+  allow_during_expired: boolean
+}
+
 export interface ApprovalStep {
   step: number
   name: string
@@ -34,6 +41,20 @@ export interface ApprovalStep {
   condition: ApprovalStepCondition
   required_permissions?: string[] // ステップで必要な権限
   auto_approve_if_requester?: boolean // 承認依頼作成者の場合自動承認
+  // 新規追加：詳細設定
+  editing_conditions?: StepConditions
+  cancellation_conditions?: StepConditions
+}
+
+export interface FlowConfig {
+  allow_editing_after_request: boolean
+  allow_cancellation_after_request: boolean
+  step_settings?: {
+    [key: string]: {
+      editing_conditions: StepConditions
+      cancellation_conditions: StepConditions
+    }
+  }
 }
 
 export interface ApprovalFlow {
@@ -52,6 +73,8 @@ export interface ApprovalFlow {
   conditions?: ApprovalConditions
   requesters?: ApprovalRequester[]
   approval_steps?: ApprovalStep[]
+  // 新規追加：フロー設定
+  flow_config?: FlowConfig
   // 旧設計との互換性のため残す
   steps?: LegacyApprovalStep[]
   conditions_old?: ApprovalCondition[]
@@ -124,6 +147,8 @@ export interface CreateApprovalFlowRequest {
   approval_steps?: ApprovalStep[]
   priority?: number
   is_active?: boolean
+  // 新規追加：フロー設定
+  flow_config?: FlowConfig
   // テンプレートからの作成用
   template_id?: string
   customizations?: Record<string, unknown>
@@ -138,4 +163,6 @@ export interface UpdateApprovalFlowRequest {
   approval_steps?: ApprovalStep[]
   is_active?: boolean
   priority?: number
+  // 新規追加：フロー設定
+  flow_config?: FlowConfig
 }

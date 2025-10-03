@@ -164,10 +164,12 @@ class EstimateController extends Controller
                 $estimate->current_step = $estimate->approvalRequest->current_step;
                 $estimate->total_steps = $estimate->approvalRequest->getTotalSteps();
                 $estimate->approval_status = $estimate->approvalRequest->status;
+                $estimate->sub_status = $estimate->approvalRequest->sub_status;
             } else {
                 $estimate->current_step = null;
                 $estimate->total_steps = null;
                 $estimate->approval_status = null;
+                $estimate->sub_status = null;
             }
 
             return response()->json([

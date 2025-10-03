@@ -11,14 +11,15 @@ import { PopoverSearchFilter } from '@/components/common/data-display/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Minus, Users, Building, DollarSign, Settings } from 'lucide-react'
+import { Plus, Minus, Users, Building, DollarSign, Settings, ChevronDown, ChevronRight } from 'lucide-react'
 import type { 
   ApprovalFlow, 
   CreateApprovalFlowRequest, 
   UpdateApprovalFlowRequest,
   ApprovalStep,
   ApprovalRequester,
-  ApprovalConditions
+  ApprovalConditions,
+  FlowConfig
 } from '@/types/features/approvals/approvalFlows'
 import type { UserDetail } from '@/types/user'
 import { approvalFlowService } from '@/services/features/approvals/approvalFlows'
@@ -36,6 +37,194 @@ interface ApprovalFlowFormProps {
   onSuccess: () => void
 }
 
+// ステップ別詳細設定コンポーネント
+const StepDetailSettings: React.FC<{
+  step: ApprovalStep;
+  stepIndex: number;
+  onUpdate: (stepIndex: number, field: keyof ApprovalStep, value: unknown) => void;
+}> = ({ step, stepIndex, onUpdate }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const defaultEditingConditions = {
+    allow_during_pending: true,
+    allow_during_reviewing: false,
+    allow_during_step_approved: true,
+    allow_during_expired: false,
+  };
+  
+  const defaultCancellationConditions = {
+    allow_during_pending: true,
+    allow_during_reviewing: false,
+    allow_during_step_approved: false,
+    allow_during_expired: false,
+  };
+  
+  const editingConditions = step.editing_conditions || defaultEditingConditions;
+  const cancellationConditions = step.cancellation_conditions || defaultCancellationConditions;
+  
+  return (
+    <div className="border-t pt-4 mt-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-gray-700">詳細設定</h4>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-blue-600 hover:text-blue-700"
+        >
+          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          {isExpanded ? '折りたたむ' : '展開'}
+        </Button>
+      </div>
+      
+      {isExpanded && (
+        <div className="space-y-4 mt-4">
+          {/* 編集条件 */}
+          <div className="space-y-3">
+            <h5 className="text-sm font-medium text-gray-600">編集条件</h5>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`editing-pending-${stepIndex}`}
+                  checked={editingConditions.allow_during_pending}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'editing_conditions', {
+                      ...editingConditions,
+                      allow_during_pending: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`editing-pending-${stepIndex}`} className="text-sm">
+                  承認待ち中に編集を許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`editing-reviewing-${stepIndex}`}
+                  checked={editingConditions.allow_during_reviewing}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'editing_conditions', {
+                      ...editingConditions,
+                      allow_during_reviewing: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`editing-reviewing-${stepIndex}`} className="text-sm">
+                  審査中に編集を許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`editing-step-approved-${stepIndex}`}
+                  checked={editingConditions.allow_during_step_approved}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'editing_conditions', {
+                      ...editingConditions,
+                      allow_during_step_approved: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`editing-step-approved-${stepIndex}`} className="text-sm">
+                  ステップ承認後に編集を許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`editing-expired-${stepIndex}`}
+                  checked={editingConditions.allow_during_expired}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'editing_conditions', {
+                      ...editingConditions,
+                      allow_during_expired: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`editing-expired-${stepIndex}`} className="text-sm">
+                  期限切れ後に編集を許可
+                </Label>
+              </div>
+            </div>
+          </div>
+          
+          {/* キャンセル条件 */}
+          <div className="space-y-3">
+            <h5 className="text-sm font-medium text-gray-600">キャンセル条件</h5>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`cancellation-pending-${stepIndex}`}
+                  checked={cancellationConditions.allow_during_pending}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'cancellation_conditions', {
+                      ...cancellationConditions,
+                      allow_during_pending: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`cancellation-pending-${stepIndex}`} className="text-sm">
+                  承認待ち中にキャンセルを許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`cancellation-reviewing-${stepIndex}`}
+                  checked={cancellationConditions.allow_during_reviewing}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'cancellation_conditions', {
+                      ...cancellationConditions,
+                      allow_during_reviewing: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`cancellation-reviewing-${stepIndex}`} className="text-sm">
+                  審査中にキャンセルを許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`cancellation-step-approved-${stepIndex}`}
+                  checked={cancellationConditions.allow_during_step_approved}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'cancellation_conditions', {
+                      ...cancellationConditions,
+                      allow_during_step_approved: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`cancellation-step-approved-${stepIndex}`} className="text-sm">
+                  ステップ承認後にキャンセルを許可
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id={`cancellation-expired-${stepIndex}`}
+                  checked={cancellationConditions.allow_during_expired}
+                  onCheckedChange={(checked) => 
+                    onUpdate(stepIndex, 'cancellation_conditions', {
+                      ...cancellationConditions,
+                      allow_during_expired: checked
+                    })
+                  }
+                />
+                <Label htmlFor={`cancellation-expired-${stepIndex}`} className="text-sm">
+                  期限切れ後にキャンセルを許可
+                </Label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalFlowFormProps) {
   // ビジネスロジックコードのみを取得（システム管理コードは除外）
@@ -50,12 +239,18 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
     flow_type: string
     priority: number
     is_active: boolean
+    flow_config: FlowConfig
   }>({
     name: '',
     description: '',
     flow_type: '', // 初期値は空、businessTypesが読み込まれた後に設定
     priority: 1,
-    is_active: true
+    is_active: true,
+    flow_config: {
+      allow_editing_after_request: true,
+      allow_cancellation_after_request: true,
+      step_settings: {}
+    }
   })
   
   // ビジネスコードをAPIから取得
@@ -192,7 +387,12 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       description: '',
       flow_type: businessTypes[0]?.code || '',
       priority: 1,
-      is_active: true
+      is_active: true,
+      flow_config: {
+        allow_editing_after_request: true,
+        allow_cancellation_after_request: true,
+        step_settings: {}
+      }
     })
     setConditions({
       amount_min: undefined,
@@ -213,7 +413,12 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         description: flow.description || '',
         flow_type: flow.flow_type,
         priority: flow.priority,
-        is_active: flow.is_active
+        is_active: flow.is_active,
+        flow_config: flow.flow_config || {
+          allow_editing_after_request: true,
+          allow_cancellation_after_request: true,
+          step_settings: {}
+        }
       })
       
       // 条件の設定
@@ -235,15 +440,33 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       // 承認ステップの設定
       if (flow.approval_steps) {
         // 各ステップのconditionプロパティとrequired_permissionsを適切に初期化
-        const initializedSteps = flow.approval_steps.map(step => ({
-          ...step,
-          required_permissions: step.required_permissions || [], // 初期化
-          condition: step.condition || {
-            type: 'required',
-            display_name: '必須承認'
-          },
-          auto_approve_if_requester: step.auto_approve_if_requester || false // 自動承認設定の初期化
-        }))
+        const initializedSteps = flow.approval_steps.map(step => {
+          const stepKey = `step_${step.step}`;
+          const stepSettings = flow.flow_config?.step_settings?.[stepKey];
+          
+          return {
+            ...step,
+            required_permissions: step.required_permissions || [], // 初期化
+            condition: step.condition || {
+              type: 'required',
+              display_name: '必須承認'
+            },
+            auto_approve_if_requester: step.auto_approve_if_requester || false, // 自動承認設定の初期化
+            // 新規追加：詳細設定
+            editing_conditions: step.editing_conditions || stepSettings?.editing_conditions || {
+              allow_during_pending: true,
+              allow_during_reviewing: false,
+              allow_during_step_approved: true,
+              allow_during_expired: false,
+            },
+            cancellation_conditions: step.cancellation_conditions || stepSettings?.cancellation_conditions || {
+              allow_during_pending: true,
+              allow_during_reviewing: false,
+              allow_during_step_approved: false,
+              allow_during_expired: false,
+            }
+          };
+        });
         setApprovalSteps(initializedSteps)
       }
     } else if (isOpen) {
@@ -317,7 +540,20 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         type: 'required',
         display_name: '必須承認'
       },
-      auto_approve_if_requester: false // 自動承認設定の初期化
+      auto_approve_if_requester: false, // 自動承認設定の初期化
+      // 新規追加：詳細設定のデフォルト値
+      editing_conditions: {
+        allow_during_pending: true,
+        allow_during_reviewing: false,
+        allow_during_step_approved: true,
+        allow_during_expired: false,
+      },
+      cancellation_conditions: {
+        allow_during_pending: true,
+        allow_during_reviewing: false,
+        allow_during_step_approved: false,
+        allow_during_expired: false,
+      }
     }
     setApprovalSteps([...approvalSteps, newStep])
   }
@@ -435,7 +671,8 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
         requesters: requesters,
         approval_steps: approvalSteps,
         priority: formData.priority,
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        flow_config: formData.flow_config
       }
       
 
@@ -569,6 +806,46 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                   placeholder="承認フローの説明を入力"
                   rows={3}
                 />
+              </div>
+              
+              {/* フロー設定 */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">フロー設定</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="allow_editing_after_request"
+                      checked={formData.flow_config.allow_editing_after_request}
+                      onCheckedChange={(checked) => setFormData(prev => ({ 
+                        ...prev, 
+                        flow_config: { 
+                          ...prev.flow_config, 
+                          allow_editing_after_request: checked 
+                        } 
+                      }))}
+                    />
+                    <Label htmlFor="allow_editing_after_request" className="text-sm">
+                      承認依頼後の編集を許可
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="allow_cancellation_after_request"
+                      checked={formData.flow_config.allow_cancellation_after_request}
+                      onCheckedChange={(checked) => setFormData(prev => ({ 
+                        ...prev, 
+                        flow_config: { 
+                          ...prev.flow_config, 
+                          allow_cancellation_after_request: checked 
+                        } 
+                      }))}
+                    />
+                    <Label htmlFor="allow_cancellation_after_request" className="text-sm">
+                      承認依頼後のキャンセルを許可
+                    </Label>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -859,6 +1136,13 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                           </Label>
                         </div>
                       )}
+                      
+                      {/* 詳細設定セクション */}
+                      <StepDetailSettings 
+                        step={step} 
+                        stepIndex={stepIndex} 
+                        onUpdate={updateApprovalStep} 
+                      />
                       
                       {/* 承認者設定 */}
                       <div className="space-y-3">

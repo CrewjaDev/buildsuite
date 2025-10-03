@@ -147,6 +147,31 @@ class EstimateApprovalService {
       throw new Error(errorMessage)
     }
   }
+
+  /**
+   * 審査開始
+   */
+  async startReviewing(approvalRequestId: string | number): Promise<ApprovalProcessResponse> {
+    try {
+      const response = await api.post(`/approval-requests/${approvalRequestId}/start-reviewing`)
+      return {
+        success: true,
+        message: response.data.message || '審査を開始しました',
+        data: response.data.data
+      }
+    } catch (error: unknown) {
+      console.error('審査開始エラー:', error)
+      
+      const errorMessage = (error && typeof error === 'object' && 'response' in error) 
+        ? (error as { response?: { data?: { message?: string; error?: string } } }).response?.data?.message || 
+          (error as { response?: { data?: { message?: string; error?: string } } }).response?.data?.error || 
+          '審査開始に失敗しました'
+        : '審査開始に失敗しました'
+      
+      throw new Error(errorMessage)
+    }
+  }
+
 }
 
 export const estimateApprovalService = new EstimateApprovalService()

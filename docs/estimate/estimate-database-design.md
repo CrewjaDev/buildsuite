@@ -14,29 +14,45 @@ CREATE TABLE estimates (
     partner_id BIGINT NOT NULL REFERENCES partners(id),               -- 取引先ID（外部キー）
     project_type_id BIGINT NOT NULL REFERENCES project_types(id),     -- 工事種別ID（外部キー）
     project_name VARCHAR(500) NOT NULL,                               -- 工事名称
-    project_location VARCHAR(500),                                    -- 工事場所
+    project_location TEXT,                                            -- 工事場所
     project_period_start DATE,                                        -- 工事期間開始日
     project_period_end DATE,                                          -- 工事期間終了日
     description TEXT,                                                 -- 工事内容詳細
     status VARCHAR(20) DEFAULT 'draft',                               -- 見積ステータス（draft/approved/rejected）
-    issue_date DATE NOT NULL,                                         -- 発行日
-    expiry_date DATE NOT NULL,                                        -- 有効期限
-    total_amount BIGINT DEFAULT 0,                                    -- 税抜見積金額
-    tax_rate DECIMAL(5,2) DEFAULT 10.0,                               -- 消費税率（%）
-    tax_amount BIGINT DEFAULT 0,                                      -- 消費税額
-    discount_amount BIGINT DEFAULT 0,                                 -- 割引額
-    final_amount BIGINT DEFAULT 0,                                    -- 合計金額（税込）
-    general_management_fee_rate DECIMAL(5,2) DEFAULT 8.5,             -- 一般管理費率（%）
-    overhead_cost_rate DECIMAL(5,2) DEFAULT 2.0,                      -- 原価経費率（%）
-    material_cost_rate DECIMAL(5,2) DEFAULT 1.5,                      -- 材料経費率（%）
+    issue_date DATE,                                                  -- 発行日
+    expiry_date DATE,                                                 -- 有効期限
+    currency VARCHAR(10) NOT NULL DEFAULT 'JPY',                      -- 通貨
+    subtotal NUMERIC DEFAULT 0,                                       -- 税抜見積金額
+    overhead_rate NUMERIC DEFAULT 0,                                  -- 一般管理費率（%）
+    overhead_amount NUMERIC DEFAULT 0,                                -- 一般管理費額
+    cost_expense_rate NUMERIC DEFAULT 0,                              -- 原価経費率（%）
+    cost_expense_amount NUMERIC DEFAULT 0,                            -- 原価経費額
+    material_expense_rate NUMERIC DEFAULT 0,                          -- 材料経費率（%）
+    material_expense_amount NUMERIC DEFAULT 0,                        -- 材料経費額
+    tax_rate NUMERIC DEFAULT 0.1,                                     -- 消費税率（%）
+    tax_amount NUMERIC DEFAULT 0,                                     -- 消費税額
+    discount_rate NUMERIC DEFAULT 0,                                  -- 割引率（%）
+    discount_amount NUMERIC DEFAULT 0,                                -- 割引額
+    total_amount NUMERIC DEFAULT 0,                                   -- 合計金額（税込）
+    profit_margin NUMERIC DEFAULT 0,                                  -- 利益率（%）
+    profit_amount NUMERIC DEFAULT 0,                                  -- 利益額
+    payment_terms TEXT,                                               -- 支払条件
+    delivery_terms TEXT,                                              -- 納期条件
+    warranty_period VARCHAR(255),                                     -- 保証期間
+    notes TEXT,                                                       -- 備考
     created_by BIGINT NOT NULL REFERENCES users(id),                  -- 作成者ID（外部キー）
     approved_by BIGINT REFERENCES users(id),                          -- 承認者ID（外部キー）
-    approved_at TIMESTAMP WITH TIME ZONE,                             -- 承認日時
-    remarks TEXT,                                                     -- 備考
-    is_active BOOLEAN DEFAULT true,                                   -- 有効フラグ
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,    -- 更新日時
-    deleted_at TIMESTAMP WITH TIME ZONE NULL                          -- 削除日時（ソフトデリート）
+    approved_at TIMESTAMP,                                            -- 承認日時
+    approval_request_id BIGINT,                                       -- 承認リクエストID
+    approval_status VARCHAR(20) DEFAULT 'draft',                      -- 承認ステータス
+    approval_flow_id BIGINT,                                          -- 承認フローID
+    tax_rate_id BIGINT,                                               -- 税率ID
+    visibility VARCHAR(20) DEFAULT 'private',                         -- 可視性
+    department_id BIGINT,                                             -- 部門ID
+    responsible_user_id BIGINT,                                       -- 責任者ID    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,                   -- 作成日時
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,                   -- 更新日時
+    deleted_at TIMESTAMP NULL                                         -- 削除日時（ソフトデリート）
 );
 ```
 
@@ -188,8 +204,28 @@ FOREIGN KEY (supplier_id) REFERENCES partners(id);
 - **partner_id**: 取引先ID（必須、外部キー）
 - **project_type_id**: 工事種別ID（必須、外部キー）
 - **status**: 見積ステータス（'draft': 下書き, 'approved': 承認済み, 'rejected': 却下）
-- **total_amount**: 税抜見積金額（内訳・明細の合計）
-- **final_amount**: 合計金額（税込、割引適用後）
+- **currency**: 通貨（デフォルト: 'JPY'）
+- **subtotal**: 税抜見積金額（内訳・明細の合計）
+- **total_amount**: 合計金額（税込、割引適用後）
+- **overhead_rate/amount**: 一般管理費率・額
+- **cost_expense_rate/amount**: 原価経費率・額
+- **material_expense_rate/amount**: 材料経費率・額
+- **profit_margin/amount**: 利益率・額
+- **payment_terms**: 支払条件
+- **delivery_terms**: 納期条件
+- **warranty_period**: 保証期間
+- **approval_request_id**: 承認リクエストID
+- **approval_status**: 承認ステータス
+- **approval_flow_id**: 承認フローID
+- **tax_rate_id**: 税率ID
+- **visibility**: 可視性（'private': 非公開, 'public': 公開）
+- **department_id**: 部門ID
+- **responsible_user_id**: 責任者ID
+- **created_by_department_id**: 作成時の部署ID（監査用）
+- **created_by_position_code**: 作成時の職位コード（監査用）
+- **created_by_system_level**: 作成時のシステム権限レベル（監査用）
+- **created_by_role**: 作成時の役割（監査用）
+- **created_by_snapshot**: 作成時のユーザー情報スナップショット（監査用）
 
 #### estimate_breakdowns テーブル
 - **breakdown_type**: 内訳種別（'large': 大内訳, 'medium': 中内訳, 'small': 小内訳）
@@ -252,6 +288,6 @@ FOREIGN KEY (supplier_id) REFERENCES partners(id);
 
 ---
 
-**最終更新日**: 2025年9月7日  
+**最終更新日**: 2025年1月27日  
 **更新者**: 開発チーム  
-**実装状況**: 完全実装完了
+**実装状況**: 完全実装完了（estimatesテーブル構造を実際のDBに同期、スナップショット機能追加）

@@ -57,24 +57,71 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
            userApprovalStatus?.can_act === true
   }
 
+  // 編集可能かどうかの判定
+  const canEdit = () => {
+    // ユーザー承認状態が存在し、編集権限がある場合
+    return userApprovalStatus && 
+           (userApprovalStatus.status === 'pending' || 
+            userApprovalStatus.status === 'not_started' ||
+            userApprovalStatus.status === 'rejected' ||
+            userApprovalStatus.status === 'returned')
+  }
+
   // ユーザー別承認状態バッジの取得
   const getUserApprovalStatusBadge = () => {
     if (!userApprovalStatus) return null
     
+    // 承認者本人の場合、審査中でない場合は承認待ちバッジを表示しない
+    if (userApprovalStatus.status === 'pending' && userApprovalStatus.can_act && userApprovalStatus.sub_status !== 'reviewing') {
+      return null
+    }
+    
+    // サブステータスに基づく表示ラベルの決定
+    const getStatusLabel = () => {
+      if (userApprovalStatus.status === 'pending') {
+        if (userApprovalStatus.sub_status === 'reviewing') {
+          // 審査中: 現在のステップ番号を表示
+          return userApprovalStatus.step && userApprovalStatus.total_steps 
+            ? `審査中 ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
+            : '審査中'
+        } else {
+          // 承認待ち: 完了したステップ数を表示
+          const completedSteps = Math.max(0, (userApprovalStatus.step || 1) - 1)
+          return userApprovalStatus.total_steps 
+            ? `承認待ち ${completedSteps}/${userApprovalStatus.total_steps}`
+            : '承認待ち'
+        }
+      }
+      
+      if (userApprovalStatus.status === 'finished') {
+        // 承認完了: 全ステップ完了を表示
+        return userApprovalStatus.total_steps 
+          ? `承認完了 ${userApprovalStatus.total_steps}/${userApprovalStatus.total_steps}`
+          : '承認完了'
+      }
+      
+      if (userApprovalStatus.status === 'not_started') {
+        return userApprovalStatus.step && userApprovalStatus.total_steps 
+          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}（未開始）`
+          : '承認待ち（未開始）'
+      }
+      
+      // その他の状態
+      return userApprovalStatus.step && userApprovalStatus.total_steps 
+        ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
+        : '承認待ち'
+    }
+
     const statusMap = {
       'completed': { label: '承認済み', variant: 'default' as const, icon: CheckCircle, color: 'bg-green-100 text-green-800' },
       'pending': { 
-        label: userApprovalStatus.step && userApprovalStatus.total_steps 
-          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
-          : '承認待ち', 
+        label: getStatusLabel(), 
         variant: 'default' as const, 
         icon: Clock, 
-        color: 'bg-yellow-100 text-yellow-800' 
+        color: userApprovalStatus.sub_status === 'reviewing' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
       },
       'not_started': { 
-        label: userApprovalStatus.step && userApprovalStatus.total_steps 
-          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}（未開始）`
-          : '承認待ち（未開始）', 
+        label: getStatusLabel(), 
         variant: 'outline' as const, 
         icon: Clock, 
         color: 'bg-gray-100 text-gray-600' 
@@ -100,6 +147,23 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
     setApprovalAction(action)
     setShowApprovalDialog(true)
   }
+
+  // 審査開始処理
+  const handleStartReviewing = async () => {
+    if (!estimate.approval_request_id) return
+    
+    try {
+      await estimateApprovalService.startReviewing(estimate.approval_request_id)
+      // ユーザー承認状態を再取得
+      const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+      setUserApprovalStatus(status)
+      onDataUpdate?.()
+    } catch (error) {
+      console.error('審査開始エラー:', error)
+      // エラーハンドリング（必要に応じてトースト通知など）
+    }
+  }
+
 
   // 承認処理完了時のコールバック
   const handleApprovalSuccess = async () => {
@@ -130,49 +194,65 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
             {/* 承認機能ボタン */}
             {canApprove() && (
               <div className="flex gap-2">
-                {/* 一時的な回避策: 権限が取得されていない場合は、承認状態のみで表示 */}
-                {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.approve') ? (
+                {userApprovalStatus?.sub_status === 'reviewing' ? (
+                  // 審査中: 承認・却下・差し戻しボタンを表示
+                  <>
+                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.approve') ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleApprovalAction('approve')}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        承認
+                      </Button>
+                    ) : null}
+                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.reject') ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleApprovalAction('reject')}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        却下
+                      </Button>
+                    ) : null}
+                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.return') ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleApprovalAction('return')}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        差し戻し
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  // 審査開始前: 審査開始ボタンのみ表示
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => handleApprovalAction('approve')}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={handleStartReviewing}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    承認
+                    審査開始
                   </Button>
-                ) : null}
-                {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.reject') ? (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleApprovalAction('reject')}
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    却下
-                  </Button>
-                ) : null}
-                {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.return') ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleApprovalAction('return')}
-                  >
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    差し戻し
-                  </Button>
-                ) : null}
+                )}
               </div>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowBasicInfoEditDialog(true)}
-              className="flex items-center gap-2"
-            >
-              <Edit className="h-4 w-4" />
-              編集
-            </Button>
+            {canEdit() && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBasicInfoEditDialog(true)}
+                className="flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                編集
+              </Button>
+            )}
           </div>
         </div>
         <CardContent className="pt-0">

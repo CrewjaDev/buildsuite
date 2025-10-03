@@ -308,7 +308,23 @@ class ApprovalFlowController extends Controller
                 'approval_steps.*.name' => 'string|max:255',
                 'approval_steps.*.approvers' => 'array|min:1',
                 'approval_steps.*.condition' => 'array',
-                'is_active' => 'boolean'
+                'is_active' => 'boolean',
+                // フロー設定の追加
+                'flow_config' => 'nullable|array',
+                'flow_config.allow_editing_after_request' => 'boolean',
+                'flow_config.allow_cancellation_after_request' => 'boolean',
+                'flow_config.step_settings' => 'nullable|array',
+                'flow_config.step_settings.step_*' => 'array',
+                'flow_config.step_settings.step_*.editing_conditions' => 'array',
+                'flow_config.step_settings.step_*.editing_conditions.allow_during_pending' => 'boolean',
+                'flow_config.step_settings.step_*.editing_conditions.allow_during_reviewing' => 'boolean',
+                'flow_config.step_settings.step_*.editing_conditions.allow_during_step_approved' => 'boolean',
+                'flow_config.step_settings.step_*.editing_conditions.allow_during_expired' => 'boolean',
+                'flow_config.step_settings.step_*.cancellation_conditions' => 'array',
+                'flow_config.step_settings.step_*.cancellation_conditions.allow_during_pending' => 'boolean',
+                'flow_config.step_settings.step_*.cancellation_conditions.allow_during_reviewing' => 'boolean',
+                'flow_config.step_settings.step_*.cancellation_conditions.allow_during_step_approved' => 'boolean',
+                'flow_config.step_settings.step_*.cancellation_conditions.allow_during_expired' => 'boolean'
             ]);
 
             if ($validator->fails()) {
@@ -328,7 +344,7 @@ class ApprovalFlowController extends Controller
 
             if (!$flow->is_system) {
                 $updateData = array_merge($updateData, $request->only([
-                    'flow_type', 'conditions', 'requesters', 'approval_steps'
+                    'flow_type', 'conditions', 'requesters', 'approval_steps', 'flow_config'
                 ]));
             }
 
