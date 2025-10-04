@@ -21,6 +21,7 @@ export default function UserDashboard({ user }: UserDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [approvalCounts, setApprovalCounts] = useState({
     pending: 0,
+    reviewing: 0,
     approved: 0,
     rejected: 0,
     returned: 0
@@ -185,7 +186,7 @@ export default function UserDashboard({ user }: UserDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Clock className="h-4 w-4 text-yellow-500" />
@@ -193,6 +194,16 @@ export default function UserDashboard({ user }: UserDashboardProps) {
                 </div>
                 <div className="text-2xl font-bold text-yellow-600">
                   {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.pending}
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-600">審査中</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.reviewing}
                 </div>
               </div>
               

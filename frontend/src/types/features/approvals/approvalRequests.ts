@@ -8,6 +8,7 @@ export interface ApprovalRequest {
   request_data?: Record<string, unknown>
   current_step: number
   status: 'pending' | 'approved' | 'rejected' | 'returned' | 'cancelled'
+  sub_status?: string | null
   priority: 'low' | 'normal' | 'high' | 'urgent'
   requested_by: number
   approved_by?: number
@@ -79,7 +80,9 @@ export interface ApprovalActionRequest {
 }
 
 export interface ApprovalRequestFilter {
+  user_view_status?: string
   status?: string[]
+  sub_status?: string
   request_type?: string[]
   priority?: string[]
   requested_by?: number[]

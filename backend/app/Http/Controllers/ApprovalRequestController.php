@@ -162,25 +162,14 @@ class ApprovalRequestController extends Controller
     public function approvalCounts(): JsonResponse
     {
         try {
-            $user = auth()->user();
-            
-            // 全ての承認依頼を一度に取得
-            $allRequests = ApprovalRequest::whereIn('status', ['pending', 'approved', 'rejected', 'returned'])
-                ->with('approvalFlow')
-                ->get();
-
+            // 統一メソッドを使用して件数を取得
             $counts = [
-                'pending' => 0,
-                'approved' => 0,
-                'rejected' => 0,
-                'returned' => 0
+                'pending' => $this->getApprovalRequestsByUserView('pending', true),
+                'reviewing' => $this->getApprovalRequestsByUserView('reviewing', true),
+                'approved' => $this->getApprovalRequestsByUserView('approved', true),
+                'rejected' => $this->getApprovalRequestsByUserView('rejected', true),
+                'returned' => $this->getApprovalRequestsByUserView('returned', true)
             ];
-
-            foreach ($allRequests as $request) {
-                if ($this->isUserApprover($user, $request->approvalFlow, $request->current_step)) {
-                    $counts[$request->status]++;
-                }
-            }
 
             return response()->json([
                 'success' => true,
@@ -205,7 +194,13 @@ class ApprovalRequestController extends Controller
         }
 
         $steps = $approvalFlow->approval_steps;
-        $step = collect($steps)->firstWhere('step', $currentStep);
+        
+        // ステップ番号は1から開始するため、配列のインデックスは currentStep - 1
+        if ($currentStep < 1 || $currentStep > count($steps)) {
+            return false;
+        }
+        
+        $step = $steps[$currentStep - 1];
         
         if (!$step || !isset($step['approvers'])) {
             return false;
@@ -213,15 +208,18 @@ class ApprovalRequestController extends Controller
         
         foreach ($step['approvers'] as $approver) {
             switch ($approver['type']) {
+                case 'user_id':
                 case 'user':
                     if ($approver['value'] == $user->id) return true;
                     break;
                 case 'system_level':
                     if ($approver['value'] == $user->system_level) return true;
                     break;
+                case 'department_id':
                 case 'department':
                     if ($user->employee && $approver['value'] == $user->employee->department_id) return true;
                     break;
+                case 'position_id':
                 case 'position':
                     if ($user->employee && $approver['value'] == $user->employee->position_id) return true;
                     break;
@@ -229,6 +227,99 @@ class ApprovalRequestController extends Controller
         }
         
         return false;
+    }
+
+    /**
+     * ユーザー視点でのフィルタリング
+     */
+    private function filterByUserView($requests, $user, $userViewStatus)
+    {
+        return array_filter($requests, function ($request) use ($user, $userViewStatus) {
+            switch ($userViewStatus) {
+                case 'pending':
+                    // 承認待ち: 自分が承認待ちの依頼
+                    return $request->status === 'pending' 
+                        && $request->sub_status === null
+                        && $this->isUserApprover($user, $request->approvalFlow, $request->current_step);
+
+                case 'reviewing':
+                    // 審査中: 自分が現在審査中の依頼
+                    return $request->status === 'pending' 
+                        && $request->sub_status === 'reviewing'
+                        && $this->isUserApprover($user, $request->approvalFlow, $request->current_step);
+
+                case 'approved':
+                    // 承認済み: 自分が承認した依頼
+                    if ($request->status === 'approved') {
+                        return true;
+                    }
+                    // 自分が承認したが、まだ全体が完了していない依頼
+                    if ($request->status === 'pending') {
+                        $hasApproved = \DB::table('approval_histories')
+                            ->where('approval_request_id', $request->id)
+                            ->where('acted_by', $user->id)
+                            ->where('action', 'approve')
+                            ->exists();
+                        
+                        \Log::info('Approved filter check', [
+                            'request_id' => $request->id,
+                            'user_id' => $user->id,
+                            'has_approved' => $hasApproved
+                        ]);
+                        
+                        return $hasApproved;
+                    }
+                    return false;
+
+                case 'rejected':
+                    // 却下: 却下された依頼
+                    return $request->status === 'rejected';
+
+                case 'returned':
+                    // 差戻し: 差戻しされた依頼
+                    return $request->status === 'returned';
+
+                default:
+                    return true;
+            }
+        });
+    }
+
+
+    /**
+     * 承認依頼の統一取得メソッド
+     * @param string $userViewStatus ユーザー視点のステータス
+     * @param bool $countOnly 件数のみ取得するかどうか
+     * @param array $options 追加オプション（ページネーション等）
+     */
+    private function getApprovalRequestsByUserView($userViewStatus, $countOnly = false, $options = [])
+    {
+        $user = auth()->user();
+        
+        // 全ての承認依頼を取得
+        $allRequests = ApprovalRequest::with(['approvalFlow', 'requestedBy.employee'])->get();
+        
+        // ユーザー視点でフィルタリング
+        $filteredRequests = $this->filterByUserView($allRequests->all(), $user, $userViewStatus);
+        
+        if ($countOnly) {
+            return count($filteredRequests);
+        }
+        
+        // ページネーション処理
+        $perPage = $options['per_page'] ?? 15;
+        $page = $options['page'] ?? 1;
+        $offset = ($page - 1) * $perPage;
+        
+        $paginatedData = array_slice($filteredRequests, $offset, $perPage);
+        
+        return [
+            'data' => $paginatedData,
+            'total' => count($filteredRequests),
+            'per_page' => $perPage,
+            'current_page' => $page,
+            'last_page' => ceil(count($filteredRequests) / $perPage)
+        ];
     }
 
     /**
@@ -240,7 +331,12 @@ class ApprovalRequestController extends Controller
             $user = auth()->user();
             $query = ApprovalRequest::with(['approvalFlow', 'requestedBy.employee']);
 
-            // ステータスでフィルタリング
+        // 承認者の視点でのフィルタリング
+        if ($request->has('user_view_status')) {
+            // user_view_statusが指定された場合は、基本的なフィルタリングのみ実行
+            // 詳細なフィルタリングは後でPHPで実行
+        } else {
+            // 従来のステータスフィルタリング（後方互換性のため）
             if ($request->has('status')) {
                 $status = $request->status;
                 if (is_array($status)) {
@@ -249,6 +345,17 @@ class ApprovalRequestController extends Controller
                     $query->where('status', $status);
                 }
             }
+
+            // サブステータスでフィルタリング
+            if ($request->has('sub_status')) {
+                $subStatus = $request->sub_status;
+                if ($subStatus === 'null') {
+                    $query->whereNull('sub_status');
+                } else {
+                    $query->where('sub_status', $subStatus);
+                }
+            }
+        }
 
             // リクエストタイプでフィルタリング
             if ($request->has('request_type')) {
@@ -316,6 +423,15 @@ class ApprovalRequestController extends Controller
                 } else {
                     $item->requester_name = $item->requestedBy ? $item->requestedBy->login_id : '不明';
                 }
+            }
+
+            // 承認者の視点でのフィルタリングを適用
+            if ($request->has('user_view_status')) {
+                $userViewStatus = $request->user_view_status;
+                $formattedData = $this->filterByUserView($formattedData, $user, $userViewStatus);
+                
+                // シンプルにコレクションを更新
+                $requests->setCollection(collect($formattedData));
             }
 
             return response()->json([

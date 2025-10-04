@@ -32,22 +32,38 @@ export default function ApprovalListPage() {
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
   const [activeTab, setActiveTab] = useState('pending')
+  const [tabCounts, setTabCounts] = useState({
+    pending: 0,
+    reviewing: 0,
+    approved: 0,
+    rejected: 0,
+    returned: 0
+  })
   const { addToast } = useToast()
 
   const fetchRequests = useCallback(async (status: string) => {
     try {
       setLoading(true)
+      
       const response = await approvalRequestService.getApprovalRequests({
         page: 1,
         per_page: 100,
         filter: {
-          status: [status],
+          user_view_status: status,
           request_type: typeFilter === 'all' ? undefined : [typeFilter],
           priority: priorityFilter === 'all' ? undefined : [priorityFilter]
         },
         sort: `${sortBy}:${sortOrder}`
       })
-      setRequests(response.data)
+      // APIレスポンスの構造を確認して適切に処理
+      if (Array.isArray(response.data)) {
+        setRequests(response.data)
+      } else if (response.data && typeof response.data === 'object') {
+        // オブジェクト形式の場合、値を配列に変換
+        setRequests(Object.values(response.data))
+      } else {
+        setRequests([])
+      }
     } catch (error) {
       console.error(`${status}一覧の取得に失敗しました:`, error)
       addToast({
@@ -60,9 +76,23 @@ export default function ApprovalListPage() {
     }
   }, [typeFilter, priorityFilter, sortBy, sortOrder, addToast])
 
+  const fetchTabCounts = useCallback(async () => {
+    try {
+      // 既存のapprovalCountsエンドポイントを使用
+      const response = await approvalRequestService.getAllCounts()
+      setTabCounts(response)
+    } catch (error) {
+      console.error('タブ件数の取得に失敗しました:', error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchRequests(activeTab)
   }, [fetchRequests, activeTab])
+
+  useEffect(() => {
+    fetchTabCounts()
+  }, [fetchTabCounts])
 
   const handleViewDetail = (request: ApprovalRequest) => {
     // 関連業務の詳細ページへ遷移
@@ -85,9 +115,13 @@ export default function ApprovalListPage() {
     }
   }
 
-  const getStatusBadge = (requestStatus: string) => {
+  const getStatusBadge = (requestStatus: string, subStatus?: string) => {
     const statusConfig = {
-      pending: { label: '承認待ち', variant: 'default' as const, icon: Clock },
+      pending: { 
+        label: subStatus === 'reviewing' ? '審査中' : '承認待ち', 
+        variant: 'default' as const, 
+        icon: subStatus === 'reviewing' ? Eye : Clock 
+      },
       approved: { label: '承認済み', variant: 'default' as const, icon: CheckCircle },
       rejected: { label: '却下', variant: 'destructive' as const, icon: XCircle },
       returned: { label: '差し戻し', variant: 'secondary' as const, icon: RotateCcw },
@@ -145,6 +179,7 @@ export default function ApprovalListPage() {
   const getTabTitle = (status: string) => {
     const titles = {
       pending: '承認待ち',
+      reviewing: '審査中',
       approved: '承認済み',
       rejected: '却下',
       returned: '差戻し'
@@ -155,6 +190,7 @@ export default function ApprovalListPage() {
   const getTabIcon = (status: string) => {
     const icons = {
       pending: Clock,
+      reviewing: Eye,
       approved: CheckCircle,
       rejected: XCircle,
       returned: RotateCcw
@@ -165,6 +201,7 @@ export default function ApprovalListPage() {
   const getTabIconColor = (status: string) => {
     const colors = {
       pending: 'text-yellow-500',
+      reviewing: 'text-blue-500',
       approved: 'text-green-500',
       rejected: 'text-red-500',
       returned: 'text-orange-500'
@@ -220,7 +257,7 @@ export default function ApprovalListPage() {
                       <p className="text-sm text-gray-600 mt-1">{request.description}</p>
                     )}
                     <div className="flex items-center gap-2 mt-2">
-                      {getStatusBadge(request.status)}
+                      {getStatusBadge(request.status, request.sub_status || undefined)}
                       {getPriorityBadge(request.priority)}
                       <Badge variant="outline">
                         {getTypeLabel(request.request_type)}
@@ -277,7 +314,10 @@ export default function ApprovalListPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => fetchRequests(activeTab)}
+            onClick={() => {
+              fetchRequests(activeTab)
+              fetchTabCounts()
+            }}
             disabled={loading}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : '更新'}
@@ -352,22 +392,41 @@ export default function ApprovalListPage() {
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="border-b">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="pending" className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-yellow-500" />
                   承認待ち
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tabCounts.pending}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="reviewing" className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-blue-500" />
+                  審査中
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tabCounts.reviewing}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="approved" className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   承認済み
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tabCounts.approved}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="rejected" className="flex items-center gap-2">
                   <XCircle className="h-4 w-4 text-red-500" />
                   却下
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tabCounts.rejected}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="returned" className="flex items-center gap-2">
                   <RotateCcw className="h-4 w-4 text-orange-500" />
                   差戻し
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tabCounts.returned}
+                  </Badge>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -376,6 +435,13 @@ export default function ApprovalListPage() {
               <TabsContent value="pending">
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold">承認待ち一覧 ({filteredRequests.length}件)</h3>
+                </div>
+                {renderRequestList()}
+              </TabsContent>
+              
+              <TabsContent value="reviewing">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold">審査中一覧 ({filteredRequests.length}件)</h3>
                 </div>
                 {renderRequestList()}
               </TabsContent>

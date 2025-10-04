@@ -48,6 +48,7 @@ class ApprovalRequestService {
    */
   async getAllCounts(): Promise<{
     pending: number
+    reviewing: number
     approved: number
     rejected: number
     returned: number
@@ -75,7 +76,9 @@ class ApprovalRequestService {
     // フィルターパラメータを展開
     if (params?.filter) {
       const { filter } = params
+      if (filter.user_view_status) apiParams.user_view_status = filter.user_view_status
       if (filter.status) apiParams.status = filter.status
+      if (filter.sub_status) apiParams.sub_status = filter.sub_status
       if (filter.request_type) apiParams.request_type = filter.request_type
       if (filter.priority) apiParams.priority = filter.priority
       if (filter.requested_by) apiParams.requested_by = filter.requested_by

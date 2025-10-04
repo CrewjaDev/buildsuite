@@ -132,3 +132,127 @@ created_at / updated_at	timestamp	    作成・更新日時
   100万円超のレコードは条件を満たさないため承認不可
 
   👉 ABAC = 「部屋の中のどの棚を開けてよいか」
+
+
+
+## ABAC の AccessPolicy は「どのデータへのどんな種類の操作を許すか」を条件付きで設定できる仕組みです。
+
+一覧閲覧（list）のほかにも、業務上よく使うさまざまなアクセス種類を制御対象にできます。
+
+🔑 ABACで制御できる主な「アクセス種類」
+
+AccessPolicy の action カラムに指定するイメージです。
+
+アクセス種類 (action)	            用途例	                        ABACでの制御ポイント
+list（一覧表示）        	    画面やAPIでレコード一覧を取得	     検索結果をユーザ属性・データ属性でフィルタ（例：自部署の見積のみ表示）
+read / view（詳細閲覧）	      1件のレコードを開いて参照	         Confidentialタグや部署で閲覧可否を制限
+create（作成）	              新規レコード登録	                作成先プロジェクトや顧客の制限（例：特定プロジェクトのみ作成可）
+update / edit（編集）       	既存レコードの更新	               承認済みは編集不可、自分が作成したもののみ可 など
+delete / soft_delete（削除）	レコード削除                    	管理者のみ許可、承認済みは削除不可 など
+approve / return /
+ reject / cancel（承認系）	  承認フローの操作	                金額しきい値・承認ステップ・自部署の案件のみ など
+export / download / print	   CSVエクスポートや印刷出力	        機密案件はダウンロード不可 など
+share / visibility_change	   外部共有・公開範囲変更	            権限を持つ部門だけ共有可能 など
+archive / restore	           アーカイブ化や復元	                過去年度データを経理部のみ参照 など
+audit.read / history.read    監査ログや履歴の閲覧	              監査ロールだけ許可 など
+
+🌟 見積モジュールでの具体例
+
+一覧閲覧（list）
+　営業は自部署の見積だけ表示、経理は承認済みのみ表示
+　scope=department:selfDept, condition=status IN['approved','requesting']
+
+詳細閲覧（read）
+　Confidential案件は管理職以上のみ
+　condition=visibility IN['public','internal']
+
+編集（update）
+　承認済みは編集不可、自分が作成した草案のみ編集可
+　condition=status='draft' AND created_by=user.id
+
+承認（approve）
+　課長は100万以下のみ、自部署のみ
+　scope=department:selfDept, condition=total_amount<=1000000
+
+エクスポート（export）
+　承認済みデータだけCSV出力可
+　condition=status='approved'
+
+🔎 まとめ
+
+ABAC は「一覧」「詳細」「編集」「削除」「承認」「エクスポート」などデータに対するあらゆる操作に対して設定可能。
+
+特に業務システムでは list と read のフィルタリングがもっとも効果的で、表示段階で不要データを除外できます。
+
+action を適切に設計しておくと、モジュールごとに再利用しやすくなります。
+
+👉 一覧制限は入り口に過ぎず、あらゆるアクションを条件で細かく制御できるのが ABAC の強みです。
+
+
+## 複数の組み合わせを表現できる
+
+  AccessPolicy の scope と condition を組み合わせることで、複数の条件を表現できます。
+
+📝 例：見積の削除ルール
+
+要件：
+
+管理者はすべて削除できる
+
+作成者本人は status='draft' のときのみ削除可
+
+承認済み(status='approved')は誰も削除不可
+
+1. 管理者向けポリシー
+カラム	値
+resource_type	estimate
+action	delete
+scope	organization（全体）
+condition	status != 'approved'
+attached_to_type	role
+attached_to_id	uuid(管理者ロール)
+enabled	true
+
+👉 管理者は承認済み以外のレコードを削除できる
+
+2. 作成者向けポリシー
+カラム	値
+resource_type	estimate
+action	delete
+scope	self（自分が作成したレコード）
+condition	status = 'draft'
+attached_to_type	user（または全ユーザ共通なら全体ロール）
+attached_to_id	ALL など
+enabled	true
+
+👉 作成者は自分の草案のみ削除できる
+
+3. 承認済みの扱い
+
+どのポリシーにも status='approved' を許容条件に含めていないため、
+👉 承認済みは どのユーザでも削除不可（デフォルト拒否）
+
+🔑 複数ポリシーの評価方法
+
+ユーザに適用されるすべてのポリシーを取得
+
+scope は合成（交差 ∩）し、condition は論理積（AND）
+
+少なくとも 1 つのポリシーがレコードを包含していれば許可
+　※今回の例では 作成者ポリシー OR 管理者ポリシー でカバー
+
+💡 実装メモ
+
+OR 条件を作るには → 複数ポリシーとして登録し、評価時に「いずれか満たせばOK」 とする
+
+AND 条件を作るには → 同じポリシー内の condition に複数条件を書く
+
+✅ まとめ
+
+AccessPolicy はレコード削除などにも柔軟に対応できます。
+
+管理者用ポリシー
+
+作成者用ポリシー
+のように複数行登録すれば OR 条件が実現でき、
+さらに各ポリシー内で AND 条件を組み合わせて詳細な制約を記述できます。
