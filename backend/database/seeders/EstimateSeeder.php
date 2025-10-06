@@ -34,10 +34,10 @@ class EstimateSeeder extends Seeder
         $user = \App\Models\User::first();
         if (!$user) {
             $user = \App\Models\User::create([
-                'employee_id' => 'TEST001',
-                'name' => 'テストユーザー',
-                'email' => 'test@example.com',
+                'login_id' => 'test001',
+                'employee_id' => 1, // 既存のemployee_idを参照
                 'password' => bcrypt('password'),
+                'system_level' => 'staff',
                 'is_active' => true,
             ]);
         }
@@ -46,8 +46,9 @@ class EstimateSeeder extends Seeder
         $employee = \App\Models\Employee::first();
         if (!$employee) {
             $employee = \App\Models\Employee::create([
-                'employee_id' => 'TEST001',
+                'employee_id' => 'EMP001',
                 'name' => 'テストユーザー',
+                'name_kana' => 'テストユーザー',
                 'email' => 'test@example.com',
                 'is_active' => true,
             ]);
@@ -84,7 +85,7 @@ class EstimateSeeder extends Seeder
                 'currency' => 'JPY',
                 'payment_terms' => '着工時30%、中間30%、完成時40%',
                 'notes' => '標準仕様での見積もりです。オプション追加の場合は別途見積もりいたします。',
-                'created_by' => $employee->id,
+                'created_by' => $user->id,
             ],
             [
                 'estimate_number' => 'EST-2024-002',
@@ -114,7 +115,7 @@ class EstimateSeeder extends Seeder
                 'currency' => 'JPY',
                 'payment_terms' => '契約時50%、完成時50%',
                 'notes' => '工期：3ヶ月、平日のみ施工',
-                'created_by' => $employee->id,
+                'created_by' => $user->id,
             ],
             [
                 'estimate_number' => 'EST-2024-003',
@@ -141,7 +142,7 @@ class EstimateSeeder extends Seeder
                 'currency' => 'JPY',
                 'payment_terms' => '着工時40%、完成時60%',
                 'notes' => 'デザイン重視の内装工事。材料費は別途実費精算',
-                'created_by' => $employee->id,
+                'created_by' => $user->id,
             ],
             [
                 'estimate_number' => 'EST-2024-004',
@@ -168,7 +169,7 @@ class EstimateSeeder extends Seeder
                 'currency' => 'JPY',
                 'payment_terms' => '契約時30%、設備到着時40%、完成時30%',
                 'notes' => '大型設備のため、設置場所の事前確認が必要です。',
-                'created_by' => $employee->id,
+                'created_by' => $user->id,
             ],
             [
                 'estimate_number' => 'EST-2024-005',
@@ -195,7 +196,7 @@ class EstimateSeeder extends Seeder
                 'currency' => 'JPY',
                 'payment_terms' => '着工時50%、完成時50%',
                 'notes' => '足場設置費用は別途見積もり。住民への事前説明が必要。',
-                'created_by' => $employee->id,
+                'created_by' => $user->id,
             ],
         ];
 

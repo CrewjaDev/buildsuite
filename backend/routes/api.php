@@ -7,6 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\AccessPolicyController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SystemLevelController;
@@ -130,6 +131,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/permissions', [RoleController::class, 'addPermissions']);
         Route::delete('/{id}/permissions', [RoleController::class, 'removePermissions']);
         Route::get('/{id}/usage', [RoleController::class, 'usage']);
+    });
+
+    // ABACポリシー管理
+    Route::prefix('access-policies')->group(function () {
+        Route::get('/', [AccessPolicyController::class, 'index']);
+        Route::get('/options', [AccessPolicyController::class, 'getOptions']);
+        Route::post('/', [AccessPolicyController::class, 'store']);
+        Route::get('/{id}', [AccessPolicyController::class, 'show']);
+        Route::put('/{id}', [AccessPolicyController::class, 'update']);
+        Route::delete('/{id}', [AccessPolicyController::class, 'destroy']);
+        Route::post('/test-conditions', [AccessPolicyController::class, 'testConditions']);
     });
 
     // 部署管理

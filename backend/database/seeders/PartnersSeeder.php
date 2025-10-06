@@ -21,10 +21,10 @@ class PartnersSeeder extends Seeder
         $user = User::first();
         if (!$user) {
             $user = User::create([
-                'employee_id' => 'TEST001',
-                'name' => 'テストユーザー',
-                'email' => 'test@example.com',
+                'login_id' => 'test001',
+                'employee_id' => 1, // 既存のemployee_idを参照
                 'password' => bcrypt('password'),
+                'system_level' => 'staff',
                 'is_active' => true,
             ]);
         }

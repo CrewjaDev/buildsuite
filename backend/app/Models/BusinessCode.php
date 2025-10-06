@@ -52,6 +52,16 @@ class BusinessCode extends Model
     }
 
     /**
+     * ビジネスコードに紐づくABACポリシーとのリレーション
+     */
+    public function accessPolicies(): BelongsToMany
+    {
+        return $this->belongsToMany(AccessPolicy::class, 'business_code_access_policies')
+            ->withPivot(['is_active'])
+            ->withTimestamps();
+    }
+
+    /**
      * デフォルト権限のみを取得するスコープ
      */
     public function scopeDefaultPermissions($query)

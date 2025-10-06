@@ -22,7 +22,7 @@ class UserRoleSeeder extends Seeder
         if ($adminUser && $systemManagerRole) {
             $adminUser->roles()->attach($systemManagerRole->id, [
                 'assigned_at' => now(),
-                'assigned_by' => 1,
+                'assigned_by' => 2,
                 'is_active' => true
             ]);
         }
@@ -34,7 +34,7 @@ class UserRoleSeeder extends Seeder
         if ($yamadaUser && $salesManagerRole) {
             $yamadaUser->roles()->attach($salesManagerRole->id, [
                 'assigned_at' => now(),
-                'assigned_by' => 1,
+                'assigned_by' => 2,
                 'is_active' => true
             ]);
         }
@@ -46,7 +46,7 @@ class UserRoleSeeder extends Seeder
         if ($satoUser && $salesStaffRole) {
             $satoUser->roles()->attach($salesStaffRole->id, [
                 'assigned_at' => now(),
-                'assigned_by' => 1,
+                'assigned_by' => 2,
                 'is_active' => true
             ]);
         }
@@ -58,7 +58,7 @@ class UserRoleSeeder extends Seeder
         if ($constructionUser && $constructionStaffRole) {
             $constructionUser->roles()->attach($constructionStaffRole->id, [
                 'assigned_at' => now(),
-                'assigned_by' => 1,
+                'assigned_by' => 2,
                 'is_active' => true
             ]);
         }
@@ -70,7 +70,7 @@ class UserRoleSeeder extends Seeder
         if ($accountingUser && $accountingManagerRole) {
             $accountingUser->roles()->attach($accountingManagerRole->id, [
                 'assigned_at' => now(),
-                'assigned_by' => 1,
+                'assigned_by' => 2,
                 'is_active' => true
             ]);
         }
@@ -131,7 +131,7 @@ class UserRoleSeeder extends Seeder
             if ($role && !$employee->user->roles()->where('role_id', $role->id)->exists()) {
                 $employee->user->roles()->attach($role->id, [
                     'assigned_at' => now(),
-                    'assigned_by' => 1,
+                    'assigned_by' => 2,
                     'is_active' => true
                 ]);
             }

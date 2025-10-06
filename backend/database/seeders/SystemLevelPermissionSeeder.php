@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use App\Models\SystemLevel;
 use App\Models\Permission;
 
@@ -14,6 +15,9 @@ class SystemLevelPermissionSeeder extends Seeder
      */
     public function run(): void
     {
+        // 既存のシステムレベル権限をクリア
+        DB::table('system_level_permissions')->truncate();
+        
         // 上長以上に承認権限を付与
         $supervisorLevel = SystemLevel::where('code', 'supervisor')->first();
         if ($supervisorLevel) {
@@ -28,7 +32,7 @@ class SystemLevelPermissionSeeder extends Seeder
             
             $supervisorLevel->permissions()->attach($approvalPermissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1 // システム管理者のID
+                'granted_by' => 2 // システム管理者のID
             ]);
         }
         
@@ -48,7 +52,7 @@ class SystemLevelPermissionSeeder extends Seeder
             
             $executiveLevel->permissions()->attach($finalApprovalPermissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
         
@@ -59,7 +63,7 @@ class SystemLevelPermissionSeeder extends Seeder
             
             $systemAdminLevel->permissions()->attach($allPermissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
         
@@ -75,7 +79,7 @@ class SystemLevelPermissionSeeder extends Seeder
             
             $staffLevel->permissions()->attach($basicPermissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
     }

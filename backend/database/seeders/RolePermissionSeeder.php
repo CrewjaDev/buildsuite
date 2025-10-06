@@ -41,7 +41,7 @@ class RolePermissionSeeder extends Seeder
             
             $accountingManager->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -61,7 +61,7 @@ class RolePermissionSeeder extends Seeder
             
             $accountingStaff->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -81,7 +81,7 @@ class RolePermissionSeeder extends Seeder
             
             $officeManager->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -95,7 +95,7 @@ class RolePermissionSeeder extends Seeder
             
             $officeStaff->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -126,7 +126,7 @@ class RolePermissionSeeder extends Seeder
             
             $constructionManager->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -146,7 +146,7 @@ class RolePermissionSeeder extends Seeder
             
             $constructionStaff->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -168,7 +168,7 @@ class RolePermissionSeeder extends Seeder
             
             $estimatorSenior->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -185,7 +185,7 @@ class RolePermissionSeeder extends Seeder
             
             $estimator->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -210,7 +210,7 @@ class RolePermissionSeeder extends Seeder
             
             $salesManager->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -230,7 +230,7 @@ class RolePermissionSeeder extends Seeder
             
             $salesStaff->permissions()->attach($permissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
 
@@ -241,7 +241,7 @@ class RolePermissionSeeder extends Seeder
             
             $systemManager->permissions()->attach($allPermissions->pluck('id'), [
                 'granted_at' => now(),
-                'granted_by' => 1
+                'granted_by' => 2
             ]);
         }
     }

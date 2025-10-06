@@ -15,20 +15,39 @@ class DatabaseSeeder extends Seeder
         
         // 必須のseederを実行順序で実行
         $this->call([
-            // 1. 権限マスタの作成（ビジネスコードより先に必要）
+            // 1. 基本マスタデータ
+            TaxRateSeeder::class,
+            DepartmentSeeder::class,
+            PositionSeeder::class,
+            RoleSeeder::class,
+            
+            // 2. ユーザー・社員データ
+            UserSeeder::class,
+            
+            // 3. 権限マスタの作成（ビジネスコードより先に必要）
             PermissionSeeder::class,
             
-            // 2. ビジネスコードの初期設定（必須）
+            // 4. ビジネスコードの初期設定（必須）
             BusinessCodeSeeder::class,
             
-            // 3. システム権限レベルの初期設定
+            // 5. システム権限レベルの初期設定
             SystemLevelSeeder::class,
+            SystemLevelPermissionSeeder::class,
             
-            // 4. その他のseeder
-            // UserSeeder::class,
-            // RoleSeeder::class,
-            // DepartmentSeeder::class,
-            // PositionSeeder::class,
+            // 6. 権限設定
+            RolePermissionSeeder::class,
+            UserRoleSeeder::class,
+            
+            // 7. その他のマスタデータ
+            ProjectTypesSeeder::class,
+            PartnersSeeder::class,
+            ConstructionClassificationsSeeder::class,
+            PermissionCategorySeeder::class,
+            
+            // 8. テストデータ
+            EstimateSeeder::class,
+            AccessPolicySeeder::class,
+            ApprovalFlowSeeder::class,
         ]);
         
         $this->command->info('データベースの初期設定が完了しました。');

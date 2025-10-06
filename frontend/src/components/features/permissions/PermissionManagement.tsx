@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Building, Briefcase, User, Layers, Settings } from 'lucide-react'
+import { Users, Building, Briefcase, User, Layers, Settings, Shield } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 // 各タブのコンポーネント（後で実装）
@@ -15,6 +15,7 @@ import PositionPermissionManagement from './PositionPermissionManagement'
 import UserPermissionManagement from './UserPermissionManagement'
 import PermissionHierarchyView from './PermissionHierarchyView'
 import BusinessCodeManagement from '../business/BusinessCodeManagement'
+import ABACPolicyManagement from './ABACPolicyManagement'
 
 export default function PermissionManagement() {
   const [activeTab, setActiveTab] = useState('business-codes')
@@ -93,6 +94,12 @@ export default function PermissionManagement() {
       label: '権限階層表示',
       icon: Layers,
       component: PermissionHierarchyView
+    },
+    {
+      id: 'abac-policies',
+      label: 'ABACポリシー',
+      icon: Shield,
+      component: ABACPolicyManagement
     }
   ]
 
@@ -108,7 +115,7 @@ export default function PermissionManagement() {
       <Card>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               {tabs.map((tab) => {
                 const Icon = tab.icon
                 return (

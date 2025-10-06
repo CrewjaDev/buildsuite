@@ -80,6 +80,9 @@ class ApprovalFlowSeeder extends Seeder
         $constructionEmployee = Employee::firstOrCreate(
             ['employee_id' => 'CONST001'],
             [
+                'name' => '工事部テストユーザー',
+                'name_kana' => 'コウジブテストユーザー',
+                'email' => 'construction@example.com',
                 'department_id' => 3, // 工事部
                 'position_id' => 2, // 担当
             ]

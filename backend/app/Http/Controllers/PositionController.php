@@ -134,7 +134,7 @@ class PositionController extends Controller
                 foreach ($request->permission_ids as $permissionId) {
                     $permissionData[$permissionId] = [
                         'granted_at' => now(),
-                        'granted_by' => auth()->id(),
+                        'granted_by' => auth()->id() ?? 2,
                     ];
                 }
                 $position->permissions()->attach($permissionData);
@@ -210,7 +210,7 @@ class PositionController extends Controller
                     foreach ($request->permission_ids as $permissionId) {
                         $permissionData[$permissionId] = [
                             'granted_at' => now(),
-                            'granted_by' => auth()->id(),
+                            'granted_by' => auth()->id() ?? 2,
                         ];
                     }
                     $position->permissions()->attach($permissionData);

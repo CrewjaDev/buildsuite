@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('business_codes', function (Blueprint $table) {
+        if (!Schema::hasTable('business_codes')) {
+            Schema::create('business_codes', function (Blueprint $table) {
             $table->id();
             $table->string('code', 50)->unique();
             $table->string('name', 100);
@@ -30,7 +31,8 @@ return new class extends Migration
             $table->index('is_system');
             $table->index('is_core');
             $table->index('is_active');
-        });
+            });
+        }
     }
 
     /**

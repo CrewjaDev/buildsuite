@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('approval_histories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('approval_request_id')->constrained('approval_requests')->onDelete('cascade');
-            $table->foreignId('approval_step_id')->nullable()->constrained('approval_steps')->onDelete('set null');
+            $table->integer('step')->nullable()->comment('ステップ番号（1-5）');
             $table->string('action', 20); // approve, reject, return, cancel, delegate
             $table->foreignId('acted_by')->constrained('users')->onDelete('cascade');
             $table->timestamp('acted_at')->useCurrent();
@@ -28,7 +28,7 @@ return new class extends Migration
             
             // インデックス
             $table->index('approval_request_id');
-            $table->index('approval_step_id');
+            $table->index('step');
             $table->index('action');
             $table->index('acted_by');
             $table->index('acted_at');

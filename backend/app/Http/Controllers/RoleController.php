@@ -28,13 +28,190 @@ class RoleController extends Controller
     }
 
     /**
+     * 役割を作成
+     */
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            // バリデーション
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:100|unique:roles,name',
+                'display_name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'priority' => 'required|integer|min:0|max:100',
+                'is_active' => 'boolean',
+                'permission_ids' => 'nullable|array',
+                'permission_ids.*' => 'exists:permissions,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // 役割を作成
+            $roleData = $request->except(['permission_ids']);
+            $role = Role::create($roleData);
+
+            // 権限を割り当て
+            if ($request->filled('permission_ids')) {
+                $permissionData = [];
+                foreach ($request->permission_ids as $permissionId) {
+                    $permissionData[$permissionId] = [
+                        'granted_at' => now(),
+                        'granted_by' => auth()->id() ?? 2, // デフォルトでシステム管理者
+                    ];
+                }
+                $role->permissions()->attach($permissionData);
+            }
+
+            // 作成された役割を取得
+            $role->load(['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => '役割が正常に作成されました',
+                'data' => $this->formatRoleData($role),
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '役割の作成中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * 役割を更新
+     */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        try {
+            $role = Role::find($id);
+
+            if (!$role) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '役割が見つかりません',
+                ], 404);
+            }
+
+            // バリデーション
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:100|unique:roles,name,' . $id,
+                'display_name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'priority' => 'required|integer|min:0|max:100',
+                'is_active' => 'boolean',
+                'permission_ids' => 'nullable|array',
+                'permission_ids.*' => 'exists:permissions,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'バリデーションエラー',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // 役割を更新
+            $roleData = $request->except(['permission_ids']);
+            $role->update($roleData);
+
+            // 権限を更新
+            if ($request->has('permission_ids')) {
+                // 既存の権限を削除
+                $role->permissions()->detach();
+                
+                // 新しい権限を割り当て
+                if (!empty($request->permission_ids)) {
+                    $permissionData = [];
+                    foreach ($request->permission_ids as $permissionId) {
+                        $permissionData[$permissionId] = [
+                            'granted_at' => now(),
+                            'granted_by' => auth()->id() ?? 2, // デフォルトでシステム管理者
+                        ];
+                    }
+                    $role->permissions()->attach($permissionData);
+                }
+            }
+
+            // 更新された役割を取得
+            $role->load(['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => '役割が正常に更新されました',
+                'data' => $this->formatRoleData($role),
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '役割の更新中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * 役割を削除
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        try {
+            $role = Role::find($id);
+
+            if (!$role) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '役割が見つかりません',
+                ], 404);
+            }
+
+            // 使用中の役割は削除できない
+            $userCount = $role->users()->count();
+            if ($userCount > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "この役割は{$userCount}人のユーザーに割り当てられているため削除できません",
+                ], 400);
+            }
+
+            // 権限の関連を削除
+            $role->permissions()->detach();
+            
+            // 役割を削除
+            $role->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => '役割が正常に削除されました',
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '役割の削除中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * 特定の役割を取得
      */
     public function show(Role $role): JsonResponse
     {
         return response()->json([
             'success' => true,
-            'data' => $role
+            'data' => $this->formatRoleData($role->load(['permissions']))
         ]);
     }
 

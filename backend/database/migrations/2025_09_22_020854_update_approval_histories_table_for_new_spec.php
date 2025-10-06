@@ -12,16 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('approval_histories', function (Blueprint $table) {
-            // approval_step_idを削除し、stepカラムを追加
-            $table->dropForeign(['approval_step_id']);
-            $table->dropColumn('approval_step_id');
-            $table->integer('step')->after('approval_request_id')->comment('ステップ番号（1-5）');
-        });
-        
+        // approval_step_idは既に削除され、stepカラムは既に存在するので、インデックスのみ更新
         // インデックスの更新（存在チェック付き）
         DB::statement('DROP INDEX IF EXISTS approval_histories_approval_step_id_index');
-        DB::statement('CREATE INDEX idx_approval_histories_step ON approval_histories (step)');
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_approval_histories_step ON approval_histories (step)');
     }
 
     /**
@@ -29,12 +23,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('approval_histories', function (Blueprint $table) {
-            // stepカラムを削除し、approval_step_idを復元
-            $table->dropIndex('idx_approval_histories_step');
-            $table->dropColumn('step');
-            $table->foreignId('approval_step_id')->nullable()->constrained('approval_steps')->onDelete('set null');
-            $table->index('approval_step_id');
-        });
+        // approval_stepsテーブルが削除されているため、完全なロールバックは不可能
+        // インデックスのみ削除
+        DB::statement('DROP INDEX IF EXISTS idx_approval_histories_step');
+        DB::statement('CREATE INDEX IF EXISTS approval_histories_approval_step_id_index ON approval_histories (approval_step_id)');
     }
 };
