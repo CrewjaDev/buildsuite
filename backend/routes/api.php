@@ -8,6 +8,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AccessPolicyController;
+use App\Http\Controllers\PolicyTemplateController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SystemLevelController;
@@ -147,6 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // 部署管理
     Route::prefix('departments')->group(function () {
         Route::get('/', [DepartmentController::class, 'index']);
+        Route::get('/list', [DepartmentController::class, 'getList']); // ポリシー作成用
         Route::get('/tree', [DepartmentController::class, 'tree']);
         Route::get('/options', [DepartmentController::class, 'getOptions']);
         Route::post('/', [DepartmentController::class, 'store']);
@@ -367,6 +369,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('business-codes/{entityType}/{entityId}/{businessCode}/permission-status', [BusinessCodeController::class, 'getBusinessCodePermissionStatus']);
     Route::post('business-codes/{entityType}/{entityId}/{businessCode}/permissions', [BusinessCodeController::class, 'setBusinessCodePermissions']);
     Route::get('business-codes/{businessCode}/permissions/{category}', [BusinessCodeController::class, 'getPermissionsByCategory']);
+});
+
+// ポリシーテンプレート管理
+Route::prefix('policy-templates')->group(function () {
+    Route::get('/', [PolicyTemplateController::class, 'index']);
+    Route::get('/categories', [PolicyTemplateController::class, 'getCategories']);
+    Route::get('/action/{action}', [PolicyTemplateController::class, 'getByAction']);
+    Route::post('/generate-condition', [PolicyTemplateController::class, 'generateCondition']);
+    Route::post('/generate-combined-condition', [PolicyTemplateController::class, 'generateCombinedCondition']);
+    Route::post('/', [PolicyTemplateController::class, 'store']);
+    Route::get('/{id}', [PolicyTemplateController::class, 'show']);
+    Route::put('/{id}', [PolicyTemplateController::class, 'update']);
+    Route::delete('/{id}', [PolicyTemplateController::class, 'destroy']);
 });
 
 // ヘルスチェック

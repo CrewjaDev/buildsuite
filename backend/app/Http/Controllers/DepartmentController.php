@@ -591,6 +591,30 @@ class DepartmentController extends Controller
     }
 
     /**
+     * 部署一覧を取得（ポリシー作成用）
+     */
+    public function getList(): JsonResponse
+    {
+        try {
+            $departments = Department::active()
+                ->orderBySort()
+                ->get(['id', 'name', 'code', 'description']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $departments,
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '部署一覧の取得中にエラーが発生しました',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * 子部署のレベルとパスを更新
      */
     private function updateChildDepartments(Department $department, int $newLevel, string $newPath): void

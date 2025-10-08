@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Edit, Trash2, Building, Save, X } from 'lucide-react'
-import { useDepartments, departmentKeys } from '@/hooks/features/permission/useDepartments'
+import { usePermissionDepartments, departmentKeys } from '@/hooks/useDepartments'
 import { departmentService } from '@/services/features/permission/permissionService'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Department } from '@/services/features/permission/permissionService'
@@ -33,7 +33,7 @@ export default function DepartmentPermissionManagement() {
 
   const queryClient = useQueryClient()
 
-  const { data: departmentsResponse, isLoading: departmentsLoading } = useDepartments()
+  const { data: departmentsResponse, isLoading: departmentsLoading } = usePermissionDepartments()
 
   const departments = Array.isArray(departmentsResponse)
     ? departmentsResponse

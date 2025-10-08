@@ -5,28 +5,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Edit, Trash2, Eye, TestTube, Shield } from 'lucide-react'
+import { Edit, Trash2, Shield, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
   useABACPolicies, 
   useABACPolicyOptions, 
   useCreateABACPolicy, 
   useUpdateABACPolicy, 
-  useDeleteABACPolicy, 
-  useTestABACPolicyConditions 
+  useDeleteABACPolicy
 } from '@/hooks/features/permission/useABACPolicies';
-import type { AccessPolicy, PolicyOptions } from '@/services/features/permission/abacPolicyService';
+import { 
+  usePolicyTemplatesByAction,
+  useGenerateCombinedCondition
+} from '@/hooks/features/permission/usePolicyTemplates';
+import PolicyWizard, { type WizardData } from './PolicyWizard';
+import type { AccessPolicy } from '@/services/features/permission/abacPolicyService';
+import type { PolicyTemplate } from '@/services/features/permission/policyTemplateService';
 
 
 export default function ABACPolicyManagement() {
   // 選択されたビジネスコードの状態
   const [selectedBusinessCode, setSelectedBusinessCode] = useState<string>('');
+  const [selectedAction, setSelectedAction] = useState<string>('');
 
   // React Query hooks
   const { data: policiesResponse, isLoading: policiesLoading } = useABACPolicies(
@@ -36,59 +39,27 @@ export default function ABACPolicyManagement() {
   const createPolicyMutation = useCreateABACPolicy();
   const updatePolicyMutation = useUpdateABACPolicy();
   const deletePolicyMutation = useDeleteABACPolicy();
-  const testConditionsMutation = useTestABACPolicyConditions();
+  
+  // テンプレート関連のhooks
+  const { data: templatesResponse, isLoading: templatesLoading } = usePolicyTemplatesByAction(selectedAction);
+  const generateCombinedConditionMutation = useGenerateCombinedCondition();
 
   const policies = policiesResponse?.data?.data || [];
   const options = optionsResponse?.data || null;
-  const loading = policiesLoading || optionsLoading;
+  const templates = templatesResponse?.data || [];
+  const loading = policiesLoading || optionsLoading || templatesLoading;
   
   // ダイアログ状態
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [templateSelectDialogOpen, setTemplateSelectDialogOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<AccessPolicy | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<PolicyTemplate[]>([]);
+
   
-  // フォーム状態
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    business_code: '',
-    action: '',
-    resource_type: '',
-    conditions: { operator: 'and', rules: [] } as Record<string, unknown>,
-    scope: '',
-    effect: 'allow' as 'allow' | 'deny',
-    priority: 50,
-    is_active: true,
-    metadata: {},
-  });
 
-  // テスト用コンテキスト
-  const [testContext, setTestContext] = useState('{}');
 
-  const handleCreate = async () => {
-    createPolicyMutation.mutate(formData, {
-      onSuccess: () => {
-        setCreateDialogOpen(false);
-        resetForm();
-      }
-    });
-  };
 
-  const handleUpdate = async () => {
-    if (!selectedPolicy) return;
-    
-    updatePolicyMutation.mutate(
-      { id: selectedPolicy.id, data: formData },
-      {
-        onSuccess: () => {
-          setEditDialogOpen(false);
-          resetForm();
-        }
-      }
-    );
-  };
 
   const handleDelete = async (policy: AccessPolicy) => {
     if (!confirm(`ポリシー「${policy.name}」を削除しますか？`)) return;
@@ -96,63 +67,108 @@ export default function ABACPolicyManagement() {
     deletePolicyMutation.mutate(policy.id);
   };
 
-  const handleTestConditions = async () => {
-    try {
-      const context = JSON.parse(testContext);
-      testConditionsMutation.mutate({
-        conditions: formData.conditions,
-        test_context: context,
-      });
-    } catch {
-      toast.error('テストコンテキストのJSON形式が正しくありません');
+
+  const handleTemplateSelect = (template: PolicyTemplate) => {
+    const isSelected = selectedTemplates.some(t => t.id === template.id);
+    if (isSelected) {
+      setSelectedTemplates(selectedTemplates.filter(t => t.id !== template.id));
+    } else {
+      setSelectedTemplates([...selectedTemplates, template]);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      business_code: '',
-      action: '',
-      resource_type: '',
-      conditions: { operator: 'and', rules: [] } as Record<string, unknown>,
-      scope: '',
-      effect: 'allow',
-      priority: 50,
-      is_active: true,
-      metadata: {},
+  const handleGenerateFromTemplates = async () => {
+    if (selectedTemplates.length === 0) {
+      toast.error('テンプレートを選択してください');
+      return;
+    }
+
+    const templateIds = selectedTemplates.map(t => t.id);
+    const parameters: Record<string, unknown> = {};
+
+    // パラメータの収集（簡易版）
+    selectedTemplates.forEach(template => {
+      if (template.parameters?.configurable_values) {
+        Object.keys(template.parameters.configurable_values).forEach(key => {
+          const param = template.parameters!.configurable_values![key];
+          if (param.default !== undefined) {
+            parameters[key] = param.default;
+          }
+        });
+      }
     });
+
+    generateCombinedConditionMutation.mutate({
+      template_ids: templateIds,
+      operator: 'and',
+      parameters: parameters,
+    }, {
+      onSuccess: () => {
+        setTemplateSelectDialogOpen(false);
+        setSelectedTemplates([]); // 選択をリセット
+        toast.success('テンプレートから条件式を生成しました');
+      }
+    });
+  };
+
+  const handleWizardComplete = async (wizardData: WizardData) => {
+    const policyData = {
+      name: wizardData.name,
+      description: wizardData.description,
+      business_code: wizardData.business_code,
+      action: wizardData.action,
+      resource_type: wizardData.resource_type,
+      conditions: wizardData.conditions,
+      scope: wizardData.scope,
+      effect: wizardData.effect,
+      priority: wizardData.priority,
+      is_active: wizardData.is_active,
+      metadata: wizardData.metadata,
+    };
+
+    createPolicyMutation.mutate(policyData);
+  };
+
+  const handleEdit = async (wizardData: WizardData) => {
+    if (!selectedPolicy) return;
+    
+    const policyData = {
+      name: wizardData.name,
+      description: wizardData.description,
+      business_code: wizardData.business_code,
+      action: wizardData.action,
+      resource_type: wizardData.resource_type,
+      conditions: wizardData.conditions,
+      scope: wizardData.scope,
+      effect: wizardData.effect,
+      priority: wizardData.priority,
+      is_active: wizardData.is_active,
+      metadata: wizardData.metadata,
+    };
+
+    updatePolicyMutation.mutate(
+      { id: selectedPolicy.id, data: policyData },
+      {
+        onSuccess: () => {
+          setEditDialogOpen(false);
+          resetForm();
+        },
+        onError: () => {
+          toast.error('ポリシーの更新に失敗しました');
+        }
+      }
+    );
+  };
+
+  const resetForm = () => {
     setSelectedPolicy(null);
   };
 
   const openEditDialog = (policy: AccessPolicy) => {
     setSelectedPolicy(policy);
-    setFormData({
-      name: policy.name,
-      description: policy.description || '',
-      business_code: policy.business_code,
-      action: policy.action,
-      resource_type: policy.resource_type,
-      conditions: policy.conditions,
-      scope: policy.scope || '',
-      effect: policy.effect,
-      priority: policy.priority,
-      is_active: policy.is_active,
-      metadata: policy.metadata || {},
-    });
     setEditDialogOpen(true);
   };
 
-  const openViewDialog = (policy: AccessPolicy) => {
-    setSelectedPolicy(policy);
-    setViewDialogOpen(true);
-  };
-
-  const openTestDialog = (policy: AccessPolicy) => {
-    setSelectedPolicy(policy);
-    setFormData(prev => ({ ...prev, conditions: policy.conditions }));
-    setTestDialogOpen(true);
-  };
 
   const getEffectLabel = (effect: string) => {
     return effect === 'allow' ? '許可' : '拒否';
@@ -175,24 +191,38 @@ export default function ABACPolicyManagement() {
             属性ベースアクセス制御（ABAC）ポリシーの管理
           </p>
         </div>
-        <Button
-          onClick={() => {
-            resetForm();
-            // 選択されたビジネスコードを自動設定
-            if (selectedBusinessCode) {
-              setFormData(prev => ({
-                ...prev,
-                business_code: selectedBusinessCode
-              }));
-            }
-            setCreateDialogOpen(true);
-          }}
-          className="flex items-center gap-2"
-          disabled={!selectedBusinessCode}
-        >
-          <Plus className="h-4 w-4" />
-          新規作成
-        </Button>
+        <div className="flex flex-col gap-3">
+
+          {/* 作成ボタン */}
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                console.log('Opening wizard with selectedBusinessCode:', selectedBusinessCode);
+                // ビジネスコードが選択されていない場合は選択を促す
+                if (!selectedBusinessCode) {
+                  toast.error('ビジネスコードを選択してください');
+                  return;
+                }
+                setWizardOpen(true);
+              }}
+              className="flex items-center gap-2"
+              disabled={!selectedBusinessCode}
+            >
+              <Wand2 className="h-4 w-4" />
+              ウィザードで作成
+            </Button>
+            
+            <Button
+              onClick={() => setTemplateSelectDialogOpen(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+              disabled={!selectedBusinessCode || !selectedAction}
+            >
+              <Shield className="h-4 w-4" />
+              テンプレートから作成
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* ビジネスコード選択 */}
@@ -232,6 +262,42 @@ export default function ABACPolicyManagement() {
         </CardContent>
       </Card>
 
+      {/* アクション選択 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">アクション選択</CardTitle>
+          <CardDescription>
+            テンプレートから作成する場合は、アクションを選択してください
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="action-select">アクション</Label>
+              <Select
+                value={selectedAction}
+                onValueChange={setSelectedAction}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="アクションを選択してください" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options?.actions && Object.entries(options.actions).map(([key, value]) => (
+                    <SelectItem key={key} value={key}>
+                      {value} ({key})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedAction && (
+              <div className="text-sm text-muted-foreground">
+                選択中: {options?.actions?.[selectedAction]}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ポリシー一覧 */}
       <Card>
@@ -320,28 +386,6 @@ export default function ABACPolicyManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openViewDialog(policy)
-                        }}
-                        title="詳細表示"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openTestDialog(policy)
-                        }}
-                        title="条件式テスト"
-                      >
-                        <TestTube className="h-4 w-4" />
-                      </Button>
                       {!policy.is_system && (
                         <>
                           <Button 
@@ -378,350 +422,158 @@ export default function ABACPolicyManagement() {
         </CardContent>
       </Card>
 
-      {/* 新規作成ダイアログ */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>新規ポリシー作成</DialogTitle>
-          </DialogHeader>
-          <PolicyForm
-            formData={formData}
-            setFormData={setFormData}
-            options={options}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleCreate}>作成</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 新規作成ダイアログ - 一画面形式は削除済み */}
 
-      {/* 編集ダイアログ */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>ポリシー編集</DialogTitle>
-          </DialogHeader>
-          <PolicyForm
-            formData={formData}
-            setFormData={setFormData}
-            options={options}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleUpdate}>更新</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 詳細表示ダイアログ */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>ポリシー詳細</DialogTitle>
-          </DialogHeader>
-          {selectedPolicy && (
-            <PolicyView policy={selectedPolicy} />
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 条件式テストダイアログ */}
-      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>条件式テスト</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="test-context">テストコンテキスト (JSON形式)</Label>
-              <Textarea
-                id="test-context"
-                rows={8}
-                value={testContext}
-                onChange={(e) => setTestContext(e.target.value)}
-                placeholder='{"user_id": 1, "department_id": 1, "data": {"amount": 1000000}}'
+              {/* 編集ウィザード */}
+              <PolicyWizard
+                isOpen={editDialogOpen}
+                onClose={() => setEditDialogOpen(false)}
+                onComplete={handleEdit}
+                options={options}
+                isEditMode={true}
+                initialData={{
+                  name: selectedPolicy?.name || '',
+                  description: selectedPolicy?.description || '',
+                  business_code: selectedPolicy?.business_code || '',
+                  action: selectedPolicy?.action || '',
+                  resource_type: selectedPolicy?.resource_type || '',
+                  effect: selectedPolicy?.effect || 'allow',
+                  priority: selectedPolicy?.priority || 50,
+                  is_active: selectedPolicy?.is_active ?? true,
+                  selectedTemplates: [], // 初期値は空配列（PolicyWizard内で復元される）
+                  templateParameters: {}, // 初期値は空オブジェクト（PolicyWizard内で復元される）
+                  conditions: selectedPolicy?.conditions || {},
+                  scope: selectedPolicy?.scope || '',
+                  metadata: selectedPolicy?.metadata || {} // 元のmetadataをそのまま渡す
+                }}
               />
-            </div>
-            <div>
-              <Label htmlFor="conditions">条件式</Label>
-              <Textarea
-                id="conditions"
-                rows={6}
-                value={JSON.stringify(formData.conditions, null, 2)}
-                readOnly
+
+
+      {/* テンプレート選択ダイアログ */}
+      <TemplateSelectDialog
+        open={templateSelectDialogOpen}
+        onOpenChange={setTemplateSelectDialogOpen}
+        templates={templates}
+        selectedTemplates={selectedTemplates}
+        onTemplateSelect={handleTemplateSelect}
+        onGenerate={handleGenerateFromTemplates}
+        loading={generateCombinedConditionMutation.isPending}
+      />
+
+              {/* ポリシー作成ウィザード */}
+              <PolicyWizard
+                isOpen={wizardOpen}
+                onClose={() => setWizardOpen(false)}
+                onComplete={handleWizardComplete}
+                options={options}
+                initialData={{
+                  business_code: selectedBusinessCode,
+                  action: selectedAction,
+                }}
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleTestConditions}>テスト実行</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
-// ポリシーフォームコンポーネント
-const PolicyForm: React.FC<{
-  formData: {
-    name: string;
-    description: string;
-    business_code: string;
-    action: string;
-    resource_type: string;
-    conditions: Record<string, unknown>;
-    scope: string;
-    effect: 'allow' | 'deny';
-    priority: number;
-    is_active: boolean;
-    metadata: Record<string, unknown>;
-  };
-  setFormData: (data: {
-    name: string;
-    description: string;
-    business_code: string;
-    action: string;
-    resource_type: string;
-    conditions: Record<string, unknown>;
-    scope: string;
-    effect: 'allow' | 'deny';
-    priority: number;
-    is_active: boolean;
-    metadata: Record<string, unknown>;
-  }) => void;
-  options: PolicyOptions | null;
-}> = ({ formData, setFormData, options }) => {
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="policy-name">名前 *</Label>
-          <Input
-            id="policy-name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="ポリシー名を入力"
-          />
-        </div>
-        <div>
-          <Label htmlFor="business-code">ビジネスコード *</Label>
-          <Input
-            id="business-code"
-            value={options?.business_codes.find(bc => bc.code === formData.business_code)?.name || formData.business_code}
-            readOnly
-            className="bg-muted"
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            ビジネスコードは上記の選択から自動設定されます
-          </p>
-        </div>
-      </div>
-      
-      <div>
-        <Label htmlFor="policy-description">説明</Label>
-        <Textarea
-          id="policy-description"
-          rows={2}
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="ポリシーの説明を入力"
-        />
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <Label htmlFor="action">アクション *</Label>
-          <Select
-            value={formData.action}
-            onValueChange={(value) => setFormData({ ...formData, action: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="アクションを選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {options?.actions && Object.entries(options.actions).map(([key, value]) => (
-                <SelectItem key={key} value={key}>
-                  {value} ({key})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="resource-type">リソースタイプ *</Label>
-          <Select
-            value={formData.resource_type}
-            onValueChange={(value) => setFormData({ ...formData, resource_type: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="リソースタイプを選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {options?.resource_types && Object.entries(options.resource_types).map(([key, value]) => (
-                <SelectItem key={key} value={key}>
-                  {value} ({key})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="effect">効果 *</Label>
-          <Select
-            value={formData.effect}
-            onValueChange={(value) => setFormData({ ...formData, effect: value as 'allow' | 'deny' })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="効果を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="allow">許可</SelectItem>
-              <SelectItem value="deny">拒否</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="priority">優先度</Label>
-          <Input
-            id="priority"
-            type="number"
-            value={formData.priority}
-            onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
-            min={0}
-            max={1000}
-          />
-        </div>
-        <div className="flex items-center space-x-2 pt-6">
-          <Switch
-            checked={formData.is_active}
-            onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-          />
-          <Label htmlFor="is-active">アクティブ</Label>
-        </div>
-      </div>
-      
-      <div>
-        <Label htmlFor="conditions">条件式 (JSON形式) *</Label>
-        <Textarea
-          id="conditions"
-          rows={8}
-          value={JSON.stringify(formData.conditions, null, 2)}
-          onChange={(e) => {
-            try {
-              const conditions = JSON.parse(e.target.value);
-              setFormData({ ...formData, conditions });
-            } catch {
-              // JSON解析エラーは無視
-            }
-          }}
-          placeholder='{"operator": "and", "rules": [{"field": "user_id", "operator": "eq", "value": 1}]}'
-        />
-      </div>
-    </div>
-  );
-};
 
-// ポリシー詳細表示コンポーネント
-const PolicyView: React.FC<{ policy: AccessPolicy }> = ({ policy }) => {
+
+// テンプレート選択ダイアログ
+const TemplateSelectDialog: React.FC<{
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  templates: PolicyTemplate[];
+  selectedTemplates: PolicyTemplate[];
+  onTemplateSelect: (template: PolicyTemplate) => void;
+  onGenerate: () => void;
+  loading?: boolean;
+}> = ({ open, onOpenChange, templates, selectedTemplates, onTemplateSelect, onGenerate, loading }) => {
+  const groupedTemplates = templates.reduce((acc, template) => {
+    if (!acc[template.category]) {
+      acc[template.category] = [];
+    }
+    acc[template.category].push(template);
+    return acc;
+  }, {} as Record<string, PolicyTemplate[]>);
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">名前</label>
-          <div className="text-lg font-semibold">{policy.name}</div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>テンプレートから条件式を生成</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+            <div key={category}>
+              <h3 className="text-lg font-semibold mb-2">{category}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {categoryTemplates.map((template) => {
+                  const isSelected = selectedTemplates.some(t => t.id === template.id);
+                  return (
+                    <Card 
+                      key={template.id} 
+                      className={`cursor-pointer transition-colors ${
+                        isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => onTemplateSelect(template)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium">{template.name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {template.description}
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {template.tags.map((tag) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="ml-2">
+                            {isSelected && (
+                              <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">ビジネスコード</label>
-          <div className="text-lg font-semibold">
-            {policy.business_code_name || policy.business_code}
+
+        {selectedTemplates.length > 0 && (
+          <div className="border-t pt-4">
+            <h4 className="font-medium mb-2">選択されたテンプレート:</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedTemplates.map((template) => (
+                <Badge key={template.id} variant="default">
+                  {template.name}
+                </Badge>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
-      
-      <div>
-        <label className="text-sm font-medium text-muted-foreground">説明</label>
-        <div className="text-lg font-semibold">
-          {policy.description || 'なし'}
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">アクション</label>
-          <div className="text-lg font-semibold">{policy.action}</div>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">リソースタイプ</label>
-          <div className="text-lg font-semibold">{policy.resource_type}</div>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">効果</label>
-          <Badge variant={policy.effect === 'allow' ? 'default' : 'destructive'}>
-            {policy.effect === 'allow' ? '許可' : '拒否'}
-          </Badge>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">優先度</label>
-          <div className="text-lg font-semibold">{policy.priority}</div>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">状態</label>
-          <div className="flex items-center gap-2">
-            <Badge variant={policy.is_active ? "default" : "secondary"}>
-              {policy.is_active ? 'アクティブ' : '非アクティブ'}
-            </Badge>
-            {policy.is_system && (
-              <Badge variant="outline">
-                システム
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <div>
-        <Label htmlFor="policy-conditions">条件式</Label>
-        <Textarea
-          id="policy-conditions"
-          rows={8}
-          value={JSON.stringify(policy.conditions, null, 2)}
-          readOnly
-        />
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">作成日</label>
-          <div className="text-lg font-semibold">
-            {new Date(policy.created_at).toLocaleString('ja-JP')}
-          </div>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-muted-foreground">更新日</label>
-          <div className="text-lg font-semibold">
-            {new Date(policy.updated_at).toLocaleString('ja-JP')}
-          </div>
-        </div>
-      </div>
-    </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button 
+            onClick={onGenerate} 
+            disabled={selectedTemplates.length === 0 || loading}
+          >
+            {loading ? '生成中...' : '条件式を生成'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
