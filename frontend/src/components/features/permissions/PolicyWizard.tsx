@@ -110,28 +110,28 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
   fieldOperators
 }) => {
   const [conditions, setConditions] = React.useState<ConditionRule>(() => {
+    
     if (currentValue && typeof currentValue === 'object') {
       const condition = currentValue as ConditionRule
+      
       // rulesがオブジェクト形式の場合は配列形式に変換
       if (condition.rules && !Array.isArray(condition.rules)) {
-        console.log('Initial conversion: object rules to array', condition.rules)
         condition.rules = []
       }
       // ネストした条件も配列形式に変換
       if (condition.rules && Array.isArray(condition.rules)) {
-        condition.rules = condition.rules.map(rule => {
+        condition.rules = condition.rules.map((rule) => {
           if (rule.rules && !Array.isArray(rule.rules)) {
-            console.log('Initial conversion: nested object rules to array', rule.rules)
             return { ...rule, rules: [] }
           }
           return rule
         })
       }
-      console.log('Initial conditions:', condition)
       return condition
     }
     return { operator: 'and', rules: [] }
   })
+  
 
   const [showJsonPreview, setShowJsonPreview] = React.useState(false)
 
@@ -335,7 +335,6 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
     if (sanitizedConditions.rules && sanitizedConditions.rules.length === 1) {
       const singleRule = sanitizedConditions.rules[0]
       if (singleRule.operator === 'and' && Array.isArray(singleRule.rules) && singleRule.rules.length > 0) {
-        console.log('Removing unnecessary nesting:', singleRule)
         sanitizedConditions.rules = singleRule.rules
       }
     }
@@ -344,12 +343,103 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
     if (sanitizedConditions.rules) {
       sanitizedConditions.rules = sanitizedConditions.rules.map(rule => {
         if (rule.rules && !Array.isArray(rule.rules)) {
-          console.log('Converting object rules to array:', rule.rules)
           return { ...rule, rules: [] }
         }
         return rule
       })
     }
+    
+    // 空の条件や無効な条件をフィルタリング
+    if (sanitizedConditions.rules) {
+      sanitizedConditions.rules = sanitizedConditions.rules.filter(rule => {
+        // フィールドと演算子が設定されている条件のみを保持
+        if (rule.field && rule.operator) {
+          // 値が空の配列の場合は除外
+          if (rule.operator === 'in' && Array.isArray(rule.value) && rule.value.length === 0) {
+            return false
+          }
+          return true
+        }
+        // ネストした条件の場合は再帰的にチェック
+        if (rule.operator === 'and' || rule.operator === 'or') {
+          return rule.rules && Array.isArray(rule.rules) && rule.rules.length > 0
+        }
+        return false
+      })
+    }
+    
+    // ネストした条件の構造を修正
+    if (sanitizedConditions.rules) {
+      sanitizedConditions.rules = sanitizedConditions.rules.map(rule => {
+        if (rule.operator === 'and' || rule.operator === 'or') {
+          // ネストした条件のrulesがオブジェクト形式の場合は配列形式に変換
+          if (rule.rules && typeof rule.rules === 'object' && !Array.isArray(rule.rules)) {
+            return { ...rule, rules: [] }
+          }
+        }
+        // user.access_restrictionフィールドの場合は、フィールドを削除してネストした条件のみを保持
+        if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+          return {
+            operator: rule.operator,
+            rules: Array.isArray(rule.rules) ? rule.rules : []
+          }
+        }
+        return rule
+      })
+    }
+    
+    // user.access_restrictionフィールドを含む条件を展開
+    if (sanitizedConditions.rules) {
+      const expandedRules: ConditionRule[] = []
+      sanitizedConditions.rules.forEach(rule => {
+        if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+          // user.access_restrictionフィールドの場合は、ネストした条件を直接展開
+          if (Array.isArray(rule.rules)) {
+            expandedRules.push(...rule.rules)
+          } else if (rule.rules && typeof rule.rules === 'object' && 'rules' in rule.rules) {
+            // オブジェクト形式の場合は、rulesプロパティを展開
+            const nestedRules = (rule.rules as { rules: ConditionRule[] }).rules
+            if (Array.isArray(nestedRules)) {
+              expandedRules.push(...nestedRules)
+            }
+          }
+        } else {
+          expandedRules.push(rule)
+        }
+      })
+      sanitizedConditions.rules = expandedRules
+    }
+    
+    // 再帰的にuser.access_restrictionフィールドを展開
+    const expandUserAccessRestriction = (rules: ConditionRule[]): ConditionRule[] => {
+      const result: ConditionRule[] = []
+      rules.forEach(rule => {
+        if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+          if (Array.isArray(rule.rules)) {
+            result.push(...expandUserAccessRestriction(rule.rules))
+          } else if (rule.rules && typeof rule.rules === 'object' && 'rules' in rule.rules) {
+            const nestedRules = (rule.rules as { rules: ConditionRule[] }).rules
+            if (Array.isArray(nestedRules)) {
+              result.push(...expandUserAccessRestriction(nestedRules))
+            }
+          }
+        } else if (rule.rules && Array.isArray(rule.rules)) {
+          // ネストした条件も再帰的に処理
+          result.push({
+            ...rule,
+            rules: expandUserAccessRestriction(rule.rules)
+          })
+        } else {
+          result.push(rule)
+        }
+      })
+      return result
+    }
+    
+    if (sanitizedConditions.rules) {
+      sanitizedConditions.rules = expandUserAccessRestriction(sanitizedConditions.rules)
+    }
+    
     
     // 「以上」「以下」演算子の場合、値を単一の数値に変換（再帰的に処理）
     const convertGteLteValues = (rules: ConditionRule[]): ConditionRule[] => {
@@ -359,7 +449,6 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
           if (Array.isArray(rule.value) && rule.value.length > 0) {
             // 配列の場合、最初の要素を取得
             numericValue = rule.value[0]
-            console.log('Converting gte/lte value from array to single value:', rule.value, '->', numericValue)
           } else {
             // 単一値の場合
             numericValue = rule.value
@@ -368,7 +457,6 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
           // 文字列を数値に変換
           const numValue = typeof numericValue === 'string' ? parseInt(numericValue, 10) : numericValue
           if (!isNaN(numValue)) {
-            console.log('Converting gte/lte value to number:', numericValue, '->', numValue)
             return { ...rule, value: numValue }
           }
         } else if (rule.rules && Array.isArray(rule.rules)) {
@@ -391,7 +479,6 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
             const num = Number(v)
             return isNaN(num) ? v : num
           })
-          console.log('Converting all values to numbers:', rule.value, '->', numericValues)
           return { ...rule, value: numericValues }
         } else if (rule.rules && Array.isArray(rule.rules)) {
           // ネストした条件も再帰的に処理
@@ -405,8 +492,6 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
       sanitizedConditions.rules = convertAllValuesToNumbers(sanitizedConditions.rules)
     }
     
-    // デバッグ用ログ
-    console.log('Sanitized conditions:', sanitizedConditions)
     
     onParameterChange(templateId, paramKey, sanitizedConditions)
   }, [conditions, templateId, paramKey, onParameterChange])
@@ -627,7 +712,12 @@ const generateConditionDetail = (template: PolicyTemplate, params: Record<string
   } else if (template.template_code === 'user_access_restriction') {
     // 利用者制限の条件式表示
     const builderRules = params?.builder_rules
+    console.log('利用者制限の表示処理:', { template: template.name, builderRules, params })
     if (builderRules && typeof builderRules === 'object') {
+      const rules = (builderRules as { rules?: unknown[] }).rules
+      if (Array.isArray(rules) && rules.length > 0) {
+        return `利用者制限（${rules.length}個の条件）`
+      }
       return `利用者制限（${JSON.stringify(builderRules).length > 50 ? '複合条件' : '条件設定済み'}）`
     }
     return '利用者制限（条件未設定）'
@@ -742,71 +832,92 @@ export default function PolicyWizard({
 }: PolicyWizardProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [wizardData, setWizardData] = useState<WizardData>({
-    name: '',
-    description: '',
-    business_code: initialData?.business_code || '',
-    action: initialData?.action || '',
-    resource_type: initialData?.resource_type || '',
-    effect: initialData?.effect || 'allow',
-    priority: initialData?.priority || 50,
-    is_active: initialData?.is_active ?? true,
-    selectedTemplates: initialData?.selectedTemplates || [],
-    templateParameters: initialData?.templateParameters || {},
-    conditions: initialData?.conditions || { operator: 'and', rules: [] },
-    scope: initialData?.scope || '',
-    metadata: initialData?.metadata || {},
-  })
-
-  // デバッグログを削除（無限ループの原因）
-
-  // テンプレート情報の復元（初期化時）
-  React.useEffect(() => {
-    if (isEditMode && initialData.metadata?.template_info) {
-      const templateInfo = initialData.metadata.template_info as {
-        selected_templates?: number[];
-        template_parameters?: Record<string, Record<string, unknown>>;
-      };
+  
+  // 初期化時に直接データを設定
+  const [wizardData, setWizardData] = useState<WizardData>(() => {
+    
+    // 編集モードの場合は初期データを設定
+    if (isEditMode && initialData) {
       
       // テンプレート情報を復元
-      if (templateInfo.template_parameters) {
-        setWizardData(prev => ({
-          ...prev,
-          templateParameters: templateInfo.template_parameters || {}
-        }));
+      let selectedTemplates: PolicyTemplate[] = [];
+      if (initialData.metadata?.template_info) {
+        const templateInfo = initialData.metadata.template_info as {
+          selected_templates?: number[];
+          template_parameters?: Record<string, Record<string, unknown>>;
+        };
+        
+        if (templateInfo.selected_templates) {
+          const templateIds = templateInfo.selected_templates;
+        
+        // 仮のテンプレートオブジェクトを作成（後で実際のテンプレート情報で更新）
+        selectedTemplates = templateIds.map(id => ({
+          id,
+          name: `Template ${id}`,
+          description: '復元中...',
+          template_code: `temp_${id}`,
+          category: '復元中',
+          condition_type: '復元中',
+          condition_rule: {},
+          parameters: {
+            required_fields: [],
+            configurable_values: {}
+          },
+          applicable_actions: [],
+          tags: [],
+          is_system: false,
+          is_active: true,
+          priority: 50,
+          metadata: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as PolicyTemplate));
+        
+        }
       }
       
-      // テンプレート選択も同時に復元
-      if (templateInfo.selected_templates && templateInfo.selected_templates.length > 0) {
-        setWizardData(prev => ({
-          ...prev,
-          selectedTemplates: templateInfo.selected_templates!.map((id: number) => ({
-            id,
-            name: `Template ${id}`, // 仮の名前
-            description: '復元中...',
-            category: '復元中',
-            condition_type: '復元中',
-            condition_rule: {},
-            parameters: {
-              required_fields: [],
-              configurable_values: {}
-            },
-            applicable_actions: [],
-            tags: [],
-            is_system: false,
-            is_active: true,
-            priority: 50,
-            metadata: {},
-            template_code: `temp_${id}`,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          } as PolicyTemplate))
-        }));
-      }
+      // 基本情報を直接復元
+      const editData = {
+        name: initialData.name || '',
+        description: initialData.description || '',
+        business_code: initialData.business_code || '',
+        action: initialData.action || '',
+        resource_type: initialData.resource_type || '',
+        effect: initialData.effect || 'allow',
+        priority: initialData.priority || 50,
+        is_active: initialData.is_active ?? true,
+        selectedTemplates: selectedTemplates,
+        templateParameters: initialData.templateParameters || {},
+        conditions: initialData.conditions || { operator: 'and', rules: [] },
+        scope: initialData.scope || '',
+        metadata: initialData.metadata || {},
+      };
+      
+      
+      return editData;
     }
-  }, [isEditMode, initialData.metadata])
+    
+    // 新規作成モードの場合はデフォルト値
+    const newData = {
+      name: initialData?.name || '',
+      description: initialData?.description || '',
+      business_code: initialData?.business_code || '',
+      action: initialData?.action || '',
+      resource_type: initialData?.resource_type || '',
+      effect: initialData?.effect || 'allow',
+      priority: initialData?.priority || 50,
+      is_active: initialData?.is_active ?? true,
+      selectedTemplates: initialData?.selectedTemplates || [],
+      templateParameters: initialData?.templateParameters || {},
+      conditions: initialData?.conditions || { operator: 'and', rules: [] },
+      scope: initialData?.scope || '',
+      metadata: initialData?.metadata || {},
+    };
+    return newData;
+  })
 
-  // ビジネスコードの動的更新（新規作成時）
+
+  // ビジネスコードの動的更新
   React.useEffect(() => {
     if (!isEditMode && initialData.business_code && initialData.business_code !== wizardData.business_code) {
       setWizardData(prev => ({
@@ -824,39 +935,97 @@ export default function PolicyWizard({
     isCompleted: index < currentStepIndex,
     isAccessible: index <= currentStepIndex,
   }))
+  
 
   const currentStep = steps[currentStepIndex]
   const progress = ((currentStepIndex + 1) / steps.length) * 100
 
-  // データ更新ハンドラー
-  const handleSetData = useCallback((data: Partial<WizardData>) => {
+  // データ更新
+  const handleSetData = (data: Partial<WizardData>) => {
     setWizardData(prev => ({ ...prev, ...data }))
-  }, [])
+  }
 
-  // 次のステップへ
+  // ステップナビゲーション
   const handleNext = useCallback(() => {
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex(prev => prev + 1)
     }
   }, [currentStepIndex, steps.length])
 
-  // 前のステップへ
   const handlePrevious = useCallback(() => {
     if (currentStepIndex > 0) {
       setCurrentStepIndex(prev => prev - 1)
     }
   }, [currentStepIndex])
 
-  // 完了処理
+  // ポリシー作成・更新
   const handleComplete = useCallback(async () => {
     if (isSubmitting) return // 重複送信を防止
     
     setIsSubmitting(true)
     setIsLoading(true)
     try {
+      // 条件式の検証
+      if (!wizardData.conditions || !wizardData.conditions.rules || !Array.isArray(wizardData.conditions.rules) || wizardData.conditions.rules.length === 0) {
+        toast.error('有効な条件式を設定してください')
+        return
+      }
+      
+      // user.access_restrictionフィールドを展開
+      const expandUserAccessRestriction = (rules: ConditionRule[]): ConditionRule[] => {
+        const result: ConditionRule[] = []
+        rules.forEach(rule => {
+          if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+            if (Array.isArray(rule.rules)) {
+              result.push(...expandUserAccessRestriction(rule.rules))
+            } else if (rule.rules && typeof rule.rules === 'object') {
+              const rulesObj = rule.rules as Record<string, unknown>
+              if ('rules' in rulesObj && Array.isArray(rulesObj.rules)) {
+                const nestedRules = rulesObj.rules as ConditionRule[]
+                result.push(...expandUserAccessRestriction(nestedRules))
+              }
+            }
+          } else if (rule.rules && Array.isArray(rule.rules)) {
+            // ネストした条件も再帰的に処理
+            result.push({
+              ...rule,
+              rules: expandUserAccessRestriction(rule.rules)
+            })
+          } else {
+            result.push(rule)
+          }
+        })
+        return result
+      }
+      
+      // 条件式を展開
+      const expandedConditions = {
+        ...wizardData.conditions,
+        rules: expandUserAccessRestriction(wizardData.conditions.rules)
+      }
+      
+      
+      // 条件式の詳細検証
+      const hasValidConditions = expandedConditions.rules.some(rule => {
+        if (rule.field && rule.operator) {
+          // 値が空の配列の場合は無効
+          if (rule.operator === 'in' && Array.isArray(rule.value) && rule.value.length === 0) {
+            return false
+          }
+          return true
+        }
+        return false
+      })
+      
+      if (!hasValidConditions) {
+        toast.error('有効な条件を少なくとも1つ設定してください')
+        return
+      }
+      
       // テンプレート情報をメタデータに追加
       const policyData = {
         ...wizardData,
+        conditions: expandedConditions, // 展開された条件式を使用
         metadata: {
           ...wizardData.metadata,
           template_info: {
@@ -867,9 +1036,9 @@ export default function PolicyWizard({
       }
       
       await onComplete(policyData)
-      // トーストメッセージは onComplete 内で表示されるため、ここでは表示しない
       onClose()
-    } catch {
+    } catch (error) {
+      console.error('Policy creation/update error:', error)
       toast.error(isEditMode ? 'ポリシーの更新に失敗しました' : 'ポリシーの作成に失敗しました')
     } finally {
       setIsSubmitting(false)
@@ -877,23 +1046,21 @@ export default function PolicyWizard({
     }
   }, [wizardData, onComplete, onClose, isEditMode, isSubmitting])
 
-          // ステップの検証
-          const isCurrentStepValid = useCallback(() => {
-            switch (currentStep.id) {
-              case 'basic-info':
-                return wizardData.name && wizardData.business_code && wizardData.action && wizardData.resource_type
-              case 'template-selection':
-                // テンプレートが選択されているか
-                return wizardData.selectedTemplates.length > 0
-              case 'condition-adjustment':
-                // 条件式が設定されているか
-                return Object.keys(wizardData.conditions).length > 0
-              case 'confirmation':
-                return true
-              default:
-                return false
-            }
-          }, [currentStep.id, wizardData])
+  // ステップ検証
+  const isCurrentStepValid = useCallback(() => {
+    switch (currentStep.id) {
+      case 'basic-info':
+        return wizardData.name && wizardData.business_code && wizardData.action && wizardData.resource_type
+      case 'template-selection':
+        return wizardData.selectedTemplates.length > 0
+      case 'condition-adjustment':
+        return Object.keys(wizardData.conditions).length > 0
+      case 'confirmation':
+        return true
+      default:
+        return false
+    }
+  }, [currentStep.id, wizardData])
 
   if (!isOpen) return null
 
@@ -1016,6 +1183,7 @@ export default function PolicyWizard({
 
 // ステップ1: 基本情報
 function BasicInfoStep({ data, setData, options }: WizardStepProps) {
+  
   return (
     <div className="space-y-6">
       <div>
@@ -1278,13 +1446,16 @@ function ConfirmationStep({ data, options }: WizardStepProps) {
 
 // ステップ2: テンプレート選択
 function TemplateSelectionStep({ data, setData }: WizardStepProps) {
+  
   const { data: templatesResponse, isLoading: templatesLoading } = usePolicyTemplatesByAction(data.action)
   const templates = React.useMemo(() => templatesResponse?.data || [], [templatesResponse?.data])
   
-  // 復元されたテンプレートがある場合は、実際のテンプレート情報で更新
+  
+  // テンプレート情報の復元
   React.useEffect(() => {
     if (data.selectedTemplates.length > 0 && templates.length > 0) {
       const restoredTemplates = data.selectedTemplates.filter(t => t.name.startsWith('Template '))
+      
       if (restoredTemplates.length > 0) {
         const updatedTemplates = data.selectedTemplates.map(selectedTemplate => {
           if (selectedTemplate.name.startsWith('Template ')) {
@@ -1294,7 +1465,7 @@ function TemplateSelectionStep({ data, setData }: WizardStepProps) {
           return selectedTemplate
         })
         
-        // 実際に変更があった場合のみ更新（無限ループを防ぐ）
+        // 変更があった場合のみ更新
         const hasChanges = updatedTemplates.some((template, index) => 
           template.id !== data.selectedTemplates[index]?.id || 
           template.name !== data.selectedTemplates[index]?.name
@@ -1539,103 +1710,21 @@ function TemplateSelectionStep({ data, setData }: WizardStepProps) {
 
 // ステップ3: 条件式調整
 function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
-  // テンプレートパラメータの状態管理
-  const [templateParameters, setTemplateParameters] = React.useState<Record<string, Record<string, unknown>>>({})
+  // テンプレートパラメータ管理
+  const [templateParameters, setTemplateParameters] = React.useState<Record<string, Record<string, unknown>>>(() => {
+    // 編集時のテンプレートパラメータを初期化
+    if (data.templateParameters && Object.keys(data.templateParameters).length > 0) {
+      return data.templateParameters;
+    }
+    return {};
+  })
   const [showJsonModal, setShowJsonModal] = React.useState(false)
+  
   const { data: departmentsResponse } = usePermissionDepartments()
   const departments = departmentsResponse?.data || []
 
-  // 条件生成ロジック
-  const generateConditionsFromTemplates = useCallback(async (selectedTemplates: PolicyTemplate[], parameters: Record<string, Record<string, unknown>>) => {
-    if (selectedTemplates.length === 0) {
-      setData({ conditions: {} })
-      return
-    }
 
-    // パラメータ検証：特定部署制限でdepartment_idsが空の場合は条件生成をスキップ
-    const hasInvalidParams = selectedTemplates.some(template => {
-      if (template.template_code === 'department_restriction') {
-        const templateParams = parameters[template.id.toString()] || {}
-        const restrictionType = templateParams['restriction_type']
-        const departmentIds = templateParams['department_ids']
-        
-        if (restrictionType === 'in' && (!departmentIds || !Array.isArray(departmentIds) || departmentIds.length === 0)) {
-          return true // 無効なパラメータ
-        }
-      }
-      return false
-    })
-
-    if (hasInvalidParams) {
-      console.log('パラメータが不完全なため、条件生成をスキップします')
-      return
-    }
-
-    let response: Response | null = null
-
-    try {
-      const templateIds = selectedTemplates.map(t => t.id)
-      const combinedParameters: Record<string, unknown> = {}
-
-      // パラメータの収集
-      selectedTemplates.forEach(template => {
-        const templateParams = parameters[template.id.toString()] || {}
-        Object.keys(templateParams).forEach(key => {
-          let value = templateParams[key]
-          
-          // 期間制限の日付値の特別処理
-          if (template.template_code === 'period_restriction' && (key === 'start_date' || key === 'end_date')) {
-            // 空の値やnullの場合は送信しない
-            if (!value || value === 'null' || value === '') {
-              return // このパラメータをスキップ
-            }
-            // 日付値を文字列として確実に処理
-            value = String(value)
-            console.log(`Date parameter processed: ${key} = ${value} (type: ${typeof value})`)
-          }
-          
-          combinedParameters[`${template.id}_${key}`] = value
-        })
-      })
-
-      // 条件式生成APIを呼び出し
-      const requestBody = {
-        template_ids: templateIds,
-        operator: 'and',
-        parameters: combinedParameters,
-      }
-      
-      console.log('API Request:', requestBody)
-      
-      response = await fetch('/api/policy-templates/generate-combined-condition', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-      
-      console.log('API Response Status:', response.status)
-
-      if (response.ok) {
-        const result = await response.json()
-        setData({
-          conditions: result.data.condition,
-          templateParameters: parameters
-        })
-        // トーストメッセージを削除（無限ループの原因）
-      } else {
-        const errorText = await response.text()
-        console.error('API Error Response:', errorText)
-        toast.error(`API エラー: ${response.status} - ${errorText}`)
-      }
-    } catch (error) {
-      console.error('条件式生成エラー:', error)
-      toast.error('条件式の生成に失敗しました')
-    }
-  }, [setData])
-
-  // パラメータ変更時の条件再生成
+  // パラメータ変更ハンドラー
   const handleParameterChange = useCallback((templateId: number, paramKey: string, value: unknown) => {
     setTemplateParameters(prev => {
       const newParams = {
@@ -1646,12 +1735,11 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
         }
       }
       
-      // パラメータ検証ルール
-      const template = data.selectedTemplates.find(t => t.id === templateId)
-      if (template?.template_code === 'department_restriction') {
-        // 特定部署制限の場合、部署が選択されていない場合は警告（インライン表示に変更）
-        // 警告は部署選択フィールドの近くにインライン表示されるため、トーストは削除
-      }
+        // パラメータ検証ルール
+        const template = data.selectedTemplates.find(t => t.id === templateId)
+        if (template?.template_code === 'department_restriction') {
+          // 特定部署制限の場合、部署が選択されていない場合は警告（インライン表示）
+        }
       
       // 条件生成を手動トリガー
       setShouldGenerateConditions(true)
@@ -1660,7 +1748,7 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
     })
   }, [data.selectedTemplates])
 
-  // パラメータ変更時に条件を再生成（無限ループを防ぐため、手動トリガーに変更）
+  // 条件生成トリガー
   const [shouldGenerateConditions, setShouldGenerateConditions] = React.useState(false)
   
   React.useEffect(() => {
@@ -1671,38 +1759,135 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
       })
       
       if (hasValidParameters) {
+        // 条件生成ロジック
+        const generateConditionsFromTemplates = async (selectedTemplates: PolicyTemplate[], parameters: Record<string, Record<string, unknown>>) => {
+          if (selectedTemplates.length === 0) {
+            setData({ conditions: {} })
+            return
+          }
+
+          // パラメータ検証：無効なパラメータをチェック
+          const hasInvalidParams = selectedTemplates.some(template => {
+            const templateParams = parameters[template.id.toString()] || {}
+            
+            // 部署制限の検証
+            if (template.template_code === 'department_restriction') {
+              const restrictionType = templateParams['restriction_type']
+              const departmentIds = templateParams['department_ids']
+              
+              if (restrictionType === 'in' && (!departmentIds || !Array.isArray(departmentIds) || departmentIds.length === 0)) {
+                return true // 無効なパラメータ
+              }
+            }
+            
+            // 利用者制限の検証
+            if (template.template_code === 'user_access_restriction') {
+              const builderRules = templateParams['builder_rules']
+              if (builderRules && typeof builderRules === 'object' && 'rules' in builderRules) {
+                const rules = (builderRules as { rules: unknown[] }).rules
+                if (Array.isArray(rules)) {
+                  // 空の条件や無効な条件をチェック
+                  const hasValidRules = rules.some((rule: unknown) => {
+                    if (typeof rule === 'object' && rule !== null && 'field' in rule && 'operator' in rule) {
+                      const ruleObj = rule as Record<string, unknown>
+                      if (ruleObj.field && ruleObj.operator) {
+                        // 値が空の配列の場合は無効
+                        if (ruleObj.operator === 'in' && Array.isArray(ruleObj.value) && ruleObj.value.length === 0) {
+                          return false
+                        }
+                        return true
+                      }
+                    }
+                    return false
+                  })
+                  if (!hasValidRules) {
+                    return true // 無効なパラメータ
+                  }
+                }
+              }
+            }
+            
+            return false
+          })
+
+          if (hasInvalidParams) {
+            console.log('パラメータが不完全なため、条件生成をスキップします')
+            return
+          }
+
+          let response: Response | null = null
+
+          try {
+            const templateIds = selectedTemplates.map(t => t.id)
+            const combinedParameters: Record<string, unknown> = {}
+
+            // パラメータの収集
+            selectedTemplates.forEach(template => {
+              const templateParams = parameters[template.id.toString()] || {}
+              Object.keys(templateParams).forEach(key => {
+                let value = templateParams[key]
+                
+                // 期間制限の日付値の特別処理
+                if (template.template_code === 'period_restriction' && (key === 'start_date' || key === 'end_date')) {
+                  // 空の値やnullの場合は送信しない
+                  if (!value || value === 'null' || value === '') {
+                    return // このパラメータをスキップ
+                  }
+                  // 日付値を文字列として確実に処理
+                  value = String(value)
+                  console.log(`Date parameter processed: ${key} = ${value} (type: ${typeof value})`)
+                }
+                
+                combinedParameters[`${template.id}_${key}`] = value
+              })
+            })
+
+            // 条件式生成APIを呼び出し
+            const requestBody = {
+              template_ids: templateIds,
+              operator: 'and',
+              parameters: combinedParameters,
+            }
+            
+            console.log('API Request:', requestBody)
+            
+            response = await fetch('/api/policy-templates/generate-combined-condition', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(requestBody),
+            })
+            
+            console.log('API Response Status:', response.status)
+
+            if (response.ok) {
+              const result = await response.json()
+              setData({
+                conditions: result.data.condition,
+                templateParameters: parameters
+              })
+            } else {
+              const errorText = await response.text()
+              console.error('API Error Response:', errorText)
+              toast.error(`API エラー: ${response.status} - ${errorText}`)
+            }
+          } catch (error) {
+            console.error('条件式生成エラー:', error)
+            toast.error('条件式の生成に失敗しました')
+          }
+        }
+        
         generateConditionsFromTemplates(data.selectedTemplates, templateParameters)
-        setShouldGenerateConditions(false) // フラグをリセット
+        setShouldGenerateConditions(false)
       }
     }
-  }, [shouldGenerateConditions, templateParameters, data.selectedTemplates, generateConditionsFromTemplates])
+  }, [shouldGenerateConditions, templateParameters, data.selectedTemplates, setData])
 
-  // 初期化時にデフォルトパラメータを設定
-  React.useEffect(() => {
-    if (data.selectedTemplates.length > 0) {
-      // 既存のパラメータがある場合はそれを使用、なければデフォルトを設定
-      const initialParams: Record<string, Record<string, unknown>> = {}
-      data.selectedTemplates.forEach(template => {
-        if (template.parameters?.configurable_values) {
-          initialParams[template.id.toString()] = {}
-          Object.keys(template.parameters.configurable_values).forEach(key => {
-            const param = template.parameters!.configurable_values![key]
-            // 既存のパラメータがある場合はそれを使用
-            if (data.templateParameters[template.id.toString()]?.[key] !== undefined) {
-              initialParams[template.id.toString()][key] = data.templateParameters[template.id.toString()][key]
-            } else if (param.default !== undefined) {
-              initialParams[template.id.toString()][key] = param.default
-            }
-          })
-        }
-      })
-      setTemplateParameters(initialParams)
-    }
-  }, [data.selectedTemplates, data.templateParameters])
 
   const hasGeneratedConditions = data.conditions && Object.keys(data.conditions).length > 0
 
-  // パラメータ入力コンポーネント
+  // パラメータ入力
   const renderParameterInput = (template: PolicyTemplate, paramKey: string, param: Record<string, unknown>) => {
     const currentValue = templateParameters[template.id.toString()]?.[paramKey] ?? param.default
 
@@ -1818,15 +2003,6 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
         const departmentIds = templateParameters[template.id.toString()]?.['department_ids'] as number[];
         const needsDepartmentSelection = restrictionType === 'in' && (!departmentIds || !Array.isArray(departmentIds) || departmentIds.length === 0);
         
-        // デバッグ用ログ
-        console.log('Department selection debug:', {
-          templateId: template.id,
-          paramKey,
-          restrictionType,
-          departmentIds,
-          needsDepartmentSelection,
-          templateParameters: templateParameters[template.id.toString()]
-        });
         
         return (
           <div className="mt-2">

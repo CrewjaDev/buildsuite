@@ -165,6 +165,17 @@ export default function ABACPolicyManagement() {
   };
 
   const openEditDialog = (policy: AccessPolicy) => {
+    console.log('🚨 CRITICAL DEBUG - openEditDialog - selectedPolicy:', policy);
+    console.log('🚨 CRITICAL DEBUG - policy.metadata:', policy.metadata);
+    console.log('🚨 CRITICAL DEBUG - policy.name:', policy.name);
+    console.log('🚨 CRITICAL DEBUG - policy.description:', policy.description);
+    console.log('🚨 CRITICAL DEBUG - policy.business_code:', policy.business_code);
+    console.log('🚨 CRITICAL DEBUG - policy.action:', policy.action);
+    console.log('🚨 CRITICAL DEBUG - policy.resource_type:', policy.resource_type);
+    console.log('🚨 CRITICAL DEBUG - policy.effect:', policy.effect);
+    console.log('🚨 CRITICAL DEBUG - policy.priority:', policy.priority);
+    console.log('🚨 CRITICAL DEBUG - policy.is_active:', policy.is_active);
+    console.log('🚨 CRITICAL DEBUG - policy.conditions:', policy.conditions);
     setSelectedPolicy(policy);
     setEditDialogOpen(true);
   };
@@ -425,28 +436,54 @@ export default function ABACPolicyManagement() {
       {/* 新規作成ダイアログ - 一画面形式は削除済み */}
 
               {/* 編集ウィザード */}
-              <PolicyWizard
-                isOpen={editDialogOpen}
-                onClose={() => setEditDialogOpen(false)}
-                onComplete={handleEdit}
-                options={options}
-                isEditMode={true}
-                initialData={{
-                  name: selectedPolicy?.name || '',
-                  description: selectedPolicy?.description || '',
-                  business_code: selectedPolicy?.business_code || '',
-                  action: selectedPolicy?.action || '',
-                  resource_type: selectedPolicy?.resource_type || '',
-                  effect: selectedPolicy?.effect || 'allow',
-                  priority: selectedPolicy?.priority || 50,
-                  is_active: selectedPolicy?.is_active ?? true,
-                  selectedTemplates: [], // 初期値は空配列（PolicyWizard内で復元される）
-                  templateParameters: {}, // 初期値は空オブジェクト（PolicyWizard内で復元される）
-                  conditions: selectedPolicy?.conditions || {},
-                  scope: selectedPolicy?.scope || '',
-                  metadata: selectedPolicy?.metadata || {} // 元のmetadataをそのまま渡す
-                }}
-              />
+              {editDialogOpen && (
+                <PolicyWizard
+                  isOpen={editDialogOpen}
+                  onClose={() => setEditDialogOpen(false)}
+                  onComplete={handleEdit}
+                  options={options}
+                  isEditMode={true}
+                initialData={(() => {
+                  const templateInfo = selectedPolicy?.metadata?.template_info as {
+                    selected_templates?: number[];
+                    template_parameters?: Record<string, Record<string, unknown>>;
+                  } | undefined;
+                  
+                  const initialData = {
+                    name: selectedPolicy?.name || '',
+                    description: selectedPolicy?.description || '',
+                    business_code: selectedPolicy?.business_code || '',
+                    action: selectedPolicy?.action || '',
+                    resource_type: selectedPolicy?.resource_type || '',
+                    effect: selectedPolicy?.effect || 'allow',
+                    priority: selectedPolicy?.priority || 50,
+                    is_active: selectedPolicy?.is_active ?? true,
+                    selectedTemplates: [], // テンプレートIDは空配列（PolicyWizard内で復元される）
+                    templateParameters: templateInfo?.template_parameters || {}, // テンプレートパラメータを復元
+                    conditions: selectedPolicy?.conditions || {},
+                    scope: selectedPolicy?.scope || '',
+                    metadata: selectedPolicy?.metadata || {} // 元のmetadataをそのまま渡す
+                  };
+                  
+                  // 緊急デバッグ：initialDataの内容を詳細確認
+                  console.log('🚨 EMERGENCY DEBUG - initialData.name:', initialData.name);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.description:', initialData.description);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.business_code:', initialData.business_code);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.action:', initialData.action);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.resource_type:', initialData.resource_type);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.effect:', initialData.effect);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.priority:', initialData.priority);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.is_active:', initialData.is_active);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.templateParameters:', initialData.templateParameters);
+                  console.log('🚨 EMERGENCY DEBUG - initialData.conditions:', initialData.conditions);
+                  console.log('🔍 PolicyWizard initialData:', initialData);
+                  console.log('🔍 PolicyWizard templateParameters:', templateInfo?.template_parameters);
+                  console.log('🔍 PolicyWizard selectedPolicy:', selectedPolicy);
+                  console.log('🔍 PolicyWizard templateInfo:', templateInfo);
+                  return initialData;
+                })()}
+                />
+              )}
 
 
       {/* テンプレート選択ダイアログ */}
@@ -461,16 +498,19 @@ export default function ABACPolicyManagement() {
       />
 
               {/* ポリシー作成ウィザード */}
-              <PolicyWizard
-                isOpen={wizardOpen}
-                onClose={() => setWizardOpen(false)}
-                onComplete={handleWizardComplete}
-                options={options}
-                initialData={{
-                  business_code: selectedBusinessCode,
-                  action: selectedAction,
-                }}
-              />
+              {!editDialogOpen && (
+                <PolicyWizard
+                  isOpen={wizardOpen}
+                  onClose={() => setWizardOpen(false)}
+                  onComplete={handleWizardComplete}
+                  options={options}
+                  isEditMode={false}
+                  initialData={{
+                    business_code: selectedBusinessCode,
+                    action: selectedAction,
+                  }}
+                />
+              )}
     </div>
   );
 }

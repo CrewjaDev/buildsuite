@@ -61,6 +61,7 @@ export function useCreateABACPolicy() {
       toast.success('ポリシーが正常に作成されました')
     },
     onError: (error: unknown) => {
+      console.error('Policy creation error:', error)
       toast.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'ポリシーの作成に失敗しました')
     },
   })
@@ -79,6 +80,7 @@ export function useUpdateABACPolicy() {
       toast.success('ポリシーが正常に更新されました')
     },
     onError: (error: unknown) => {
+      console.error('Policy update error:', error)
       toast.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'ポリシーの更新に失敗しました')
     },
   })

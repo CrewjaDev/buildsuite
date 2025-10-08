@@ -142,6 +142,12 @@ class AccessPolicyController extends Controller
             // 条件式の詳細バリデーション
             $conditionsValidation = $this->validateConditions($request->conditions);
             if (!$conditionsValidation['valid']) {
+                // バリデーションエラーの詳細をログ出力
+                \Log::error('Condition validation failed:', [
+                    'conditions' => $request->conditions,
+                    'errors' => $conditionsValidation['errors']
+                ]);
+                
                 return response()->json([
                     'success' => false,
                     'message' => '条件式のバリデーションエラー',
@@ -223,6 +229,12 @@ class AccessPolicyController extends Controller
             // 条件式の詳細バリデーション
             $conditionsValidation = $this->validateConditions($request->conditions);
             if (!$conditionsValidation['valid']) {
+                // バリデーションエラーの詳細をログ出力
+                \Log::error('Condition validation failed:', [
+                    'conditions' => $request->conditions,
+                    'errors' => $conditionsValidation['errors']
+                ]);
+                
                 return response()->json([
                     'success' => false,
                     'message' => '条件式のバリデーションエラー',
@@ -404,6 +416,9 @@ class AccessPolicyController extends Controller
     private function validateConditions(array $conditions): array
     {
         $errors = [];
+        
+        // デバッグログ: 受信した条件式をログ出力
+        \Log::debug('Validating conditions:', $conditions);
 
         if (!isset($conditions['operator']) || !in_array($conditions['operator'], ['and', 'or'])) {
             $errors[] = 'operatorは"and"または"or"である必要があります';
@@ -418,14 +433,15 @@ class AccessPolicyController extends Controller
                     continue;
                 }
 
-                if (!isset($rule['field'])) {
-                    $errors[] = "rules[{$index}].fieldは必須です";
-                }
-
                 if (!isset($rule['operator'])) {
                     $errors[] = "rules[{$index}].operatorは必須です";
-                } elseif (!in_array($rule['operator'], ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'exists', 'regex'])) {
+                } elseif (!in_array($rule['operator'], ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'exists', 'regex', 'and', 'or'])) {
                     $errors[] = "rules[{$index}].operatorは有効な値である必要があります";
+                }
+
+                // fieldは、and/or演算子以外の場合のみ必須
+                if (!in_array($rule['operator'] ?? '', ['and', 'or']) && !isset($rule['field'])) {
+                    $errors[] = "rules[{$index}].fieldは必須です";
                 }
 
                 // ネストした条件式の再帰的バリデーション

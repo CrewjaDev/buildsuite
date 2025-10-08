@@ -108,6 +108,7 @@ class ABACPolicyService {
    * 新しいABACポリシーを作成
    */
   async createPolicy(data: CreatePolicyData): Promise<PolicyResponse> {
+    console.log('Creating policy with data:', JSON.stringify(data, null, 2))
     const response = await api.post('/access-policies', data)
     return response.data
   }
