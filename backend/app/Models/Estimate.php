@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use App\Contracts\ApprovableData;
 
-class Estimate extends Model
+class Estimate extends Model implements ApprovableData
 {
     use HasFactory, SoftDeletes;
 
@@ -164,6 +165,14 @@ class Estimate extends Model
     }
 
     /**
+     * 承認依頼の取得（ApprovableDataインターフェース実装）
+     */
+    public function getApprovalRequest(): ?ApprovalRequest
+    {
+        return $this->approvalRequest;
+    }
+
+    /**
      * 承認フローとのリレーション
      */
     public function approvalFlow(): BelongsTo
@@ -288,22 +297,22 @@ class Estimate extends Model
     }
 
     /**
-     * 承認依頼可能かチェック
+     * 承認依頼可能かチェック（ApprovableDataインターフェース実装）
      */
-    public function canRequestApproval(): bool
+    public function canRequestApproval(User $user): bool
     {
         // ステータスと承認依頼の存在チェック
-        if (!in_array($this->status, ['draft']) || $this->approvalRequest) {
+        if (!in_array($this->status, ['draft']) || $this->getApprovalRequest()) {
             return false;
         }
 
-        // 権限チェック（ログインユーザーがいる場合のみ）
-        if (auth()->check()) {
-            $user = auth()->user();
-            return \App\Services\PermissionService::hasPermission($user, 'estimate.approval.request');
+        // 作成者のチェック
+        if ($this->created_by !== $user->id) {
+            return false;
         }
 
-        return true; // ログインユーザーがいない場合は権限チェックをスキップ
+        // 権限チェック
+        return \App\Services\PermissionService::hasPermission($user, 'estimate.approval.request');
     }
 
     /**
@@ -311,7 +320,7 @@ class Estimate extends Model
      */
     public function isUnderApproval(): bool
     {
-        return $this->approvalRequest && in_array($this->approvalRequest->status, ['pending']);
+        return $this->getApprovalRequest() && in_array($this->getApprovalRequest()->status, ['pending']);
     }
 
     /**
@@ -319,7 +328,7 @@ class Estimate extends Model
      */
     public function isApproved(): bool
     {
-        return $this->approvalRequest && $this->approvalRequest->status === 'approved';
+        return $this->getApprovalRequest() && $this->getApprovalRequest()->status === 'approved';
     }
 
     /**
@@ -327,7 +336,7 @@ class Estimate extends Model
      */
     public function isRejected(): bool
     {
-        return $this->approvalRequest && $this->approvalRequest->status === 'rejected';
+        return $this->getApprovalRequest() && $this->getApprovalRequest()->status === 'rejected';
     }
 
     /**
@@ -335,7 +344,7 @@ class Estimate extends Model
      */
     public function isReturned(): bool
     {
-        return $this->approvalRequest && $this->approvalRequest->status === 'returned';
+        return $this->getApprovalRequest() && $this->getApprovalRequest()->status === 'returned';
     }
 
     /**
@@ -343,7 +352,7 @@ class Estimate extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->approvalRequest && $this->approvalRequest->status === 'cancelled';
+        return $this->getApprovalRequest() && $this->getApprovalRequest()->status === 'cancelled';
     }
 
     /**
@@ -351,11 +360,11 @@ class Estimate extends Model
      */
     public function getCurrentApprovalStep()
     {
-        if (!$this->approvalRequest || !$this->approvalFlow) {
+        if (!$this->getApprovalRequest() || !$this->approvalFlow) {
             return null;
         }
 
-        $currentStepNumber = $this->approvalRequest->current_step;
+        $currentStepNumber = $this->getApprovalRequest()->current_step;
         
         foreach ($this->approvalFlow->approval_steps as $step) {
             if ($step['step'] === $currentStepNumber) {
@@ -380,8 +389,8 @@ class Estimate extends Model
             'name' => $this->approvalFlow->name,
             'flow_type' => $this->approvalFlow->flow_type,
             'total_steps' => count($this->approvalFlow->approval_steps ?? []),
-            'current_step' => $this->approvalRequest?->current_step ?? 0,
-            'status' => $this->approvalRequest?->status ?? 'none',
+            'current_step' => $this->getApprovalRequest()?->current_step ?? 0,
+            'status' => $this->getApprovalRequest()?->status ?? 'none',
         ];
     }
 
@@ -681,7 +690,11 @@ class Estimate extends Model
      */
     public function getCanRequestApprovalAttribute(): bool
     {
-        return $this->canRequestApproval();
+        // ログインユーザーがいる場合のみチェック
+        if (auth()->check()) {
+            return $this->canRequestApproval(auth()->user());
+        }
+        return false;
     }
 
     /**
@@ -892,5 +905,104 @@ class Estimate extends Model
         }
 
         return sprintf('EST-%s-%03d', $year, $newNumber);
+    }
+
+    // ========================================
+    // ApprovableData インターフェースの実装
+    // ========================================
+
+    /**
+     * 承認用データの取得
+     */
+    public function getApprovalData(): array
+    {
+        return [
+            'amount' => $this->total_amount,
+            'project_type' => $this->projectType?->code ?? 'general',
+            'department_id' => $this->department_id,
+            'vendor_id' => $this->vendor_id,
+            'estimate_id' => $this->id,
+            'estimate_number' => $this->estimate_number,
+            'project_name' => $this->project_name,
+        ];
+    }
+    
+    /**
+     * 承認状態の更新
+     */
+    public function updateApprovalStatus(string $action, User $user): void
+    {
+        match($action) {
+            'approve' => $this->update([
+                'approval_status' => 'approved',
+                'status' => 'approved',
+                'approved_by' => $user->id,
+            ]),
+            'reject' => $this->update([
+                'approval_status' => 'rejected',
+                'status' => 'rejected',
+            ]),
+            'return' => $this->update([
+                'approval_status' => 'returned',
+                'status' => 'draft',
+            ]),
+            'cancel' => $this->update([
+                'approval_status' => 'cancelled',
+                'status' => 'cancelled',
+            ]),
+        };
+    }
+    
+    
+    /**
+     * 承認依頼の作成
+     */
+    public function createApprovalRequest(User $user, ?int $flowId = null): ApprovalRequest
+    {
+        // 承認フロー選択
+        $approvalFlow = null;
+        if ($flowId) {
+            $approvalFlow = ApprovalFlow::find($flowId);
+        } else {
+            // 共通サービスで承認フロー選択
+            $commonApprovalService = app(\App\Services\Approval\CommonApprovalService::class);
+            $approvalFlow = $commonApprovalService->selectApprovalFlow($this, $user, 'estimate');
+        }
+        
+        if (!$approvalFlow) {
+            throw new \Exception('適用可能な承認フローが見つかりません');
+        }
+
+        // 承認依頼データを準備
+        $requestData = $this->getApprovalData();
+
+        // 承認依頼を作成
+        $approvalRequest = ApprovalRequest::create([
+            'approval_flow_id' => $approvalFlow->id,
+            'request_type' => 'estimate',
+            'request_id' => $this->id,
+            'title' => "見積承認依頼 - " . ($this->estimate_number ?: 'No.' . $this->id),
+            'description' => "見積「" . ($this->project_name ?: '未設定') . "」の承認依頼です。",
+            'request_data' => $requestData,
+            'current_step' => 1,
+            'status' => 'pending',
+            'priority' => 'normal',
+            'requested_by' => $user->id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+
+        // 見積に承認依頼IDを設定
+        $this->update([
+            'approval_request_id' => $approvalRequest->id,
+            'approval_status' => 'pending',
+            'status' => 'submitted',
+        ]);
+
+        // 自動承認チェック
+        $commonApprovalService = app(\App\Services\Approval\CommonApprovalService::class);
+        $commonApprovalService->checkAndProcessAutoApproval($approvalRequest, $user);
+
+        return $approvalRequest;
     }
 }

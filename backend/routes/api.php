@@ -339,18 +339,6 @@ Route::middleware('auth:sanctum')->group(function () {
             });
         });
 
-// GraphQL エンドポイント（承認フロー関連の複雑なクエリ用）
-Route::post('/graphql', function (Request $request) {
-    // GraphQL リクエストを処理
-    return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
-})->middleware('auth:sanctum');
-
-// テスト用GraphQLエンドポイント（認証不要）
-Route::post('/graphql-test', function (Request $request) {
-    // GraphQL リクエストを処理
-    return app(\Rebing\GraphQL\GraphQLController::class)->query($request);
-});
-
 // 見積内訳関連のルート
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('estimate-breakdowns/tree', [EstimateBreakdownController::class, 'getTree']);

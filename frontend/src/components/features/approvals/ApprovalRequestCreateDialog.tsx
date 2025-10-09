@@ -284,7 +284,7 @@ export function ApprovalRequestCreateDialog({ isOpen, onClose, onSuccess }: Appr
                             </div>
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {flow.approval_steps?.length || 0} ステップ
+                              {flow.approval_steps?.filter(step => step.step !== 0).length || 0} ステップ
                             </div>
                             <div className="flex items-center gap-1">
                               <CheckCircle className="h-3 w-3" />

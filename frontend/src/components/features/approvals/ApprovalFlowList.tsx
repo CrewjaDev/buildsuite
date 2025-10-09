@@ -317,8 +317,8 @@ export function ApprovalFlowList({ flows, loading, onRefresh, onEdit }: Approval
                       <Badge variant="outline">{getFlowTypeLabel(flow.flow_type)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStepBadgeColor(flow.approval_steps?.length || 0)}>
-                        {flow.approval_steps?.length || 0}段階
+                      <Badge className={getStepBadgeColor(flow.approval_steps?.filter(step => step.step !== 0).length || 0)}>
+                        {flow.approval_steps?.filter(step => step.step !== 0).length || 0}段階
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(flow)}</TableCell>
