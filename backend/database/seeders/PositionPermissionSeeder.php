@@ -40,7 +40,7 @@ class PositionPermissionSeeder extends Seeder
                 'department.create',
                 'department.edit',
                 'system.view',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $director->permissions()->attach($permissions->pluck('id'), [
@@ -74,7 +74,7 @@ class PositionPermissionSeeder extends Seeder
                 'department.view',
                 'department.create',
                 'department.edit',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $departmentManager->permissions()->attach($permissions->pluck('id'), [
@@ -104,7 +104,7 @@ class PositionPermissionSeeder extends Seeder
                 'payment.report',
                 'user.view',
                 'department.view',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $sectionChief->permissions()->attach($permissions->pluck('id'), [

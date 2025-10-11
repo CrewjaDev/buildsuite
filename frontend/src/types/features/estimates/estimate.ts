@@ -117,6 +117,14 @@ export interface UserApprovalStatus {
   can_act: boolean
   message: string
   sub_status?: string | null
+  debug?: {
+    user_id: number
+    user_name: string
+    approval_request_id: number
+    requested_by: number
+    current_step: number
+    approval_flow_id: number
+  }
 }
 
 export interface CreateEstimateRequest {

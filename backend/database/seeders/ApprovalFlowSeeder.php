@@ -149,7 +149,7 @@ class ApprovalFlowSeeder extends Seeder
                     'step' => 1,
                     'name' => '上長承認',
                     'approvers' => [
-                        ['type' => 'user', 'value' => 2, 'display_name' => '山田太郎'], // UserSeederで作成されるユーザー
+                        ['type' => 'user', 'value' => 3, 'display_name' => '山田太郎'], // 実際の山田太郎ユーザー
                     ],
                     'available_permissions' => [
                         'estimate.approval.approve',

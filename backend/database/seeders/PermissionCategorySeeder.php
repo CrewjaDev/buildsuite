@@ -43,6 +43,18 @@ class PermissionCategorySeeder extends Seeder
 
         $this->command->info("承認依頼用権限: {$approvalRequestPermissions->count()}件を分類しました");
 
+        // 承認依頼一覧用権限の分類
+        $approvalListPermissions = Permission::where('name', 'like', '%.approval.list')->get();
+
+        foreach ($approvalListPermissions as $permission) {
+            $permission->update([
+                'category' => 'approval_request',
+                'subcategory' => 'list'
+            ]);
+        }
+
+        $this->command->info("承認依頼一覧用権限: {$approvalListPermissions->count()}件を分類しました");
+
         // 承認閲覧用権限の分類
         $approvalViewPermissions = Permission::where('name', 'like', '%.approval.view')->get();
 
@@ -84,6 +96,21 @@ class PermissionCategorySeeder extends Seeder
 
         $this->command->info("基本操作権限: {$basicOperationPermissions->count()}件を分類しました");
 
+        // 一覧権限の分類
+        $listPermissions = Permission::where('name', 'like', '%.list')
+            ->where('name', 'not like', '%.approval.%')
+            ->where('name', 'not like', '%.flow.%')
+            ->get();
+
+        foreach ($listPermissions as $permission) {
+            $permission->update([
+                'category' => 'basic_operation',
+                'subcategory' => 'list'
+            ]);
+        }
+
+        $this->command->info("一覧権限: {$listPermissions->count()}件を分類しました");
+
         // 利用権限の分類
         $usePermissions = Permission::where('name', 'like', '%.use')->get();
 
@@ -99,7 +126,8 @@ class PermissionCategorySeeder extends Seeder
         // システム権限の分類
         $systemPermissions = Permission::where('name', 'like', 'system.%')
             ->orWhere('name', 'like', 'approval.flow.%')
-            ->orWhere('name', 'like', 'approval.usage')
+            ->orWhere('name', 'like', 'approval.authority')
+            ->orWhere('name', 'like', 'approval.list')
             ->get();
 
         foreach ($systemPermissions as $permission) {

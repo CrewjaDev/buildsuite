@@ -36,6 +36,13 @@ class EstimateApprovalController extends Controller
     {
         $user = auth()->user();
         
+        \Log::info('承認依頼作成開始', [
+            'estimate_id' => $estimateId,
+            'user_id' => $user->id,
+            'approval_flow_id' => $request->get('approval_flow_id'),
+            'request_data' => $request->all()
+        ]);
+        
         try {
             // 汎用承認サービスで承認依頼を作成
             $approvalRequest = $this->universalApprovalService->createApprovalRequest(
@@ -281,6 +288,9 @@ class EstimateApprovalController extends Controller
                 return $user->employee?->position_id == $approver['value'];
             case 'user':
                 return $user->id == $approver['value'];
+            case 'role':
+                // ユーザーが指定された役割を持っているかチェック
+                return $user->roles()->where('role_id', $approver['value'])->exists();
             default:
                 return false;
         }
@@ -620,6 +630,16 @@ class EstimateApprovalController extends Controller
             }
             
             $userStatus = $approvalRequest->getUserApprovalStatus($user);
+            
+            // デバッグ情報を追加
+            $userStatus['debug'] = [
+                'user_id' => $user->id,
+                'user_name' => $user->name ?? '不明',
+                'approval_request_id' => $approvalRequest->id,
+                'requested_by' => $approvalRequest->requested_by,
+                'current_step' => $approvalRequest->current_step,
+                'approval_flow_id' => $approvalRequest->approval_flow_id
+            ];
             
             return response()->json($userStatus);
             

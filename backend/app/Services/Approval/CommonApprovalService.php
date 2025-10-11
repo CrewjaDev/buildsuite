@@ -152,6 +152,9 @@ class CommonApprovalService
                 return $user->employee?->position_id == $approver['value'];
             case 'user':
                 return $user->id == $approver['value'];
+            case 'role':
+                // ユーザーが指定された役割を持っているかチェック
+                return $user->roles()->where('role_id', $approver['value'])->exists();
             default:
                 return false;
         }
@@ -163,7 +166,7 @@ class CommonApprovalService
     public function processApproval(
         ApprovalRequest $approvalRequest, 
         $user, 
-        string $comment, 
+        ?string $comment, 
         string $action
     ): void {
         // 承認履歴を作成
@@ -184,6 +187,7 @@ class CommonApprovalService
                 $approvalRequest->update([
                     'current_step' => $nextStepNumber,
                     'status' => 'pending',
+                    'sub_status' => null, // 承認後はsub_statusをクリア
                 ]);
             } else {
                 // 承認完了
@@ -191,6 +195,7 @@ class CommonApprovalService
                     'status' => 'approved',
                     'approved_by' => $user->id,
                     'approved_at' => now(),
+                    'sub_status' => null, // 承認後はsub_statusをクリア
                 ]);
             }
         } elseif ($action === 'reject') {
@@ -198,12 +203,14 @@ class CommonApprovalService
                 'status' => 'rejected',
                 'rejected_by' => $user->id,
                 'rejected_at' => now(),
+                'sub_status' => null, // 却下後はsub_statusをクリア
             ]);
         } elseif ($action === 'return') {
             $approvalRequest->update([
                 'status' => 'returned',
                 'returned_by' => $user->id,
                 'returned_at' => now(),
+                'sub_status' => null, // 差し戻し後はsub_statusをクリア
             ]);
         }
     }

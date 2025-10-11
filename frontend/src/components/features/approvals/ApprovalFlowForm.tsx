@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,7 @@ import { useActiveSystemLevels } from '@/hooks/useSystemLevels'
 import { useActiveDepartments } from '@/hooks/useDepartments'
 import { useActivePositions } from '@/hooks/usePositions'
 import { useUsers } from '@/hooks/useUsers'
+import { useRoles } from '@/hooks/features/permission/useRoles'
 import { businessCodeService } from '@/services/features/business/businessCodeService'
 import { useToast } from '@/components/ui/toast'
 
@@ -304,25 +305,25 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
 
       
       try {
-        const permissionStatus = await businessCodeService.getBusinessCodePermissionStatus(
-          'system_level',
-          1,
-          formData.flow_type
+        console.log('ビジネスコード権限取得開始:', { flow_type: formData.flow_type })
+        
+        const permissionStatus = await businessCodeService.getPermissionsByCategory(
+          formData.flow_type,
+          'approval_step'
         )
         
-        if (permissionStatus.data.permission_status && permissionStatus.data.permission_status.length > 0) {
-          // カテゴリベースで承認ステップ用権限をフィルタリング
-          const approvalPermissions = permissionStatus.data.permission_status.filter(p => 
-            p.category === 'approval_step'
-          )
+        console.log('権限取得結果:', permissionStatus)
+        
+        if (permissionStatus.data.permissions && permissionStatus.data.permissions.length > 0) {
+          console.log('承認ステップ権限:', permissionStatus.data.permissions)
           
-          
-          setBusinessCodePermissions(approvalPermissions.map(p => ({
+          setBusinessCodePermissions(permissionStatus.data.permissions.map(p => ({
             id: p.id,
             name: p.name,
             display_name: p.display_name
           })))
         } else {
+          console.log('権限が見つかりません')
           setBusinessCodePermissions([])
         }
       } catch (error) {
@@ -351,7 +352,29 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
   const { data: departments = [] } = useActiveDepartments()
   const { data: positions = [] } = useActivePositions()
   const { data: usersData } = useUsers({ page: 1, pageSize: 1000, is_active: true })
-  const users = usersData?.users || []
+  const { data: rolesData } = useRoles({ is_active: true })
+  const users = useMemo(() => usersData?.users || [], [usersData?.users])
+  
+  // デバッグ: 役割データの構造を確認
+  console.log('rolesData構造:', rolesData)
+  
+  const roles = useMemo(() => Array.isArray(rolesData) ? rolesData : Array.isArray(rolesData?.data) ? rolesData.data : [], [rolesData])
+  
+  // デバッグ: 最終的な役割配列を確認
+  console.log('最終的な役割配列:', roles)
+  
+  // デバッグ: 役割配列の詳細を確認
+  if (roles.length > 0) {
+    console.log('役割配列の詳細:')
+    roles.forEach((role: { id: number; name: string; display_name?: string }, index: number) => {
+      console.log(`役割${index + 1}:`, {
+        id: role.id,
+        name: role.name,
+        display_name: role.display_name,
+        fullObject: role
+      })
+    })
+  }
   
   // ユーザーの表示ラベルを生成する関数
   const getUserDisplayLabel = (user: UserDetail) => {
@@ -444,8 +467,28 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
           const stepKey = `step_${step.step}`;
           const stepSettings = flow.flow_config?.step_settings?.[stepKey];
           
+          // 承認者のdisplay_nameを適切に設定
+          const initializedApprovers = step.approvers?.map(approver => {
+            if (!approver.display_name || approver.display_name.trim() === '') {
+              // display_nameが空の場合は適切な値を設定
+              let displayName = ''
+              if (approver.type === 'role') {
+                const roleItem = roles.find((roleItem: { id: number; display_name?: string; name?: string }) => roleItem.id.toString() === approver.value.toString())
+                displayName = roleItem?.display_name || roleItem?.name || `役割ID: ${approver.value}`
+              } else if (approver.type === 'user') {
+                const user = users.find(user => user.id.toString() === approver.value.toString())
+                displayName = user ? getUserDisplayLabel(user) : `ユーザーID: ${approver.value}`
+              } else {
+                displayName = approver.value.toString()
+              }
+              return { ...approver, display_name: displayName }
+            }
+            return approver
+          }) || []
+          
           return {
             ...step,
+            approvers: initializedApprovers,
             required_permissions: step.required_permissions || [], // 初期化
             condition: step.condition || {
               type: 'required',
@@ -473,7 +516,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       // 新規作成時の初期化
       resetForm()
     }
-  }, [flow, isOpen, resetForm])
+  }, [flow, isOpen, resetForm, roles, users])
 
   const addRequester = () => {
     const newRequester: ApprovalRequester = {
@@ -600,9 +643,61 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
               if (field === 'type') {
                 return {
                   ...approver,
-                  [field]: value as 'system_level' | 'department' | 'position' | 'user',
+                  [field]: value as 'system_level' | 'department' | 'position' | 'role' | 'user',
                   value: '', // 値をリセット
                   display_name: '' // 表示名もリセット
+                }
+              } else if (field === 'value') {
+                // 値が変更された場合は表示名も更新
+                let displayName = ''
+                const approverType = approver.type
+                const approverValue = value.toString()
+                
+                console.log('承認者の値変更:', { stepIndex, approverIndex, approverType, approverValue })
+                
+                if (approverType === 'system_level') {
+                  const systemLevel = systemLevels.find(level => level.code === approverValue)
+                  displayName = systemLevel?.display_name || approverValue
+                } else if (approverType === 'department') {
+                  const department = departments.find(dept => dept.id.toString() === approverValue)
+                  displayName = department?.name || approverValue
+                } else if (approverType === 'position') {
+                  const position = positions.find(pos => pos.id.toString() === approverValue)
+                  displayName = position?.name || approverValue
+                } else if (approverType === 'role') {
+                  const roleItem = roles.find((roleItem: { id: number; display_name?: string; name?: string }) => roleItem.id.toString() === approverValue)
+                  console.log('役割検索結果:', { 
+                    approverValue, 
+                    roleItem, 
+                    roleItemId: roleItem?.id,
+                    roleItemName: roleItem?.name,
+                    roleItemDisplayName: roleItem?.display_name,
+                    availableRoleIds: roles.map((r: { id: number }) => r.id)
+                  })
+                  displayName = roleItem?.display_name || roleItem?.name || approverValue
+                } else if (approverType === 'user') {
+                  const user = users.find(user => user.id.toString() === approverValue)
+                  displayName = user ? getUserDisplayLabel(user) : approverValue
+                }
+                
+                console.log('設定された表示名:', displayName)
+                
+                // display_nameが空の場合はフォールバック処理
+                if (!displayName || displayName.trim() === '') {
+                  if (approverType === 'role') {
+                    displayName = `役割ID: ${approverValue}`
+                  } else if (approverType === 'user') {
+                    displayName = `ユーザーID: ${approverValue}`
+                  } else {
+                    displayName = approverValue
+                  }
+                  console.log('フォールバック表示名:', displayName)
+                }
+                
+                return {
+                  ...approver,
+                  [field]: value,
+                  display_name: displayName
                 }
               } else {
                 return {
@@ -617,25 +712,6 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       }
       return step
     })
-    
-    // display_nameを更新
-    if (field === 'type' || field === 'value') {
-      const approver = newSteps[stepIndex].approvers[approverIndex]
-      if (approver.type === 'system_level') {
-        const systemLevel = systemLevels.find(level => level.code === approver.value)
-        newSteps[stepIndex].approvers[approverIndex].display_name = systemLevel?.display_name || 'システム権限レベル'
-      } else if (approver.type === 'department') {
-        const department = departments.find(dept => dept.id.toString() === String(approver.value))
-        newSteps[stepIndex].approvers[approverIndex].display_name = department?.name || '部署'
-      } else if (approver.type === 'position') {
-        const position = positions.find(pos => pos.id.toString() === String(approver.value))
-        newSteps[stepIndex].approvers[approverIndex].display_name = position?.name || '職位'
-      } else if (approver.type === 'user') {
-        // 個別ユーザーの場合はユーザー一覧から名前を取得
-        const user = users.find((u) => u.id.toString() === String(approver.value))
-        newSteps[stepIndex].approvers[approverIndex].display_name = user?.name || 'ユーザー'
-      }
-    }
     
     setApprovalSteps(newSteps)
   }
@@ -660,6 +736,16 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       })
       return
     }
+
+    // デバッグ: 承認ステップの状態を確認
+    console.log('承認ステップの状態:', approvalSteps)
+    approvalSteps.forEach((step, stepIndex) => {
+      step.approvers.forEach((approver, approverIndex) => {
+        if (!approver.display_name || approver.display_name.trim() === '') {
+          console.error(`承認者 display_name が空: ステップ${stepIndex}, 承認者${approverIndex}`, approver)
+        }
+      })
+    })
 
     setLoading(true)
     try {
@@ -1195,6 +1281,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     <SelectItem value="system_level">システム権限レベル</SelectItem>
                                     <SelectItem value="department">部署</SelectItem>
                                     <SelectItem value="position">職位</SelectItem>
+                                    <SelectItem value="role">役割</SelectItem>
                                     <SelectItem value="user">個別ユーザー</SelectItem>
                                   </SelectContent>
                                 </Select>
@@ -1249,6 +1336,23 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                       {positions.map((pos) => (
                                         <SelectItem key={pos.id} value={pos.id.toString()}>
                                           {pos.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : approver.type === 'role' ? (
+                                  <Select 
+                                    key={`approver-role-${stepIndex}-${approverIndex}-${approver.value}`}
+                                    value={String(approver.value)} 
+                                    onValueChange={(value) => updateApprover(stepIndex, approverIndex, 'value', value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="役割を選択" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {roles.map((role: { id: number; display_name?: string; name?: string }) => (
+                                        <SelectItem key={role.id} value={role.id.toString()}>
+                                          {role.display_name || role.name}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>

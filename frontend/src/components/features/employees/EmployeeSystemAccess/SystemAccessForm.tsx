@@ -121,15 +121,40 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
   const onSubmit = async (data: PermissionManagementFormData) => {
     console.log('Form submission started:', data)
     console.log('onSubmit function called')
+    
+    // 追加のバリデーション
+    if (!data.system_level || data.system_level.trim() === '') {
+      console.error('System level is empty or invalid:', data.system_level)
+      addToast({
+        title: 'エラー',
+        description: 'システムレベルを選択してください',
+        type: 'error',
+      })
+      return
+    }
+    
+    if (!data.login_id || data.login_id.trim() === '') {
+      console.error('Login ID is empty or invalid:', data.login_id)
+      addToast({
+        title: 'エラー',
+        description: 'ログインIDを入力してください',
+        type: 'error',
+      })
+      return
+    }
+    
     try {
       setIsSubmitting(true)
 
       // システム権限の更新/付与
       const requestData = {
-        login_id: data.login_id,
-        system_level: data.system_level,
+        login_id: data.login_id.trim(),
+        system_level: data.system_level.trim(),
         is_admin: data.is_admin,
       }
+      
+      console.log('Sending request data:', requestData)
+      console.log('Employee ID:', employee.id)
       
       await grantSystemAccessMutation.mutateAsync({
         id: employee.id,
@@ -349,7 +374,10 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                     label: `${level.display_name} (優先度: ${level.priority})`
                   })) || []}
                   value={watch('system_level') || ''}
-                  onValueChange={(value: string) => setValue('system_level', value)}
+                  onValueChange={(value: string) => {
+                    console.log('System level changed to:', value)
+                    setValue('system_level', value)
+                  }}
                   placeholder="システムレベルを選択"
                   width="300px"
                 />

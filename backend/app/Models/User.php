@@ -105,7 +105,17 @@ class User extends Authenticatable
     }
 
     /**
-     * システム権限レベルとのリレーション
+     * システム権限レベルとのリレーション（user_system_levelsテーブル経由）
+     */
+    public function systemLevels(): BelongsToMany
+    {
+        return $this->belongsToMany(SystemLevel::class, 'user_system_levels')
+            ->withPivot(['assigned_at', 'assigned_by', 'is_active'])
+            ->withTimestamps();
+    }
+
+    /**
+     * システム権限レベルとのリレーション（後方互換性のため）
      */
     public function systemLevel()
     {

@@ -25,13 +25,13 @@
 #### 1.1 システム固定コード（8種類）
 | コード | 名称 | カテゴリ | 説明 |
 |--------|------|----------|------|
-| `employee` | 社員管理 | system | 社員の作成・編集・削除・閲覧業務 |
-| `role` | 役割管理 | system | 役割の作成・編集・削除・閲覧業務 |
-| `department` | 部署管理 | system | 部署の作成・編集・削除・閲覧業務 |
+| `employee` | 社員設定 | system | 社員の作成業務 |
+| `role` | 役割設定 | system | 役割の作成業務 |
+| `department` | 部署設定 | system | 部署の作成業務 |
 | `system` | システム管理 | system | システム設定・管理業務 |
-| `approval` | 承認管理 | system | 承認フロー・承認依頼の管理業務 |
-| `partner` | 取引先管理 | system | 取引先の作成・編集・削除・閲覧業務 |
-| `permission` | 権限管理 | system | 権限設定・権限管理業務 |
+| `approval` | 承認設定 | system | 承認フローの設定・承認依頼の管理業務 |
+| `partner` | 取引先設定 | system | 取引先の作成業務 |
+| `permission` | 権限設定 | system | 権限設定業務 |
 
 #### 1.2 ビジネスロジックコード（5種類）
 | コード | 名称 | カテゴリ | 説明 |
@@ -44,22 +44,28 @@
 
 ### 2. 各ビジネスコードの権限パターン
 
-#### 2.1 基本操作権限（4種類）
-- `{code}.view` - 閲覧権限
+#### 2.1 基本操作権限（5種類）
+- `{code}.use` - 利用権限　　←※追加
+- `{code}.list` - 一覧権限　　←※追加
+- `{code}.view` - 詳細権限
 - `{code}.create` - 作成権限
 - `{code}.edit` - 編集権限
 - `{code}.delete` - 削除権限
 
-#### 2.2 承認関連権限（6種類）
+- ** ※ {code}が `approval` のとき、`.list .view .create .edit .delete` は設定不要；承認管理の承認一覧は利用しません（別の設定を利用するため）
+　　　　`.use` は利用します。 
+
+#### 2.2 承認関連権限（7種類）
 - `{code}.approval.request` - 承認依頼作成
-- `{code}.approval.view` - 承認依頼閲覧
+- `{code}.approval.view` - 承認依頼詳細閲覧
+- `{code}.approval.list` - 承認依頼一覧　←※追加
 - `{code}.approval.approve` - 承認
 - `{code}.approval.reject` - 却下
 - `{code}.approval.return` - 差し戻し
 - `{code}.approval.cancel` - 承認依頼キャンセル
 
 #### 2.3 特殊権限
-- `approval.usage` - ダッシュボードでの承認依頼一覧表示・承認者機能の利用権限
+- `approval.authority` - ダッシュボードでの承認依頼一覧表示・承認者機能の利用権限
 - `system.view` - システム情報閲覧
 - `system.edit` - システム設定編集
 
@@ -68,14 +74,14 @@
 承認機能は2つの階層で構成されています：
 
 #### 3.1 システム承認権限
-- **`approval.use`**: 承認管理ページ（承認フロー管理・承認依頼管理）へのアクセス権限
 - **`approval.flow.*`**: 承認フローの管理権限（作成・編集・削除・閲覧）
-- **`approval.usage`**: ダッシュボードでの承認依頼一覧表示・承認者機能の利用権限
+- **`approval.authority`**: ダッシュボードでの承認依頼一覧表示・承認者機能の利用権限
 
 #### 3.2 業務別承認権限
 各業務（見積、予算、発注、工事、一般）で個別の承認フロー権限を設定：
 - **`{business}.approval.request`**: 承認依頼作成
-- **`{business}.approval.view`**: 承認依頼閲覧
+- **`{business}.approval.list`**: 承認依頼一覧　←※追加
+- **`{business}.approval.view`**: 承認依頼詳細閲覧
 - **`{business}.approval.approve`**: 承認
 - **`{business}.approval.reject`**: 却下
 - **`{business}.approval.return`**: 差し戻し

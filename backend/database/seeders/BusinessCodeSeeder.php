@@ -71,12 +71,14 @@ class BusinessCodeSeeder extends Seeder
         $permissionIds = [];
         
         foreach ($defaultPermissionNames as $permissionName) {
-            $permission = Permission::where('name', $permissionName)->first();
+            // 完全な権限名を生成: businessCode + permissionName
+            $fullPermissionName = $businessCode->code . '.' . $permissionName;
+            $permission = Permission::where('name', $fullPermissionName)->first();
             
             if ($permission) {
                 $permissionIds[] = $permission->id;
             } else {
-                $this->command->warn("権限 '{$permissionName}' が見つかりません。ビジネスコード: {$businessCode->code}");
+                $this->command->warn("権限 '{$fullPermissionName}' が見つかりません。ビジネスコード: {$businessCode->code}");
             }
         }
         

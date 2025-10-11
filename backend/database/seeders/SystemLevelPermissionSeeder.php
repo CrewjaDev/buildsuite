@@ -27,7 +27,7 @@ class SystemLevelPermissionSeeder extends Seeder
                 'estimate.approval.reject',
                 'estimate.approval.return',
                 'estimate.approval.request',
-                'approval.usage' // 承認者機能利用権限を追加
+                'approval.authority' // 承認者機能利用権限を追加
             ])->get();
             
             $supervisorLevel->permissions()->attach($approvalPermissions->pluck('id'), [
@@ -47,7 +47,7 @@ class SystemLevelPermissionSeeder extends Seeder
                 'estimate.approval.reject',
                 'estimate.approval.return',
                 'estimate.approval.request',
-                'approval.usage' // 承認者機能利用権限を追加
+                'approval.authority' // 承認者機能利用権限を追加
             ])->get();
             
             $executiveLevel->permissions()->attach($finalApprovalPermissions->pluck('id'), [

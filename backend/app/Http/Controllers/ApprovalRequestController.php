@@ -162,14 +162,36 @@ class ApprovalRequestController extends Controller
     public function approvalCounts(): JsonResponse
     {
         try {
-            // 統一メソッドを使用して件数を取得
-            $counts = [
-                'pending' => $this->getApprovalRequestsByUserView('pending', true),
-                'reviewing' => $this->getApprovalRequestsByUserView('reviewing', true),
-                'approved' => $this->getApprovalRequestsByUserView('approved', true),
-                'rejected' => $this->getApprovalRequestsByUserView('rejected', true),
-                'returned' => $this->getApprovalRequestsByUserView('returned', true)
-            ];
+            $user = auth()->user();
+            
+            // 承認者権限がある場合は承認者視点、承認依頼一覧権限がある場合は依頼者視点
+            if ($user->hasPermission('approval.authority')) {
+                // 承認者視点の件数取得
+                $counts = [
+                    'pending' => $this->getApprovalRequestsByUserView('pending', true),
+                    'reviewing' => $this->getApprovalRequestsByUserView('reviewing', true),
+                    'approved' => $this->getApprovalRequestsByUserView('approved', true),
+                    'rejected' => $this->getApprovalRequestsByUserView('rejected', true),
+                    'returned' => $this->getApprovalRequestsByUserView('returned', true)
+                ];
+            } elseif ($user->hasPermission('approval.approval.list')) {
+                // 承認依頼者視点の件数取得
+                $counts = [
+                    'pending' => $this->getRequesterApprovalCounts('pending'),
+                    'reviewing' => $this->getRequesterApprovalCounts('reviewing'),
+                    'approved' => $this->getRequesterApprovalCounts('approved'),
+                    'rejected' => $this->getRequesterApprovalCounts('rejected'),
+                    'returned' => $this->getRequesterApprovalCounts('returned')
+                ];
+            } else {
+                $counts = [
+                    'pending' => 0,
+                    'reviewing' => 0,
+                    'approved' => 0,
+                    'rejected' => 0,
+                    'returned' => 0
+                ];
+            }
 
             return response()->json([
                 'success' => true,
@@ -185,6 +207,41 @@ class ApprovalRequestController extends Controller
     }
 
     /**
+     * 承認依頼者視点の件数取得
+     */
+    private function getRequesterApprovalCounts($status): int
+    {
+        $user = auth()->user();
+        
+        $query = ApprovalRequest::where('requested_by', $user->id);
+        
+        switch ($status) {
+            case 'pending':
+                // 承認待ち: 承認中で、まだ承認されていない依頼
+                return $query->where('status', 'pending')->count();
+                
+            case 'reviewing':
+                // 審査中: 承認中で、現在審査中の依頼（承認待ちと同じ）
+                return $query->where('status', 'pending')->count();
+                
+            case 'approved':
+                // 承認済み: 承認完了した依頼
+                return $query->where('status', 'approved')->count();
+                
+            case 'rejected':
+                // 却下: 却下された依頼
+                return $query->where('status', 'rejected')->count();
+                
+            case 'returned':
+                // 差戻し: 差戻しされた依頼
+                return $query->where('status', 'returned')->count();
+                
+            default:
+                return 0;
+        }
+    }
+
+    /**
      * ユーザーが承認者かどうかを判定
      */
     private function isUserApprover($user, $approvalFlow, $currentStep)
@@ -195,12 +252,14 @@ class ApprovalRequestController extends Controller
 
         $steps = $approvalFlow->approval_steps;
         
-        // ステップ番号は1から開始するため、配列のインデックスは currentStep - 1
-        if ($currentStep < 1 || $currentStep > count($steps)) {
-            return false;
+        // ステップ番号で直接検索
+        $step = null;
+        foreach ($steps as $stepData) {
+            if ($stepData['step'] == $currentStep) {
+                $step = $stepData;
+                break;
+            }
         }
-        
-        $step = $steps[$currentStep - 1];
         
         if (!$step || !isset($step['approvers'])) {
             return false;
@@ -214,6 +273,10 @@ class ApprovalRequestController extends Controller
                     break;
                 case 'system_level':
                     if ($approver['value'] == $user->system_level) return true;
+                    break;
+                case 'role':
+                    // ユーザーの役割を確認
+                    if ($user->roles && $user->roles->contains('id', $approver['value'])) return true;
                     break;
                 case 'department_id':
                 case 'department':

@@ -133,7 +133,9 @@ class EstimateApprovalService {
    */
   async getUserApprovalStatus(estimateId: string | number): Promise<UserApprovalStatus> {
     try {
+      console.log('getUserApprovalStatus API呼び出し開始:', { estimateId })
       const response = await api.get(`/estimates/${estimateId}/approval/user-status`)
+      console.log('getUserApprovalStatus APIレスポンス:', response.data)
       return response.data
     } catch (error: unknown) {
       console.error('ユーザー承認状態取得エラー:', error)

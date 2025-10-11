@@ -11,100 +11,108 @@ class BusinessCodeService
     private const SEEDER_DEFAULT_BUSINESS_CODES = [
         // システム固定コード
         'role' => [
-            'name' => '役割管理',
-            'description' => '役割の作成・編集・削除・閲覧業務',
+            'name' => '役割設定',
+            'description' => '役割の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'role.use',
-                'role.view',
-                'role.create',
-                'role.edit',
-                'role.delete'
+                'use',
+                'view',
+                'create',
+                'edit',
+                'delete'
             ]
         ],
         'department' => [
-            'name' => '部署管理',
-            'description' => '部署の作成・編集・削除・閲覧業務',
+            'name' => '部署設定',
+            'description' => '部署の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'department.use',
-                'department.view',
-                'department.create',
-                'department.edit',
-                'department.delete'
+                'use',
+                'view',
+                'create',
+                'edit',
+                'delete'
             ]
         ],
         'system' => [
-            'name' => 'システム管理',
-            'description' => 'システム設定・管理業務',
+            'name' => 'シス権設定',
+            'description' => 'システム権限の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'system.use',
-                'system.view',
-                'system.edit'
+                'use',
+                'view',
+                'edit'
             ]
         ],
         'approval' => [
-            'name' => '承認管理',
-            'description' => '承認フロー・承認依頼の管理業務',
+            'name' => '承認設定',
+            'description' => '承認フロー設定・承認依頼の管理',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'approval.use',
-                'approval.flow.view',
-                'approval.flow.create',
-                'approval.flow.edit',
-                'approval.flow.delete',
-                'approval.usage'
-            ]
+                'use',
+                'flow.list',
+                'flow.view',
+                'flow.create',
+                'flow.edit',
+                'flow.delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel',
+                'approval.authority'
+                ]
         ],
         'employee' => [
-            'name' => '社員管理',
-            'description' => '社員情報の作成・編集・削除・閲覧業務',
+            'name' => '社員設定',
+            'description' => '社員情報の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'employee.use',
-                'employee.view',
-                'employee.create',
-                'employee.edit',
-                'employee.delete'
+                'use',
+                'view',
+                'create',
+                'edit',
+                'delete'
             ]
         ],
         'partner' => [
-            'name' => '取引先管理',
-            'description' => '取引先情報の作成・編集・削除・閲覧業務',
+            'name' => '取引先設定',
+            'description' => '取引先情報の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'partner.use',
-                'partner.view',
-                'partner.create',
-                'partner.edit',
-                'partner.delete'
+                'use',
+                'view',
+                'create',
+                'edit',
+                'delete'
             ]
         ],
         'permission' => [
-            'name' => '権限管理',
-            'description' => '権限設定・権限管理業務',
+            'name' => '権限設定',
+            'description' => '権限の設定',
             'category' => 'system',
             'is_system' => true,
             'is_core' => true,
             'default_permissions' => [
-                'permission.use',
-                'permission.view',
-                'permission.create',
-                'permission.edit',
-                'permission.delete'
+                'use',
+                'view',
+                'create',
+                'edit',
+                'delete'
             ]
         ],
         
@@ -116,17 +124,19 @@ class BusinessCodeService
             'is_system' => false,
             'is_core' => true,
             'default_permissions' => [
-                'estimate.use',
-                'estimate.create',
-                'estimate.view',
-                'estimate.edit',
-                'estimate.delete',
-                'estimate.approval.request',
-                'estimate.approval.view',
-                'estimate.approval.approve',
-                'estimate.approval.reject',
-                'estimate.approval.return',
-                'estimate.approval.cancel'
+                'use',
+                'list',
+                'create',
+                'view',
+                'edit',
+                'delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel'
             ],
             'settings' => [
                 'max_amount' => 10000000,
@@ -141,17 +151,19 @@ class BusinessCodeService
             'is_system' => false,
             'is_core' => true,
             'default_permissions' => [
-                'budget.use',
-                'budget.create',
-                'budget.view',
-                'budget.edit',
-                'budget.delete',
-                'budget.approval.request',
-                'budget.approval.view',
-                'budget.approval.approve',
-                'budget.approval.reject',
-                'budget.approval.return',
-                'budget.approval.cancel'
+                'use',
+                'list',
+                'create',
+                'view',
+                'edit',
+                'delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel'
             ],
             'settings' => [
                 'fiscal_year' => true,
@@ -165,17 +177,19 @@ class BusinessCodeService
             'is_system' => false,
             'is_core' => true,
             'default_permissions' => [
-                'purchase.use',
-                'purchase.create',
-                'purchase.view',
-                'purchase.edit',
-                'purchase.delete',
-                'purchase.approval.request',
-                'purchase.approval.view',
-                'purchase.approval.approve',
-                'purchase.approval.reject',
-                'purchase.approval.return',
-                'purchase.approval.cancel'
+                'use',
+                'list',
+                'create',
+                'view',
+                'edit',
+                'delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel'
             ],
             'settings' => [
                 'max_amount' => 5000000,
@@ -192,17 +206,19 @@ class BusinessCodeService
             'is_system' => false,
             'is_core' => false,
             'default_permissions' => [
-                'construction.use',
-                'construction.create',
-                'construction.view',
-                'construction.edit',
-                'construction.delete',
-                'construction.approval.request',
-                'construction.approval.view',
-                'construction.approval.approve',
-                'construction.approval.reject',
-                'construction.approval.return',
-                'construction.approval.cancel'
+                'use',
+                'list',
+                'create',
+                'view',
+                'edit',
+                'delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel'
             ],
             'settings' => [
                 'max_amount' => 50000000,
@@ -217,17 +233,19 @@ class BusinessCodeService
             'is_system' => false,
             'is_core' => false,
             'default_permissions' => [
-                'general.use',
-                'general.create',
-                'general.view',
-                'general.edit',
-                'general.delete',
-                'general.approval.request',
-                'general.approval.view',
-                'general.approval.approve',
-                'general.approval.reject',
-                'general.approval.return',
-                'general.approval.cancel'
+                'use',
+                'list',
+                'create',
+                'view',
+                'edit',
+                'delete',
+                'approval.request',
+                'approval.list',
+                'approval.view',
+                'approval.approve',
+                'approval.reject',
+                'approval.return',
+                'approval.cancel'
             ],
             'settings' => []
         ]

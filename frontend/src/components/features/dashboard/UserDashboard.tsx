@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Eye, FileText, Clock, CheckCircle, Loader2, ArrowRight, XCircle, RotateCcw } from 'lucide-react'
+import { Eye, FileText, Clock, CheckCircle, Loader2, ArrowRight } from 'lucide-react'
 import { HeaderUser } from '@/types/user'
 import { dashboardService, type DashboardStats } from '@/services/features/dashboard/dashboardService'
 import { approvalRequestService } from '@/services/features/approvals/approvalRequests'
@@ -65,8 +65,8 @@ export default function UserDashboard({ user }: UserDashboardProps) {
 
   useEffect(() => {
     fetchStats()
-    // 承認者権限がある場合のみ承認件数を取得
-    if (user.permissions?.includes('approval.usage')) {
+    // 承認者権限または承認依頼一覧権限がある場合に承認件数を取得
+    if (user.permissions?.includes('approval.authority') || user.permissions?.includes('approval.approval.list')) {
       fetchApprovalCounts()
     }
   }, [fetchStats, fetchApprovalCounts, user.permissions])
@@ -126,17 +126,6 @@ export default function UserDashboard({ user }: UserDashboardProps) {
     return displayNames[businessCode] || businessCode
   }
 
-  // ビジネスコードのカテゴリを取得
-  const getBusinessCodeCategory = (businessCode: string): string => {
-    const categories: { [key: string]: string } = {
-      'estimate': '財務',
-      'budget': '財務',
-      'purchase': '財務',
-      'construction': '工事',
-      'general': '一般'
-    }
-    return categories[businessCode] || 'その他'
-  }
 
   if (loading) {
     return (
@@ -176,129 +165,133 @@ export default function UserDashboard({ user }: UserDashboardProps) {
         </CardContent>
       </Card>
 
-      {/* 承認管理カード（承認者権限がある場合のみ表示） */}
-      {user.permissions?.includes('approval.usage') && (
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={handleViewAllApprovals}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+      {/* カードグリッド */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 justify-items-center">
+        {/* 承認者用カード（承認者権限がある場合のみ表示） */}
+        {user.permissions?.includes('approval.authority') && (
+        <Card className="cursor-pointer hover:shadow-md transition-shadow w-80 h-48" onClick={handleViewAllApprovals}>
+          <CardHeader className="pb-2 px-3 -mt-2">
+            <CardTitle className="flex items-center justify-between text-base">
               <span>承認管理</span>
-              <Badge variant="outline">承認者</Badge>
+              <div className="text-sm text-blue-600 flex items-center gap-1">
+                <span>詳細を表示</span>
+                <ArrowRight className="h-4 w-4" />
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
+          <CardContent className="pt-0 px-3 pb-3">
+            <div className="space-y-2">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-yellow-500" />
                   <span className="text-sm font-medium text-gray-600">承認待ち</span>
                 </div>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.pending}
+                <div className="text-base font-bold text-yellow-600 -mt-1">
+                  {approvalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : approvalCounts.pending}
                 </div>
               </div>
               
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-blue-500" />
                   <span className="text-sm font-medium text-gray-600">審査中</span>
                 </div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.reviewing}
+                <div className="text-base font-bold text-blue-600 -mt-1">
+                  {approvalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : approvalCounts.reviewing}
                 </div>
               </div>
-              
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium text-gray-600">承認済み</span>
-                </div>
-                <div className="text-2xl font-bold text-green-600">
-                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.approved}
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-sm font-medium text-gray-600">却下</span>
-                </div>
-                <div className="text-2xl font-bold text-red-600">
-                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.rejected}
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <RotateCcw className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium text-gray-600">差戻し</span>
-                </div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {approvalLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : approvalCounts.returned}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center mt-4 text-sm text-blue-600">
-              <span>承認一覧を表示</span>
-              <ArrowRight className="h-4 w-4 ml-1" />
             </div>
           </CardContent>
         </Card>
-      )}
+        )}
 
-      {/* ビジネスコード別統計カード */}
-      {Object.entries(stats.business_codes).map(([businessCode, businessStats]) => (
-        <Card 
-          key={businessCode}
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleBusinessCodeClick(businessCode)}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>{getBusinessCodeDisplayName(businessCode)}</span>
-              <Badge variant="outline">{getBusinessCodeCategory(businessCode)}</Badge>
+        {/* 承認依頼一覧用カード（承認依頼一覧権限がある場合のみ表示） */}
+        {user.permissions?.includes('approval.approval.list') && (
+        <Card className="cursor-pointer hover:shadow-md transition-shadow w-80 h-48" onClick={handleViewAllApprovals}>
+          <CardHeader className="pb-2 px-3 -mt-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>承認依頼一覧</span>
+              <div className="text-sm text-blue-600 flex items-center gap-1">
+                <span>詳細を表示</span>
+                <ArrowRight className="h-4 w-4" />
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              {/* 作業中 */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <FileText className="h-3 w-3 text-blue-500" />
-                  <span className="text-xs font-medium text-gray-600">作業中</span>
+          <CardContent className="pt-0 px-3 pb-3">
+            <div className="space-y-2">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm font-medium text-gray-600">承認待ち</span>
                 </div>
-                <div className="text-lg font-bold text-blue-600">{businessStats.total.draft_count}</div>
-                <div className="text-xs text-gray-500">今月: {businessStats.monthly.draft_count}</div>
+                <div className="text-base font-bold text-yellow-600 -mt-1">
+                  {approvalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : approvalCounts.pending}
+                </div>
+              </div>
+              
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-600">審査中</span>
+                </div>
+                <div className="text-base font-bold text-blue-600 -mt-1">
+                  {approvalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : approvalCounts.reviewing}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        )}
+
+        {/* ビジネスコード別統計カード */}
+        {Object.entries(stats.business_codes || {}).map(([businessCode, businessStats]) => (
+        <Card 
+          key={businessCode}
+          className="cursor-pointer hover:shadow-md transition-shadow w-80 h-48"
+          onClick={() => handleBusinessCodeClick(businessCode)}
+        >
+          <CardHeader className="pb-2 px-3 -mt-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>{getBusinessCodeDisplayName(businessCode)}</span>
+              <div className="text-sm text-blue-600 flex items-center gap-1">
+                <span>詳細を表示</span>
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 px-3 pb-3">
+            <div className="space-y-2">
+              {/* 作業中 */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-600">作業中</span>
+                </div>
+                <div className="text-base font-bold text-blue-600 -mt-1">{businessStats?.total?.draft_count || 0}</div>
               </div>
               
               {/* 承認待ち */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <Clock className="h-3 w-3 text-yellow-500" />
-                  <span className="text-xs font-medium text-gray-600">承認待ち</span>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm font-medium text-gray-600">承認待ち</span>
                 </div>
-                <div className="text-lg font-bold text-yellow-600">{businessStats.total.pending_approval_count}</div>
-                <div className="text-xs text-gray-500">今月: {businessStats.monthly.pending_approval_count}</div>
+                <div className="text-base font-bold text-yellow-600 -mt-1">{businessStats?.total?.pending_approval_count || 0}</div>
               </div>
               
               {/* 承認済み */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <CheckCircle className="h-3 w-3 text-green-500" />
-                  <span className="text-xs font-medium text-gray-600">承認済み</span>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-gray-600">承認済み</span>
                 </div>
-                <div className="text-lg font-bold text-green-600">{businessStats.total.approved_count}</div>
-                <div className="text-xs text-gray-500">今月: {businessStats.monthly.approved_count}</div>
+                <div className="text-base font-bold text-green-600 -mt-1">{businessStats?.total?.approved_count || 0}</div>
               </div>
-            </div>
-            
-            <div className="flex items-center justify-center mt-4 text-sm text-blue-600">
-              <span>詳細を表示</span>
-              <ArrowRight className="h-4 w-4 ml-1" />
             </div>
           </CardContent>
         </Card>
-      ))}
+        ))}
+      </div>
 
       {/* 最近の活動 */}
       {stats.recent_activities.length > 0 && (

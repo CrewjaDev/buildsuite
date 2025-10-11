@@ -100,13 +100,16 @@ class ApprovalFlowController extends Controller
                 'conditions' => 'nullable|array',
                 'priority' => 'integer|min:1',
                 'requesters' => 'required|array|min:1',
-                'requesters.*.type' => 'required|string|in:system_level,position,user,department',
+                'requesters.*.type' => 'required|string|in:system_level,position,user,department,role',
                 'requesters.*.value' => 'required',
                 'requesters.*.display_name' => 'required|string',
                 'approval_steps' => 'required|array|min:1|max:5',
                 'approval_steps.*.step' => 'required|integer|min:0|max:5', // ステップ0を許可
                 'approval_steps.*.name' => 'required|string|max:255',
                 'approval_steps.*.approvers' => 'required|array|min:1',
+                'approval_steps.*.approvers.*.type' => 'required|string|in:system_level,position,user,department,role',
+                'approval_steps.*.approvers.*.value' => 'required',
+                'approval_steps.*.approvers.*.display_name' => 'required|string',
                 'approval_steps.*.condition' => 'required|array',
                 'is_active' => 'boolean'
             ]);
@@ -300,13 +303,16 @@ class ApprovalFlowController extends Controller
                 'conditions' => 'nullable|array',
                 'priority' => 'integer|min:1',
                 'requesters' => 'array|min:1',
-                'requesters.*.type' => 'string|in:system_level,position,user,department',
+                'requesters.*.type' => 'string|in:system_level,position,user,department,role',
                 'requesters.*.value' => 'required',
                 'requesters.*.display_name' => 'required|string',
                 'approval_steps' => 'array|min:1|max:5',
                 'approval_steps.*.step' => 'integer|min:0|max:5', // ステップ0を許可
                 'approval_steps.*.name' => 'string|max:255',
                 'approval_steps.*.approvers' => 'array|min:1',
+                'approval_steps.*.approvers.*.type' => 'string|in:system_level,position,user,department,role',
+                'approval_steps.*.approvers.*.value' => 'required',
+                'approval_steps.*.approvers.*.display_name' => 'string',
                 'approval_steps.*.condition' => 'array',
                 'is_active' => 'boolean',
                 // フロー設定の追加

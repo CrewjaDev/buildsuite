@@ -359,7 +359,7 @@ class ApprovalFlowService
             }
         }
 
-        $validTypes = ['system_level', 'position', 'user', 'department'];
+        $validTypes = ['system_level', 'position', 'user', 'department', 'role'];
         return in_array($requester['type'], $validTypes);
     }
 
@@ -398,7 +398,7 @@ class ApprovalFlowService
             return false;
         }
 
-        $validTypes = ['system_level', 'position', 'user', 'department', 'conditional', 'parallel'];
+        $validTypes = ['system_level', 'position', 'user', 'department', 'role', 'conditional', 'parallel'];
         
         if (!in_array($approver['type'], $validTypes)) {
             return false;

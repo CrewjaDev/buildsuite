@@ -581,16 +581,22 @@ class ApprovalRequest extends Model
     {
         $steps = $this->approvalFlow->approval_steps ?? [];
         
-        if (empty($steps) || $this->current_step < 1 || $this->current_step > count($steps)) {
+        if (empty($steps) || $this->current_step < 1) {
             return false;
         }
         
-        $currentStepConfig = $steps[$this->current_step - 1];
-        $approvers = $currentStepConfig['approvers'] ?? [];
-        
-        foreach ($approvers as $approver) {
-            if ($this->matchesApprover($user, $approver)) {
-                return true;
+        // ステップ0（承認依頼作成）を除外した実際の承認ステップを検索
+        foreach ($steps as $step) {
+            $stepNumber = $step['step'] ?? 0;
+            if ($stepNumber === $this->current_step) {
+                $approvers = $step['approvers'] ?? [];
+                
+                foreach ($approvers as $approver) {
+                    if ($this->matchesApprover($user, $approver)) {
+                        return true;
+                    }
+                }
+                break;
             }
         }
         
@@ -607,11 +613,26 @@ class ApprovalRequest extends Model
         
         switch ($type) {
             case 'position_id':
+            case 'position':
                 return $user->employee && $user->employee->position_id == $value;
             case 'department_id':
+            case 'department':
                 return $user->employee && $user->employee->department_id == $value;
             case 'user_id':
+            case 'user': // 承認フローで使用されるタイプ
                 return $user->id == $value;
+            case 'role':
+                // ユーザーが指定された役割を持っているかチェック
+                return $user->roles()->where('role_id', $value)->exists();
+            case 'system_level':
+                // システム権限レベルのチェック
+                if (is_numeric($value)) {
+                    // 承認フローでIDが指定された場合
+                    return $user->systemLevels()->where('system_level_id', $value)->wherePivot('is_active', true)->exists();
+                } else {
+                    // 承認フローでcodeが指定された場合（後方互換性）
+                    return $user->systemLevels()->where('code', $value)->wherePivot('is_active', true)->exists();
+                }
             default:
                 return false;
         }
@@ -870,8 +891,8 @@ class ApprovalRequest extends Model
             ];
         }
         
-        // ユーザーが担当するステップを特定
-        $userStep = $this->getUserStep($user);
+        // ユーザーが担当するステップを特定（元のロジックを使用）
+        $userStep = $this->getUserStepForApproval($user);
         
         if (!$userStep) {
             return [
@@ -890,9 +911,9 @@ class ApprovalRequest extends Model
             // ユーザーのステップは既に完了
             return [
                 'status' => 'completed',
-                'step' => $userStep['step'], // 完了したステップ番号
+                'step' => $this->current_step, // 現在のステップ番号を表示
                 'total_steps' => $totalSteps,
-                'step_name' => $userStep['name'],
+                'step_name' => '承認済み',
                 'can_act' => false,
                 'message' => '承認済み',
                 'sub_status' => $this->sub_status
@@ -941,14 +962,18 @@ class ApprovalRequest extends Model
             return 0;
         }
         
-        // approval_stepsの配列の長さが総ステップ数
-        return count($flow->approval_steps);
+        // ステップ0（承認依頼作成）を除外した実際の承認ステップ数を返す
+        $actualSteps = array_filter($flow->approval_steps, function($step) {
+            return ($step['step'] ?? 0) > 0;
+        });
+        
+        return count($actualSteps);
     }
     
     /**
      * 指定されたユーザーが担当するステップを取得
      */
-    private function getUserStep(User $user): ?array
+    public function getUserStep(User $user): ?array
     {
         $flow = $this->approvalFlow;
         if (!$flow || !$flow->approval_steps) {
@@ -962,21 +987,91 @@ class ApprovalRequest extends Model
         
         \Log::info('承認フローステップ検索開始', [
             'user_id' => $user->id,
+            'current_step' => $this->current_step,
             'approval_steps' => $flow->approval_steps
         ]);
         
+        // 承認依頼作成者の場合は、現在の承認ステップを返す
+        if ($this->isRequester($user)) {
+            \Log::info('承認依頼作成者として現在のステップを返す', [
+                'user_id' => $user->id,
+                'current_step' => $this->current_step
+            ]);
+            
+            // 現在のステップの情報を取得
+            foreach ($flow->approval_steps as $step) {
+                if (($step['step'] ?? 0) === $this->current_step) {
+                    return [
+                        'step' => $this->current_step,
+                        'name' => $step['name'],
+                        'approvers' => $step['approvers']
+                    ];
+                }
+            }
+        }
+        
+        // 承認者の場合
         foreach ($flow->approval_steps as $index => $step) {
-            $stepNumber = $index + 1; // ステップ番号は1から開始
+            $stepNumber = $step['step'] ?? 0; // 実際のステップ番号を使用
+            
+            // ステップ0（承認依頼作成）をスキップ
+            if ($stepNumber === 0) {
+                continue;
+            }
             
             // ユーザーがこのステップの承認者かチェック
             if ($this->isUserApproverForStep($user, $step)) {
                 \Log::info('ユーザーの担当ステップ発見', [
                     'user_id' => $user->id,
                     'step_number' => $stepNumber,
+                    'current_step' => $this->current_step,
                     'step' => $step
                 ]);
                 
-                // ステップ番号を含む配列を返す
+                // 現在の承認ステップの承認者の場合は、現在のステップ番号を返す
+                // 完了したステップの承認者の場合も、現在の承認ステップを返す
+                $returnStep = ($stepNumber === $this->current_step) ? $stepNumber : $this->current_step;
+                
+                // 返すステップの情報を取得
+                foreach ($flow->approval_steps as $returnStepData) {
+                    if (($returnStepData['step'] ?? 0) === $returnStep) {
+                        return [
+                            'step' => $returnStep,
+                            'name' => $returnStepData['name'],
+                            'approvers' => $returnStepData['approvers']
+                        ];
+                    }
+                }
+            }
+        }
+        
+        \Log::info('ユーザーの担当ステップなし', [
+            'user_id' => $user->id
+        ]);
+        
+        return null;
+    }
+    
+    /**
+     * 承認アクション判定用のユーザーステップ取得（元のロジック）
+     */
+    private function getUserStepForApproval(User $user): ?array
+    {
+        $flow = $this->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            return null;
+        }
+        
+        foreach ($flow->approval_steps as $index => $step) {
+            $stepNumber = $step['step'] ?? 0;
+            
+            // ステップ0（承認依頼作成）をスキップ
+            if ($stepNumber === 0) {
+                continue;
+            }
+            
+            // ユーザーがこのステップの承認者かチェック
+            if ($this->isUserApproverForStep($user, $step)) {
                 return [
                     'step' => $stepNumber,
                     'name' => $step['name'],
@@ -984,10 +1079,6 @@ class ApprovalRequest extends Model
                 ];
             }
         }
-        
-        \Log::info('ユーザーの担当ステップなし', [
-            'user_id' => $user->id
-        ]);
         
         return null;
     }

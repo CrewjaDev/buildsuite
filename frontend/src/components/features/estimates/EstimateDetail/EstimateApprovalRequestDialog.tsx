@@ -153,6 +153,16 @@ export function EstimateApprovalRequestDialog({
     }).format(amount)
   }
 
+  // ステップ0（承認依頼作成）を除外した実際の承認ステップ数を計算
+  const getActualStepCount = (approvalSteps: { step?: number }[] | undefined): number => {
+    if (!approvalSteps || !Array.isArray(approvalSteps)) {
+      return 0
+    }
+    // ステップ0（承認依頼作成）を除外した実際の承認ステップ数を返す
+    const actualSteps = approvalSteps.filter(step => (step.step ?? 0) > 0)
+    return actualSteps.length
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
@@ -235,7 +245,7 @@ export function EstimateApprovalRequestDialog({
                           <div className="flex items-center gap-4 text-xs text-gray-500">
                             <div className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
-                              {flow.approval_steps?.length || 0}段階
+                              {getActualStepCount(flow.approval_steps)}段階
                             </div>
                             {flow.conditions?.amount_min && (
                               <div className="flex items-center gap-1">

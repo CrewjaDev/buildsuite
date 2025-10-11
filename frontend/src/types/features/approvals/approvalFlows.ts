@@ -8,14 +8,14 @@ export interface ApprovalConditions {
 }
 
 export interface ApprovalRequester {
-  type: 'system_level' | 'department' | 'position' | 'user'
+  type: 'system_level' | 'department' | 'position' | 'role' | 'user'
   value: string | number
   display_name: string
   required_permissions?: string[] // 必要な権限
 }
 
 export interface ApprovalApprover {
-  type: 'system_level' | 'department' | 'position' | 'user'
+  type: 'system_level' | 'department' | 'position' | 'role' | 'user'
   value: string | number
   display_name: string
   required_permissions?: string[] // 必要な権限

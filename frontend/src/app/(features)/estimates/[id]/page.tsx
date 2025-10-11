@@ -1,27 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEstimate } from '@/hooks/features/estimates/useEstimates'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { estimateApprovalService } from '@/services/features/estimates/estimateApprovalService'
+import { UserApprovalStatus } from '@/types/features/estimates/estimate'
 import { EstimateDetailView } from '@/components/features/estimates/EstimateDetail/EstimateDetailView'
-import { EstimateDetailEdit } from '@/components/features/estimates/EstimateDetail/EstimateDetailEdit'
 import { EstimateDetailHeader } from '@/components/features/estimates/EstimateDetail/EstimateDetailHeader'
-import { EstimateBreakdownStructureCard } from '@/components/features/estimates/EstimateBreakdowns/EstimateBreakdownStructureCard'
-import { EstimateItemsCard } from '@/components/features/estimates/EstimateDetail/EstimateItemsCard'
+import { useToast } from '@/components/ui/toast'
 
 export default function EstimateDetailPage() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { addToast } = useToast()
   const estimateId = params?.id as string
   
   
-  // 初期モードの決定: modeパラメータが指定されていない場合は照会モード
-  const initialMode = searchParams?.get('mode') === 'edit' ? 'edit' : 'view'
-  const [mode, setMode] = useState<'view' | 'edit'>(initialMode)
+  const [userApprovalStatus, setUserApprovalStatus] = useState<UserApprovalStatus | null>(null)
 
   // データ取得
   const { data: estimate, isLoading, error } = useEstimate(estimateId)
@@ -32,18 +29,74 @@ export default function EstimateDetailPage() {
     window.scrollTo(0, 0)
   }, [])
   
-  // URLのmodeパラメータと内部状態を同期
+
+  // ユーザー承認状態を取得
   useEffect(() => {
-    if (searchParams?.get('mode') !== mode) {
-      const newUrl = new URL(window.location.href)
-      if (mode === 'edit') {
-        newUrl.searchParams.set('mode', 'edit')
+    const fetchUserApprovalStatus = async () => {
+      if (estimate?.approval_request_id) {
+        try {
+          const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+          setUserApprovalStatus(status)
+        } catch (error) {
+          console.error('ユーザー承認状態の取得に失敗:', error)
+          setUserApprovalStatus(null)
+        }
       } else {
-        newUrl.searchParams.delete('mode')
+        setUserApprovalStatus(null)
       }
-      router.replace(newUrl.toString(), { scroll: false })
     }
-  }, [mode, searchParams, router])
+    
+    if (estimate) {
+      fetchUserApprovalStatus()
+    }
+  }, [estimate])
+
+  // 審査開始処理
+  const handleStartReviewing = async () => {
+    if (!estimate?.approval_request_id) return
+    
+    try {
+      await estimateApprovalService.startReviewing(estimate.approval_request_id)
+      // ユーザー承認状態を再取得
+      const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+      setUserApprovalStatus(status)
+      queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
+    } catch (error) {
+      console.error('審査開始エラー:', error)
+    }
+  }
+
+  // 承認処理
+  const handleApprovalAction = async (action: 'approve' | 'reject' | 'return') => {
+    if (!estimate?.id) return
+    
+    try {
+      await estimateApprovalService.processApproval(estimate.id, action)
+      // ユーザー承認状態を再取得
+      const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
+      setUserApprovalStatus(status)
+      queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
+      
+      // 成功トーストを表示
+      const actionMessages = {
+        approve: '承認しました',
+        reject: '却下しました',
+        return: '差し戻しました'
+      }
+      addToast({
+        title: '承認処理完了',
+        description: actionMessages[action],
+        type: 'success'
+      })
+    } catch (error) {
+      console.error('承認処理エラー:', error)
+      addToast({
+        title: 'エラー',
+        description: '承認処理に失敗しました',
+        type: 'error'
+      })
+    }
+  }
 
   // ローディング状態
   if (isLoading) {
@@ -78,11 +131,9 @@ export default function EstimateDetailPage() {
       {/* ヘッダーコンポーネント */}
       <EstimateDetailHeader 
         estimate={estimate}
-        onDeleteSuccess={() => {
-          // 削除成功時は一覧ページに戻る
-          router.push('/estimates')
-        }}
-        canDelete={true}
+        userApprovalStatus={userApprovalStatus}
+        onStartReviewing={handleStartReviewing}
+        onApprovalAction={handleApprovalAction}
         onApprovalRequestCreated={() => {
           // 承認依頼作成後、見積データを再取得
           queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
@@ -92,39 +143,19 @@ export default function EstimateDetailPage() {
       {/* メインコンテンツ */}
       <div className="w-full bg-gray-50 min-h-screen">
         <div className="w-full max-w-none px-4 py-6">
-          {/* タブナビゲーション */}
-          <Tabs value={mode} onValueChange={(value) => setMode(value as 'view' | 'edit')} className="w-full">
-            <TabsList>
-              <TabsTrigger value="view">照会</TabsTrigger>
-              <TabsTrigger value="edit">編集</TabsTrigger>
-            </TabsList>
-
-            {/* 照会タブコンテンツ */}
-            <TabsContent value="view" className="mt-4 space-y-6">
-              <EstimateDetailView 
-                estimate={estimate} 
-                onDataUpdate={() => {
-                  // 見積詳細のキャッシュを無効化してデータを再取得
-                  queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
-                }}
-              />
-            </TabsContent>
-
-            {/* 編集タブコンテンツ */}
-            <TabsContent value="edit" className="mt-4 space-y-6">
-              <EstimateDetailEdit 
-                estimate={estimate} 
-                onCancel={() => setMode('view')}
-                onSuccess={() => {
-                  setMode('view')
-                  // 編集完了後、一覧ページのデータも更新されるようにする
-                  // 成功メッセージを表示する場合はここでトースト通知を追加
-                }}
-              />
-              <EstimateBreakdownStructureCard estimate={estimate} />
-              <EstimateItemsCard estimate={estimate} isReadOnly={false} />
-            </TabsContent>
-          </Tabs>
+          {/* 見積詳細ビュー */}
+          <EstimateDetailView 
+            estimate={estimate}
+            userApprovalStatus={userApprovalStatus}
+            onDataUpdate={() => {
+              // 見積詳細のキャッシュを無効化してデータを再取得
+              queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
+            }}
+            onDeleteSuccess={() => {
+              // 削除成功時は一覧ページに戻る
+              router.push('/estimates')
+            }}
+          />
         </div>
       </div>
     </div>

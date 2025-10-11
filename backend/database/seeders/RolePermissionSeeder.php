@@ -36,7 +36,7 @@ class RolePermissionSeeder extends Seeder
                 'payment.approval.approve',
                 'payment.approval.reject',
                 'payment.approval.return',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $accountingManager->permissions()->attach($permissions->pluck('id'), [
@@ -76,7 +76,7 @@ class RolePermissionSeeder extends Seeder
                 'department.create',
                 'department.edit',
                 'system.view',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $officeManager->permissions()->attach($permissions->pluck('id'), [
@@ -103,6 +103,8 @@ class RolePermissionSeeder extends Seeder
         $constructionManager = Role::where('name', 'construction_manager')->first();
         if ($constructionManager) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',
@@ -121,7 +123,7 @@ class RolePermissionSeeder extends Seeder
                 'progress.approval.approve',
                 'progress.approval.reject',
                 'progress.approval.return',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $constructionManager->permissions()->attach($permissions->pluck('id'), [
@@ -134,6 +136,8 @@ class RolePermissionSeeder extends Seeder
         $constructionStaff = Role::where('name', 'construction_staff')->first();
         if ($constructionStaff) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',
@@ -154,6 +158,8 @@ class RolePermissionSeeder extends Seeder
         $estimatorSenior = Role::where('name', 'estimator_senior')->first();
         if ($estimatorSenior) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',
@@ -163,7 +169,7 @@ class RolePermissionSeeder extends Seeder
                 'estimate.approval.approve',
                 'estimate.approval.reject',
                 'estimate.approval.return',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $estimatorSenior->permissions()->attach($permissions->pluck('id'), [
@@ -176,6 +182,8 @@ class RolePermissionSeeder extends Seeder
         $estimator = Role::where('name', 'estimator')->first();
         if ($estimator) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',
@@ -193,6 +201,8 @@ class RolePermissionSeeder extends Seeder
         $salesManager = Role::where('name', 'sales_manager')->first();
         if ($salesManager) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',
@@ -205,7 +215,7 @@ class RolePermissionSeeder extends Seeder
                 'estimate.approval.approve',
                 'estimate.approval.reject',
                 'estimate.approval.return',
-                'approval.usage'
+                'approval.authority'
             ])->get();
             
             $salesManager->permissions()->attach($permissions->pluck('id'), [
@@ -218,6 +228,8 @@ class RolePermissionSeeder extends Seeder
         $salesStaff = Role::where('name', 'sales_staff')->first();
         if ($salesStaff) {
             $permissions = Permission::whereIn('name', [
+                'estimate.use',
+                'estimate.list',
                 'estimate.view',
                 'estimate.create',
                 'estimate.edit',

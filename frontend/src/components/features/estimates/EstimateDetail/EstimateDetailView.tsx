@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Estimate, UserApprovalStatus } from '@/types/features/estimates/estimate'
 import { EstimateInfoCard } from './EstimateInfoCard'
 import { EstimateAmountCard } from './EstimateAmountCard'
@@ -9,53 +9,32 @@ import { EstimateItemsCard } from './EstimateItemsCard'
 import EstimateBasicInfoEditDialog from './EstimateBasicInfoEditDialog'
 import EstimateBreakdownEditDialog from './EstimateBreakdownEditDialog'
 import { EstimateApprovalProcessDialog } from './EstimateApprovalProcessDialog'
+import { EstimateApprovalRequestDialog } from './EstimateApprovalRequestDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Edit, CheckCircle, XCircle, RotateCcw, Clock } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
-import { estimateApprovalService } from '@/services/features/estimates/estimateApprovalService'
+import { Edit, Trash2 } from 'lucide-react'
+import { useDeleteEstimate } from '@/hooks/features/estimates/useEstimates'
+import { useToast } from '@/components/ui/toast'
 
 interface EstimateDetailViewProps {
   estimate: Estimate
+  userApprovalStatus?: UserApprovalStatus | null
   onDataUpdate?: () => void
+  onDeleteSuccess?: () => void
 }
 
-export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailViewProps) {
+export function EstimateDetailView({ estimate, userApprovalStatus, onDataUpdate, onDeleteSuccess }: EstimateDetailViewProps) {
   const [showBasicInfoEditDialog, setShowBasicInfoEditDialog] = useState(false)
   const [showBreakdownEditDialog, setShowBreakdownEditDialog] = useState(false)
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
-  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject' | 'return'>('approve')
-  const [userApprovalStatus, setUserApprovalStatus] = useState<UserApprovalStatus | null>(null)
+  const [showApprovalRequestDialog, setShowApprovalRequestDialog] = useState(false)
   
-  const { hasPermission, effectivePermissions } = useAuth()
+  const { addToast } = useToast()
+  const deleteEstimateMutation = useDeleteEstimate()
+  
 
 
-  // ユーザー承認状態を取得
-  useEffect(() => {
-    const fetchUserApprovalStatus = async () => {
-      if (estimate.approval_request_id) {
-        try {
-          const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
-          setUserApprovalStatus(status)
-        } catch (error) {
-          console.error('ユーザー承認状態の取得に失敗:', error)
-          setUserApprovalStatus(null)
-        }
-      } else {
-        setUserApprovalStatus(null)
-      }
-    }
-    
-    fetchUserApprovalStatus()
-  }, [estimate.id, estimate.approval_request_id])
 
-  // 承認可能かどうかの判定
-  const canApprove = () => {
-    // ユーザー承認状態がpendingで、can_actがtrueの場合
-    return userApprovalStatus?.status === 'pending' && 
-           userApprovalStatus?.can_act === true
-  }
 
   // 編集可能かどうかの判定
   const canEdit = () => {
@@ -67,181 +46,87 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
             userApprovalStatus.status === 'returned')
   }
 
-  // ユーザー別承認状態バッジの取得
-  const getUserApprovalStatusBadge = () => {
-    if (!userApprovalStatus) return null
-    
-    // 承認者本人の場合、審査中でない場合は承認待ちバッジを表示しない
-    if (userApprovalStatus.status === 'pending' && userApprovalStatus.can_act && userApprovalStatus.sub_status !== 'reviewing') {
-      return null
-    }
-    
-    // サブステータスに基づく表示ラベルの決定
-    const getStatusLabel = () => {
-      if (userApprovalStatus.status === 'pending') {
-        if (userApprovalStatus.sub_status === 'reviewing') {
-          // 審査中: 現在のステップ番号を表示
-          return userApprovalStatus.step && userApprovalStatus.total_steps 
-            ? `審査中 ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
-            : '審査中'
-        } else {
-          // 承認待ち: 完了したステップ数を表示
-          const completedSteps = Math.max(0, (userApprovalStatus.step || 1) - 1)
-          return userApprovalStatus.total_steps 
-            ? `承認待ち ${completedSteps}/${userApprovalStatus.total_steps}`
-            : '承認待ち'
-        }
-      }
-      
-      if (userApprovalStatus.status === 'finished') {
-        // 承認完了: 全ステップ完了を表示
-        return userApprovalStatus.total_steps 
-          ? `承認完了 ${userApprovalStatus.total_steps}/${userApprovalStatus.total_steps}`
-          : '承認完了'
-      }
-      
-      if (userApprovalStatus.status === 'not_started') {
-        return userApprovalStatus.step && userApprovalStatus.total_steps 
-          ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}（未開始）`
-          : '承認待ち（未開始）'
-      }
-      
-      // その他の状態
-      return userApprovalStatus.step && userApprovalStatus.total_steps 
-        ? `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
-        : '承認待ち'
-    }
 
-    const statusMap = {
-      'completed': { label: '承認済み', variant: 'default' as const, icon: CheckCircle, color: 'bg-green-100 text-green-800' },
-      'pending': { 
-        label: getStatusLabel(), 
-        variant: 'default' as const, 
-        icon: Clock, 
-        color: userApprovalStatus.sub_status === 'reviewing' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-      },
-      'not_started': { 
-        label: getStatusLabel(), 
-        variant: 'outline' as const, 
-        icon: Clock, 
-        color: 'bg-gray-100 text-gray-600' 
-      },
-      'finished': { label: '承認完了', variant: 'default' as const, icon: CheckCircle, color: 'bg-blue-100 text-blue-800' },
-      'rejected': { label: '却下', variant: 'destructive' as const, icon: XCircle, color: 'bg-red-100 text-red-800' },
-      'returned': { label: '差し戻し', variant: 'secondary' as const, icon: RotateCcw, color: 'bg-orange-100 text-orange-800' }
-    }
-    
-    const config = statusMap[userApprovalStatus.status] || statusMap.pending
-    const IconComponent = config.icon
-    
-    return (
-      <Badge variant={config.variant} className={`flex items-center gap-1 px-3 py-1 text-sm font-semibold ${config.color}`}>
-        <IconComponent className="h-4 w-4" />
-        {config.label}
-      </Badge>
-    )
-  }
-
-  // 承認処理ダイアログを開く
-  const handleApprovalAction = (action: 'approve' | 'reject' | 'return') => {
-    setApprovalAction(action)
-    setShowApprovalDialog(true)
-  }
-
-  // 審査開始処理
-  const handleStartReviewing = async () => {
-    if (!estimate.approval_request_id) return
-    
-    try {
-      await estimateApprovalService.startReviewing(estimate.approval_request_id)
-      // ユーザー承認状態を再取得
-      const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
-      setUserApprovalStatus(status)
-      onDataUpdate?.()
-    } catch (error) {
-      console.error('審査開始エラー:', error)
-      // エラーハンドリング（必要に応じてトースト通知など）
-    }
-  }
 
 
   // 承認処理完了時のコールバック
   const handleApprovalSuccess = async () => {
-    // ユーザー承認状態を再取得
-    if (estimate.approval_request_id) {
-      try {
-        const status = await estimateApprovalService.getUserApprovalStatus(estimate.id)
-        setUserApprovalStatus(status)
-      } catch (error) {
-        console.error('ユーザー承認状態の再取得に失敗:', error)
-      }
-    }
-    
     // 親コンポーネントにデータ更新を通知
     onDataUpdate?.()
   }
 
+  // 削除処理
+  const handleDelete = async () => {
+    if (!estimate || !window.confirm('この見積を削除しますか？この操作は取り消せません。')) {
+      return
+    }
+
+    try {
+      await deleteEstimateMutation.mutateAsync(estimate.id)
+      addToast({
+        title: "見積を削除しました",
+        description: "見積が正常に削除されました。",
+        type: "success"
+      })
+      onDeleteSuccess?.()
+    } catch {
+      addToast({
+        title: "削除に失敗しました",
+        description: "見積の削除中にエラーが発生しました。",
+        type: "error"
+      })
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* 見積番号と名称 */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-gray-900">{estimate.estimate_number}</h1>
+            <p className="text-lg text-gray-700">{estimate.project_name || '見積案件名'}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">見積状態:</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+              estimate.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+              estimate.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+              estimate.status === 'approved' ? 'bg-green-100 text-green-800' :
+              estimate.status === 'rejected' ? 'bg-red-100 text-red-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {estimate.status === 'draft' ? '下書き' :
+               estimate.status === 'submitted' ? '提出済み' :
+               estimate.status === 'approved' ? '承認済み' :
+               estimate.status === 'rejected' ? '却下' :
+               estimate.status}
+            </span>
+            
+            {/* アクションボタン - 右端に配置 */}
+            <div className="flex gap-2 ml-4">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={!estimate.can_delete}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                削除
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 基本情報 */}
       <Card>
         <div className="px-6 pt-2 pb-0 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold leading-none tracking-tight">基本情報</h3>
-            {getUserApprovalStatusBadge()}
           </div>
           <div className="flex items-center gap-2">
-            {/* 承認機能ボタン */}
-            {canApprove() && (
-              <div className="flex gap-2">
-                {userApprovalStatus?.sub_status === 'reviewing' ? (
-                  // 審査中: 承認・却下・差し戻しボタンを表示
-                  <>
-                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.approve') ? (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleApprovalAction('approve')}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        承認
-                      </Button>
-                    ) : null}
-                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.reject') ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleApprovalAction('reject')}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        却下
-                      </Button>
-                    ) : null}
-                    {(effectivePermissions && effectivePermissions.length === 0) || hasPermission('estimate.approval.return') ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleApprovalAction('return')}
-                      >
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        差し戻し
-                      </Button>
-                    ) : null}
-                  </>
-                ) : (
-                  // 審査開始前: 審査開始ボタンのみ表示
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleStartReviewing}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    審査開始
-                  </Button>
-                )}
-              </div>
-            )}
             {canEdit() && (
               <Button
                 variant="outline"
@@ -371,10 +256,21 @@ export function EstimateDetailView({ estimate, onDataUpdate }: EstimateDetailVie
       {/* 承認処理ダイアログ */}
       <EstimateApprovalProcessDialog
         estimate={estimate}
-        action={approvalAction}
+        action="approve"
         open={showApprovalDialog}
         onOpenChange={setShowApprovalDialog}
         onSuccess={handleApprovalSuccess}
+      />
+
+      {/* 承認依頼作成ダイアログ */}
+      <EstimateApprovalRequestDialog
+        estimate={estimate}
+        open={showApprovalRequestDialog}
+        onOpenChange={setShowApprovalRequestDialog}
+        onSuccess={() => {
+          // 親コンポーネントにデータ更新を通知
+          onDataUpdate?.()
+        }}
       />
     </div>
   )
