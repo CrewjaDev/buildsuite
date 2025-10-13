@@ -772,30 +772,49 @@ class Estimate extends Model implements ApprovableData
 
     /**
      * 指定ユーザーが閲覧可能な見積を取得
+     * ABACポリシーによる動的制御のため、基本的なフィルタリングのみ実行
      */
     public function scopeVisibleTo($query, $user)
     {
-        return $query->where(function($q) use ($user) {
-            // 作成者は常に閲覧可能
-            $q->where('created_by', $user->id)
-              ->orWhere(function($subQ) use ($user) {
-                  // 部署内共有
-                  $subQ->where('visibility', 'department')
-                       ->where('department_id', $user->department_id);
-              })
-              ->orWhere(function($subQ) use ($user) {
-                  // 管理職は部署内全データ閲覧可能
-                  if ($user->role === 'manager' || $user->role === 'admin') {
-                      $subQ->where('department_id', $user->department_id);
-                  }
-              })
-              ->orWhere(function($subQ) use ($user) {
-                  // 全社共有
-                  if ($user->role === 'admin') {
-                      $subQ->where('visibility', 'company');
-                  }
-              });
-        });
+        // ABACポリシーが適用されるため、基本的なフィルタリングのみ実行
+        // 詳細な権限チェックはEstimatePolicyで行う
+        return $query;
+    }
+
+    // ===== Policy ヘルパーメソッド =====
+
+    /**
+     * ユーザーがこの見積を閲覧できるかチェック
+     */
+    public function canView(User $user): bool
+    {
+        return $user->can('view', $this);
+    }
+
+    /**
+     * ユーザーがこの見積を更新できるかチェック
+     */
+    public function canUpdate(User $user): bool
+    {
+        return $user->can('update', $this);
+    }
+
+
+
+    /**
+     * ユーザーがこの見積を承認できるかチェック
+     */
+    public function canApprove(User $user): bool
+    {
+        return $user->can('approve', $this);
+    }
+
+    /**
+     * ユーザーがこの見積の承認依頼をキャンセルできるかチェック
+     */
+    public function canCancelApproval(User $user): bool
+    {
+        return $user->can('cancelApproval', $this);
     }
 
     // ===== 金額計算メソッド =====

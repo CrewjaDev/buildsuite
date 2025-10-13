@@ -225,9 +225,9 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
         return (departmentsData || []).map(dept => ({ value: Number(dept.id), label: dept.name })) // 数値に変換
       case 'user.position_id':
         return (positionsData || []).map(pos => ({ value: Number(pos.id), label: pos.name })) // 数値に変換
-      case 'user.system_level':
+      case 'user.system_level_id':
         return (Array.isArray(systemLevelsData) ? systemLevelsData : []).map((level: SystemLevel) => ({ value: Number(level.id), label: level.display_name })) // 数値に変換
-      case 'user.roles':
+      case 'user.role_ids':
         return (Array.isArray(rolesData) ? rolesData : []).map((role: Role) => ({ value: Number(role.id), label: role.display_name })) // 数値に変換
       case 'user.id':
         return (Array.isArray(usersData?.users) ? usersData.users : []).map((user: User) => ({ 
@@ -250,7 +250,7 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
     
     // 「以上」「以下」の場合
     if (operator === 'gte' || operator === 'lte') {
-      if (field === 'user.system_level' || field === 'user.position_id') {
+      if (field === 'user.system_level_id' || field === 'user.position_id') {
         // システムレベル・職位: ドロップダウン（優先順位ベース）
         // 配列の場合は最初の要素を取得、そうでなければそのまま使用
         const selectValue = Array.isArray(value) ? (value[0] as string || '') : (value as string || '')
@@ -1315,6 +1315,45 @@ function ConfirmationStep({ data, options }: WizardStepProps) {
   const { data: departmentsResponse } = usePermissionDepartments()
   const departments = departmentsResponse?.data || []
   
+  // user.access_restrictionフィールドを展開する関数
+  const expandUserAccessRestriction = (rules: ConditionRule[]): ConditionRule[] => {
+    const result: ConditionRule[] = []
+    rules.forEach(rule => {
+      if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+        if (Array.isArray(rule.rules)) {
+          result.push(...expandUserAccessRestriction(rule.rules))
+        } else if (rule.rules && typeof rule.rules === 'object') {
+          const rulesObj = rule.rules as Record<string, unknown>
+          if ('rules' in rulesObj && Array.isArray(rulesObj.rules)) {
+            const nestedRules = rulesObj.rules as ConditionRule[]
+            result.push(...expandUserAccessRestriction(nestedRules))
+          }
+        }
+      } else if (rule.rules && Array.isArray(rule.rules)) {
+        // ネストした条件も再帰的に処理
+        result.push({
+          ...rule,
+          rules: expandUserAccessRestriction(rule.rules)
+        })
+      } else {
+        result.push(rule)
+      }
+    })
+    return result
+  }
+  
+  // 展開された条件式を取得
+  const getExpandedConditions = () => {
+    if (!data.conditions || !data.conditions.rules || !Array.isArray(data.conditions.rules)) {
+      return data.conditions
+    }
+    
+    return {
+      ...data.conditions,
+      rules: expandUserAccessRestriction(data.conditions.rules)
+    }
+  }
+  
   return (
     <div className="space-y-6">
       <div>
@@ -1436,7 +1475,7 @@ function ConfirmationStep({ data, options }: WizardStepProps) {
       <JsonModal
         isOpen={showJsonModal}
         onClose={() => setShowJsonModal(false)}
-        conditions={data.conditions}
+        conditions={getExpandedConditions()}
         title="条件式（JSON）"
       />
       </div>
@@ -1498,7 +1537,10 @@ function TemplateSelectionStep({ data, setData }: WizardStepProps) {
     // テンプレート名とフィールドから属性カテゴリを判定
     const field = template.condition_rule?.field
     
-    if (field?.startsWith('user.')) {
+    // user_access_restrictionテンプレートは特別にユーザー属性として分類
+    if (template.template_code === 'user_access_restriction') {
+      category = 'ユーザー属性'
+    } else if (field?.startsWith('user.')) {
       category = 'ユーザー属性'
     } else if (field?.startsWith('data.')) {
       category = 'リソース属性'
@@ -1652,7 +1694,10 @@ function TemplateSelectionStep({ data, setData }: WizardStepProps) {
                   let category = 'その他'
                   const field = template.condition_rule?.field
                   
-                  if (field?.startsWith('user.')) {
+                  // user_access_restrictionテンプレートは特別にユーザー属性として分類
+                  if (template.template_code === 'user_access_restriction') {
+                    category = 'ユーザー属性'
+                  } else if (field?.startsWith('user.')) {
                     category = 'ユーザー属性'
                   } else if (field?.startsWith('data.')) {
                     category = 'リソース属性'
@@ -1722,6 +1767,45 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
   
   const { data: departmentsResponse } = usePermissionDepartments()
   const departments = departmentsResponse?.data || []
+  
+  // user.access_restrictionフィールドを展開する関数
+  const expandUserAccessRestriction = (rules: ConditionRule[]): ConditionRule[] => {
+    const result: ConditionRule[] = []
+    rules.forEach(rule => {
+      if (rule.field === 'user.access_restriction' && (rule.operator === 'and' || rule.operator === 'or')) {
+        if (Array.isArray(rule.rules)) {
+          result.push(...expandUserAccessRestriction(rule.rules))
+        } else if (rule.rules && typeof rule.rules === 'object') {
+          const rulesObj = rule.rules as Record<string, unknown>
+          if ('rules' in rulesObj && Array.isArray(rulesObj.rules)) {
+            const nestedRules = rulesObj.rules as ConditionRule[]
+            result.push(...expandUserAccessRestriction(nestedRules))
+          }
+        }
+      } else if (rule.rules && Array.isArray(rule.rules)) {
+        // ネストした条件も再帰的に処理
+        result.push({
+          ...rule,
+          rules: expandUserAccessRestriction(rule.rules)
+        })
+      } else {
+        result.push(rule)
+      }
+    })
+    return result
+  }
+  
+  // 展開された条件式を取得
+  const getExpandedConditions = () => {
+    if (!data.conditions || !data.conditions.rules || !Array.isArray(data.conditions.rules)) {
+      return data.conditions
+    }
+    
+    return {
+      ...data.conditions,
+      rules: expandUserAccessRestriction(data.conditions.rules)
+    }
+  }
 
 
   // パラメータ変更ハンドラー
@@ -2076,7 +2160,10 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
               // カテゴリ別にテンプレートを分類
               const categoryTemplates = data.selectedTemplates.filter(template => {
                 const field = template.condition_rule?.field
-                if (field?.startsWith('user.')) {
+                // user_access_restrictionテンプレートは特別にユーザー属性として分類
+                if (template.template_code === 'user_access_restriction') {
+                  return category === 'ユーザー属性'
+                } else if (field?.startsWith('user.')) {
                   return category === 'ユーザー属性'
                 } else if (field?.startsWith('data.')) {
                   return category === 'リソース属性'
@@ -2176,7 +2263,10 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
                 {['ユーザー属性', 'リソース属性', '環境属性', 'その他'].map((category) => {
                   const categoryTemplates = data.selectedTemplates.filter(template => {
                     const field = template.condition_rule?.field
-                    if (field?.startsWith('user.')) {
+                    // user_access_restrictionテンプレートは特別にユーザー属性として分類
+                    if (template.template_code === 'user_access_restriction') {
+                      return category === 'ユーザー属性'
+                    } else if (field?.startsWith('user.')) {
                       return category === 'ユーザー属性'
                     } else if (field?.startsWith('data.')) {
                       return category === 'リソース属性'
@@ -2248,7 +2338,7 @@ function ConditionAdjustmentStep({ data, setData }: WizardStepProps) {
       <JsonModal
         isOpen={showJsonModal}
         onClose={() => setShowJsonModal(false)}
-        conditions={data.conditions}
+        conditions={getExpandedConditions()}
         title="条件式（JSON）"
       />
     </div>

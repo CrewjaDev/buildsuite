@@ -137,7 +137,7 @@ class EstimateApprovalController extends Controller
     {
         switch ($requester['type']) {
             case 'system_level':
-                return $user->system_level === $requester['value'];
+                return $user->system_level_id == $requester['value'];
             case 'department':
                 return $user->employee?->department_id == $requester['value'];
             case 'position':
@@ -281,7 +281,7 @@ class EstimateApprovalController extends Controller
     {
         switch ($approver['type']) {
             case 'system_level':
-                return $user->system_level === $approver['value'];
+                return $user->system_level_id == $approver['value'];
             case 'department':
                 return $user->employee?->department_id == $approver['value'];
             case 'position':
@@ -704,7 +704,7 @@ class EstimateApprovalController extends Controller
         foreach ($stepConfig['approvers'] as $approver) {
             switch ($approver['type']) {
                 case 'system_level':
-                    if ($user->system_level == $approver['value']) {
+                    if ($user->system_level_id == $approver['value']) {
                         return true;
                     }
                     break;

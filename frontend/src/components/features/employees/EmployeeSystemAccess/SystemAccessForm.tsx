@@ -22,14 +22,14 @@ import { PasswordChangeDialog } from './PasswordChangeDialog'
 // 権限管理用のバリデーションスキーマ（パスワードは含まない）
 const permissionManagementSchema = z.object({
   login_id: z.string().min(1, 'ログインIDは必須です'),
-  system_level: z.string().min(1, 'システムレベルは必須です'),
+  system_level_id: z.number().min(1, 'システムレベルは必須です'),
   is_admin: z.boolean().default(false),
   roles: z.array(z.string()).default([]), // 役割の配列
 })
 
 type PermissionManagementFormData = {
   login_id: string
-  system_level: string
+  system_level_id: number
   is_admin: boolean
   roles: string[]
 }
@@ -60,7 +60,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
   // 初期値を定義
   const initialValues = useMemo(() => ({
     login_id: employee.user?.login_id || '',
-    system_level: employee.user?.system_level || '',
+    system_level_id: employee.user?.system_level_id || 1,
     is_admin: Boolean(employee.user?.is_admin),
     roles: userRoles?.map(role => role.id.toString()) || [],
   }), [employee.user, userRoles])
@@ -84,7 +84,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
   useEffect(() => {
     const newValues = {
       login_id: employee.user?.login_id || '',
-      system_level: employee.user?.system_level || '',
+      system_level_id: employee.user?.system_level_id || 1,
       is_admin: Boolean(employee.user?.is_admin),
       roles: userRoles?.map(role => role.id.toString()) || [],
     }
@@ -97,13 +97,13 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
     if (!hasSystemAccess) {
       return Boolean(
         watchedValues.login_id?.trim() &&
-        watchedValues.system_level?.trim()
+        watchedValues.system_level_id
       )
     }
 
     // 更新の場合は、初期値から変更があるかチェック
     const loginIdChanged = watchedValues.login_id !== initialValues.login_id
-    const systemLevelChanged = watchedValues.system_level !== initialValues.system_level
+    const systemLevelChanged = watchedValues.system_level_id !== initialValues.system_level_id
     const isAdminChanged = watchedValues.is_admin !== initialValues.is_admin
     
     // 配列の比較を改善
@@ -123,8 +123,8 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
     console.log('onSubmit function called')
     
     // 追加のバリデーション
-    if (!data.system_level || data.system_level.trim() === '') {
-      console.error('System level is empty or invalid:', data.system_level)
+    if (!data.system_level_id || data.system_level_id < 1) {
+      console.error('System level is empty or invalid:', data.system_level_id)
       addToast({
         title: 'エラー',
         description: 'システムレベルを選択してください',
@@ -149,7 +149,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
       // システム権限の更新/付与
       const requestData = {
         login_id: data.login_id.trim(),
-        system_level: data.system_level.trim(),
+        system_level: data.system_level_id,
         is_admin: data.is_admin,
       }
       
@@ -370,19 +370,19 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                 </Label>
                 <PopoverSearchFilter
                   options={systemLevels?.map(level => ({
-                    value: level.code,
+                    value: level.id.toString(),
                     label: `${level.display_name} (優先度: ${level.priority})`
                   })) || []}
-                  value={watch('system_level') || ''}
+                  value={watch('system_level_id')?.toString() || ''}
                   onValueChange={(value: string) => {
                     console.log('System level changed to:', value)
-                    setValue('system_level', value)
+                    setValue('system_level_id', parseInt(value))
                   }}
                   placeholder="システムレベルを選択"
                   width="300px"
                 />
-                {errors.system_level && (
-                  <p className="text-sm text-red-600">{errors.system_level.message}</p>
+                {errors.system_level_id && (
+                  <p className="text-sm text-red-600">{errors.system_level_id.message}</p>
                 )}
               </div>
 

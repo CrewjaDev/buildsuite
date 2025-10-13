@@ -34,7 +34,7 @@ const userCreateSchema = z.object({
   hire_date: z.string().optional(),
   is_active: z.boolean(),
   is_admin: z.boolean(),
-  system_level: z.string().optional(),
+  system_level_id: z.number().min(1, 'システム権限レベルは必須です'),
   role: z.string().optional(),
   department_id: z.string().optional(),
   position_id: z.string().optional(),
@@ -134,7 +134,7 @@ export function UserCreateForm({ onSuccess, onCancel }: UserCreateFormProps) {
       hire_date: '',
       is_active: true,
       is_admin: false,
-      system_level: '',
+      system_level_id: 1, // デフォルトでstaff（ID: 1）を設定
       role: '',
       department_id: undefined,
       position_id: undefined,
@@ -169,7 +169,7 @@ export function UserCreateForm({ onSuccess, onCancel }: UserCreateFormProps) {
         hire_date: data.hire_date,
         is_active: data.is_active,
         is_admin: data.is_admin,
-        system_level: data.system_level,
+        system_level_id: data.system_level_id,
         role: data.role,
         department_id: data.department_id ? parseInt(data.department_id) : undefined,
         position_id: data.position_id ? parseInt(data.position_id) : undefined,
@@ -475,8 +475,8 @@ export function UserCreateForm({ onSuccess, onCancel }: UserCreateFormProps) {
                 <div className="space-y-2">
                   <Label>システム権限レベル</Label>
                   <PopoverSearchFilter
-                    value={watch('system_level') || ''}
-                    onValueChange={(value) => setValue('system_level', value, { shouldDirty: true, shouldValidate: true })}
+                    value={watch('system_level_id')?.toString() || ''}
+                    onValueChange={(value) => setValue('system_level_id', parseInt(value), { shouldDirty: true, shouldValidate: true })}
                     options={systemLevelsData?.map(level => ({
                       value: level.id.toString(),
                       label: level.display_name

@@ -49,10 +49,15 @@ const userFields = [
   { key: 'user.name', label: 'ユーザー名', type: 'string' },
   { key: 'user.department_id', label: '部署ID', type: 'select', options: 'departments' },
   { key: 'user.position_id', label: '職位ID', type: 'select', options: 'positions' },
-  { key: 'user.system_level', label: 'システムレベル', type: 'select', options: 'system_levels' },
+  { key: 'user.system_level_id', label: 'システムレベル', type: 'select', options: 'system_levels' },
+  { key: 'user.role_ids', label: '役割', type: 'multi-select', options: 'roles' },
   { key: 'user.is_active', label: 'アクティブ状態', type: 'boolean' }
 ];
 ```
+
+**⚠️ 重要: フィールド名の変更**
+- `user.system_level` → `user.system_level_id` (IDベースの比較のため)
+- `user.roles` → `user.role_ids` (中間テーブル経由の役割管理のため)
 
 #### 2.2 データ関連フィールド
 ```typescript
@@ -65,7 +70,17 @@ const dataFields = [
 ];
 ```
 
-#### 2.3 リソース関連フィールド
+#### 2.3 環境関連フィールド
+```typescript
+const environmentFields = [
+  { key: 'request.ip', label: 'リクエストIP', type: 'string' },
+  { key: 'current_time.hour', label: '現在時刻（時）', type: 'number' },
+  { key: 'current_time.weekday', label: '曜日', type: 'number' },
+  { key: 'business_hours', label: '営業時間内', type: 'boolean' }
+];
+```
+
+#### 2.4 リソース関連フィールド
 ```typescript
 const resourceFields = [
   { key: 'resource.id', label: 'リソースID', type: 'number' },
@@ -242,6 +257,10 @@ const conditionTemplates = [
 - 論理演算子の適切な使用
 - 循環参照のチェック
 - 無効なフィールド参照のチェック
+- **⚠️ 重要: グループ化フィールドの検証**
+  - `user.access_restriction` などのグループ化用フィールドは実際の評価フィールドではない
+  - ウィザードで生成する際は、グループ内の条件を直接展開する必要がある
+  - 存在しないフィールド（`user.access_restriction`）を参照する条件は無効
 
 ### 7. データ取得API
 
@@ -348,6 +367,86 @@ interface PolicyConditionGroup {
 - エラーメッセージの詳細説明
 - チュートリアル機能
 
+## 11. 実装上の重要な注意点
+
+### 11.1 グループ化フィールドの処理
+
+#### 問題のある実装例
+```json
+{
+  "field": "user.access_restriction",  // ❌ 存在しないフィールド
+  "operator": "and",
+  "rules": {
+    "operator": "and",
+    "rules": [
+      { "field": "user.department_id", "operator": "in", "value": [1] },
+      { "field": "user.position_id", "operator": "gte", "value": 4 }
+    ]
+  }
+}
+```
+
+#### 正しい実装例
+```json
+{
+  "operator": "and",
+  "rules": [
+    { "field": "user.department_id", "operator": "in", "value": [1] },
+    { "field": "user.position_id", "operator": "gte", "value": 4 }
+  ]
+}
+```
+
+### 11.2 フィールド名の統一
+
+#### 現在の実装で修正が必要な箇所
+- **PolicyTemplateSeeder.php**: `user.system_level` → `user.system_level_id`
+- **PolicyTemplateSeeder.php**: `user.roles` → `user.role_ids`
+- **PolicyWizard.tsx**: フィールド名の統一
+- **ABACPolicyEvaluationService.php**: コンテキスト構築の修正
+
+### 11.3 環境データの拡張
+
+#### 現在のコンテキストに追加が必要
+```php
+'request' => [
+    'ip' => request()->ip(),
+],
+'env' => [
+    'current_time' => [
+        'hour' => now()->format('H'),
+        'weekday' => now()->dayOfWeek,
+    ],
+    'business_hours' => $this->isBusinessHours(),
+],
+```
+
+### 11.4 プレースホルダーの処理
+
+#### 問題のある実装例
+```json
+{
+  "field": "request.ip",
+  "operator": "in",
+  "value": "{{allowed_ips}}"  // ❌ プレースホルダーが置換されていない
+}
+```
+
+#### 正しい実装例
+```json
+{
+  "field": "request.ip",
+  "operator": "in",
+  "value": ["192.168.1.0/24", "10.0.0.0/8"]  // ✅ 実際の値に置換
+}
+```
+
 ## まとめ
 
 この仕様により、技術者でなくても直感的にABACポリシーの条件を設定できるようになり、システムの柔軟性と使いやすさが大幅に向上します。段階的な実装により、リスクを最小化しながら機能を拡張していくことが可能です。
+
+**⚠️ 重要な修正点:**
+1. グループ化フィールド（`user.access_restriction`）の削除と直接展開
+2. フィールド名の統一（`system_level_id`, `role_ids`）
+3. 環境データの拡張（`request.ip`, `current_time`等）
+4. プレースホルダーの適切な置換処理

@@ -199,7 +199,7 @@ class ApprovalFlow extends Model
         
         switch ($requester['type']) {
             case 'system_level':
-                return $user->system_level === $requester['value'];
+                return $user->system_level_id == $requester['value'];
             case 'position':
                 return $employee && $employee->position_id == $requester['value'];
             case 'user':
@@ -221,7 +221,7 @@ class ApprovalFlow extends Model
         foreach ($stepConfig['approvers'] as $approver) {
             switch ($approver['type']) {
                 case 'system_level':
-                    if ($user->system_level === $approver['value']) {
+                    if ($user->system_level_id == $approver['value']) {
                         return true;
                     }
                     break;

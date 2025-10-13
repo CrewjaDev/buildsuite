@@ -244,41 +244,75 @@ export default function ApprovalListPage() {
           const iconColor = getTabIconColor(activeTab)
           
           return (
-            <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <TabIcon className={`h-4 w-4 ${iconColor}`} />
-                  <div>
-                    <p className="font-medium">{request.title}</p>
-                    <p className="text-sm text-gray-500">
+            <div key={request.id} className="flex flex-col lg:flex-row lg:items-start lg:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-4">
+              {/* 左側: 基本情報 */}
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <TabIcon className={`h-4 w-4 ${iconColor} flex-shrink-0`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{request.title}</p>
+                    <p className="text-sm text-gray-500 truncate">
                       {request.requester_name} - {formatDate(request.created_at)}
                     </p>
                     {request.description && (
-                      <p className="text-sm text-gray-600 mt-1">{request.description}</p>
+                      <p className="text-sm text-gray-600 mt-1 overflow-hidden" style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical'
+                      }}>{request.description}</p>
                     )}
-                    <div className="flex items-center gap-2 mt-2">
-                      {getStatusBadge(request.status, request.sub_status || undefined)}
+                    
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
                       {getPriorityBadge(request.priority)}
                       <Badge variant="outline">
                         {getTypeLabel(request.request_type)}
                       </Badge>
                       {request.approval_flow && (
-                        <Badge variant="secondary">
+                        <Badge variant="secondary" className="hidden sm:inline-flex">
                           {request.approval_flow.name}
                         </Badge>
                       )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 右側: 承認状況表示box */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 lg:ml-4 lg:flex-shrink-0">
+                {/* 承認状況の詳細表示 */}
+                {request.progress_status && (
+                  <div className="bg-white border rounded-lg p-3 shadow-sm w-full sm:min-w-[280px] lg:min-w-[280px]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TabIcon className={`h-4 w-4 ${iconColor} flex-shrink-0`} />
+                      <div className="text-sm font-medium text-gray-700 truncate">
+                        {request.progress_status.progress_text}
+                      </div>
+                    </div>
+                    {request.progress_status.current_approvers.length > 0 && (
+                      <div className="text-xs text-gray-600 mb-2 overflow-hidden" style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical'
+                      }}>
+                        現在の承認者: {request.progress_status.current_approvers.join(', ')}
+                      </div>
+                    )}
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getStatusBadge(request.status, request.sub_status || undefined)}
                       <span className="text-sm text-gray-500">
                         ステップ {request.current_step}
                       </span>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="flex gap-2">
+                )}
+                
+                {/* 詳細ボタン */}
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleViewDetail(request)}
+                  className="w-full sm:w-auto sm:self-start"
                 >
                   <Eye className="h-4 w-4 mr-1" />
                   詳細

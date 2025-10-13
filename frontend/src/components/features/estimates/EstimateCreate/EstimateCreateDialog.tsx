@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useCreateEstimate } from '@/hooks/features/estimates/useEstimates'
 import { CreateEstimateRequest } from '@/types/features/estimates/estimate'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -22,6 +22,14 @@ interface EstimateCreateDialogProps {
 export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCreateDialogProps) {
   const { user } = useAuth() // ログインユーザー情報を取得
   const createEstimateMutation = useCreateEstimate()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [dialogSize, setDialogSize] = useState({ width: 900, height: 600 })
+  
+  // ダイアログの幅に基づいてレスポンシブクラスを決定
+  const isNarrowDialog = dialogSize.width < 700
+  
+  // デバッグ用：現在の幅を表示
+  console.log('Dialog width:', dialogSize.width, 'isNarrowDialog:', isNarrowDialog)
 
   // フォーム状態
   const [formData, setFormData] = useState<CreateEstimateRequest>({
@@ -106,6 +114,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
       const estimate = await createEstimateMutation.mutateAsync(formData)
       
       toast.success('見積を作成しました')
+      // ダイアログサイズをリセット
+      setDialogSize({ width: 900, height: 600 })
       onSuccess?.(estimate.id)
       onClose()
     } catch (error) {
@@ -115,12 +125,129 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
   }
 
   const handleCancel = useCallback(() => {
+    // ダイアログサイズをリセット
+    setDialogSize({ width: 900, height: 600 })
     onClose()
   }, [onClose])
 
+  // リサイズハンドラー
+  const handleResize = useCallback((e: MouseEvent) => {
+    if (!dialogRef.current) return
+    
+    const rect = dialogRef.current.getBoundingClientRect()
+    const newWidth = Math.max(400, Math.min(1200, e.clientX - rect.left))
+    const newHeight = Math.max(400, Math.min(window.innerHeight - 100, e.clientY - rect.top))
+    
+    setDialogSize({ width: newWidth, height: newHeight })
+  }, [])
+
+  // ウィンドウリサイズ時の調整
+  const handleWindowResize = useCallback(() => {
+    if (!dialogRef.current) return
+    
+    const rect = dialogRef.current.getBoundingClientRect()
+    const maxWidth = Math.min(1200, window.innerWidth - 100)
+    const maxHeight = Math.min(window.innerHeight - 100, window.innerHeight * 0.9)
+    
+    if (rect.width > maxWidth || rect.height > maxHeight) {
+      setDialogSize(prev => ({
+        width: Math.min(prev.width, maxWidth),
+        height: Math.min(prev.height, maxHeight)
+      }))
+    }
+  }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const startX = e.clientX
+    const startY = e.clientY
+    const startWidth = dialogSize.width
+    const startHeight = dialogSize.height
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startX
+      const deltaY = e.clientY - startY
+      
+      const newWidth = Math.max(320, Math.min(1200, startWidth + deltaX))
+      const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY))
+      
+      setDialogSize({ width: newWidth, height: newHeight })
+    }
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [dialogSize.width, dialogSize.height])
+
+  // ウィンドウリサイズイベントリスナー
+  useEffect(() => {
+    if (isOpen) {
+      window.addEventListener('resize', handleWindowResize)
+      return () => window.removeEventListener('resize', handleWindowResize)
+    }
+  }, [isOpen, handleWindowResize])
+
+  // ダイアログのリサイズを監視
+  useEffect(() => {
+    if (!isOpen || !dialogRef.current) return
+
+    const dialog = dialogRef.current
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        setDialogSize({ width, height })
+      }
+    })
+
+    resizeObserver.observe(dialog)
+    return () => resizeObserver.disconnect()
+  }, [isOpen])
+
+  // ダイアログが開かれた時にフォームをリセット
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        project_name: '',
+        partner_id: 0,
+        project_type_id: 0,
+        issue_date: new Date().toISOString().split('T')[0],
+        expiry_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        notes: '',
+        project_location: '',
+        project_period_start: '',
+        project_period_end: '',
+        responsible_user_id: user?.id || 0,
+      })
+      setDialogSize({ width: 900, height: 600 })
+    }
+  }, [isOpen, user?.id])
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-50" />}
+      <DialogContent 
+        ref={dialogRef}
+        className="flex flex-col p-2 sm:p-4 md:p-6 overflow-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: `${dialogSize.width}px`,
+          height: `${dialogSize.height}px`,
+          minWidth: '320px',
+          maxWidth: '1200px',
+          minHeight: '400px',
+          maxHeight: '90vh',
+          position: 'fixed',
+          zIndex: 9999,
+          resize: 'both',
+          overflow: 'auto',
+          boxSizing: 'border-box'
+        }}
+      >
         <DialogHeader>
           <DialogTitle>新規見積作成</DialogTitle>
           <DialogDescription>
@@ -128,10 +255,10 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-3">
+        <div className="flex-1 overflow-y-auto space-y-4 px-1">
           {/* 見積日 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               見積日 <span className="text-red-500">*</span>
             </label>
             <Input
@@ -143,11 +270,11 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
 
           {/* 担当者・部署 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-start'}`}>
+            <label className={`text-sm font-medium text-gray-700 pt-2 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               担当者 <span className="text-red-500">*</span>
             </label>
-            <div className="flex-1 flex gap-2">
+            <div className="flex-1 space-y-2">
               <PopoverSearchFilter
                 value={formData.responsible_user_id?.toString() || ''}
                 onValueChange={(value) => handleInputChange('responsible_user_id', parseInt(value))}
@@ -156,21 +283,23 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
                   label: employee.name
                 })) : []}
                 placeholder={user?.id ? "担当者を選択してください（現在のユーザーが設定済み）" : "担当者を選択してください"}
-                className="flex-1"
+                className="w-full"
               />
-              <div className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-600 flex items-center">
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-600 flex items-center justify-center">
                 {formData.responsible_user_id && formData.responsible_user_id > 0 && employeesData?.employees ? (
-                  employeesData.employees.find(emp => emp.id === formData.responsible_user_id)?.department?.name || '部署情報なし'
+                  <span className="text-center">
+                    部署: {employeesData.employees.find(emp => emp.id === formData.responsible_user_id)?.department?.name || '部署情報なし'}
+                  </span>
                 ) : (
-                  '部署'
+                  '部署情報'
                 )}
               </div>
             </div>
           </div>
 
           {/* 受注先 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               受注先 <span className="text-red-500">*</span>
             </label>
             <PopoverSearchFilter
@@ -186,8 +315,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
 
           {/* 工事名称 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               工事名称 <span className="text-red-500">*</span>
             </label>
             <Input
@@ -202,8 +331,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
 
           {/* 工事場所 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               工事場所
             </label>
             <Input
@@ -218,32 +347,32 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
 
           {/* 工期 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               工期
             </label>
-            <div className="flex-1 flex items-center gap-2">
+            <div className={`flex-1 flex items-center gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row'}`}>
               <Input
                 type="date"
                 value={formData.project_period_start}
                 onChange={(e) => handleInputChange('project_period_start', e.target.value)}
                 placeholder="開始日"
-                className="flex-1"
+                className="flex-1 w-full min-w-0"
               />
-              <span className="text-gray-500">〜</span>
+              <span className={`text-gray-500 text-sm flex-shrink-0 ${isNarrowDialog ? '' : 'text-base'}`}>〜</span>
               <Input
                 type="date"
                 value={formData.project_period_end}
                 onChange={(e) => handleInputChange('project_period_end', e.target.value)}
                 placeholder="終了日"
-                className="flex-1"
+                className="flex-1 w-full min-w-0"
               />
             </div>
           </div>
 
           {/* 有効期限 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               有効期限 <span className="text-red-500">*</span>
             </label>
             <Input
@@ -255,8 +384,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
 
           {/* 工事種別 */}
-          <div className="flex items-center">
-            <label className="w-32 text-sm font-medium text-gray-700">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-center'}`}>
+            <label className={`text-sm font-medium text-gray-700 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               工事種別 <span className="text-red-500">*</span>
             </label>
             <PopoverSearchFilter
@@ -273,8 +402,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
 
           {/* 工事種別費率情報 */}
           {selectedProjectType && (
-            <div className="flex items-start">
-              <label className="w-32 text-sm font-medium text-gray-700 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+              <label className="w-full sm:w-32 text-sm font-medium text-gray-700 pt-2">
                 費率情報
               </label>
               <div className="flex-1 space-y-2">
@@ -301,8 +430,8 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           )}
 
           {/* 備考 */}
-          <div className="flex items-start">
-            <label className="w-32 text-sm font-medium text-gray-700 pt-2">
+          <div className={`flex gap-2 ${isNarrowDialog ? 'flex-col' : 'flex-row items-start'}`}>
+            <label className={`text-sm font-medium text-gray-700 pt-2 ${isNarrowDialog ? 'w-full' : 'w-32 flex-shrink-0'}`}>
               備考
             </label>
             <textarea
@@ -315,7 +444,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={handleCancel} disabled={createEstimateMutation.isPending}>
             キャンセル
           </Button>
@@ -323,6 +452,19 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
             {createEstimateMutation.isPending ? '作成中...' : '作成'}
           </Button>
         </DialogFooter>
+        
+        {/* リサイズハンドル */}
+        <div
+          className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize bg-blue-100 hover:bg-blue-200 opacity-80 hover:opacity-100 transition-all duration-200 border-2 border-blue-300 hover:border-blue-500 rounded-tl-lg"
+          onMouseDown={handleMouseDown}
+          style={{
+            background: 'linear-gradient(-45deg, transparent 40%, #3b82f6 40%, #3b82f6 60%, transparent 60%)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+          title="ドラッグしてリサイズ"
+        >
+          <div className="absolute bottom-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+        </div>
       </DialogContent>
     </Dialog>
   )

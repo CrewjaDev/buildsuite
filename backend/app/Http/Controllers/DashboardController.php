@@ -119,15 +119,7 @@ class DashboardController extends Controller
         
         foreach ($businessLogicCodes as $code => $config) {
             // ユーザーがこのビジネスコードの権限を持っているかチェック
-            $hasPermission = false;
-            foreach ($config['default_permissions'] as $permission) {
-                if (PermissionService::hasPermission($user, $permission)) {
-                    $hasPermission = true;
-                    break;
-                }
-            }
-            
-            if ($hasPermission) {
+            if (PermissionService::hasAnyBusinessCodePermission($user, $code, $config['default_permissions'])) {
                 $businessCodeStats[$code] = $this->getStatsForBusinessCode($user, $code, $config);
             }
         }

@@ -23,7 +23,7 @@ export default function PermissionManagement() {
   const router = useRouter()
 
   // システム管理者のみアクセス可能
-  const isSystemAdmin = user?.is_admin || user?.system_level === 'システム管理者'
+  const isSystemAdmin = user?.is_admin
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || !isSystemAdmin)) {

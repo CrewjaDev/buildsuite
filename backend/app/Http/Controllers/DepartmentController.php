@@ -541,7 +541,7 @@ class DepartmentController extends Controller
                             'employee_id' => $user->employee_id,
                             'name' => $user->name,
                             'email' => $user->email,
-                            'system_level' => $user->system_level,
+                            'system_level' => $user->system_level_id,
                             'is_active' => $user->is_active,
                             'position' => $user->pivot->position,
                             'is_primary' => $user->pivot->is_primary,

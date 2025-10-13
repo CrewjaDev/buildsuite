@@ -195,6 +195,12 @@ class AccessPolicy extends Model
 
         $contextValue = $this->getContextValue($field, $context);
 
+        // 動的な値比較（例: "user.department_id"）
+        if (is_string($value) && (str_starts_with($value, 'user.') || str_starts_with($value, 'data.') || str_starts_with($value, 'env.'))) {
+            $dynamicValue = $this->getContextValue($value, $context);
+            $value = $dynamicValue;
+        }
+
         return match ($operator) {
             'eq' => $contextValue === $value,
             'ne' => $contextValue !== $value,

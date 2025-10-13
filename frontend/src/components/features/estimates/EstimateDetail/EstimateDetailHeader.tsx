@@ -27,6 +27,7 @@ export function EstimateDetailHeader({
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
   const { hasPermission } = useAuth()
 
+
   // イベントハンドラー
   const handleBack = useCallback(() => {
     router.push('/estimates')
@@ -67,109 +68,112 @@ export function EstimateDetailHeader({
         </div>
         
         {/* 承認フロー状態とアクションボタン */}
-        {userApprovalStatus && (
-          <div className="flex items-center gap-4">
-            {/* 承認フローステップインジケーター */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-700">承認フロー</span>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: userApprovalStatus.total_steps }, (_, index) => {
-                  const stepNumber = index + 1
-                  const isCompleted = stepNumber < userApprovalStatus.step
-                  const isCurrent = stepNumber === userApprovalStatus.step
-                  
-                  return (
-                    <div key={stepNumber} className="flex items-center gap-1">
-                      <div
-                        className={`w-3 h-3 rounded-full ${
-                          isCompleted
-                            ? 'bg-green-500' // 完了済み：緑
-                            : isCurrent
-                            ? 'bg-blue-500' // 現在のステップ：青
-                            : 'bg-gray-300' // 未開始：グレー
-                        }`}
-                      />
-                      <span className="text-xs text-gray-600">ステップ{stepNumber}</span>
-                    </div>
-                  )
-                })}
+        <div className="flex items-center gap-4">
+          {/* 承認依頼ボタン - userApprovalStatusがnullの場合（承認依頼未作成）に表示 */}
+          {!userApprovalStatus && canRequestApproval() && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => setShowApprovalDialog(true)}
+              className="h-8 px-3 text-sm bg-gray-800 hover:bg-gray-900 text-white"
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              承認依頼
+            </Button>
+          )}
+
+          {/* 承認フロー状態表示とアクションボタン - userApprovalStatusが存在する場合 */}
+          {userApprovalStatus && (
+            <>
+              {/* 承認フローステップインジケーター */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-700">承認フロー</span>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: userApprovalStatus.total_steps }, (_, index) => {
+                    const stepNumber = index + 1
+                    const isCompleted = stepNumber < userApprovalStatus.step
+                    const isCurrent = stepNumber === userApprovalStatus.step
+                    
+                    return (
+                      <div key={stepNumber} className="flex items-center gap-1">
+                        <div
+                          className={`w-3 h-3 rounded-full ${
+                            isCompleted
+                              ? 'bg-green-500' // 完了済み：緑
+                              : isCurrent
+                              ? 'bg-blue-500' // 現在のステップ：青
+                              : 'bg-gray-300' // 未開始：グレー
+                          }`}
+                        />
+                        <span className="text-xs text-gray-600">ステップ{stepNumber}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-            
-            {/* 承認フロー状態バッジ */}
-            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
-              <Clock className="h-4 w-4 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">
-                {userApprovalStatus.sub_status === 'reviewing' 
-                  ? `審査中 ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
-                  : `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
-                }
-              </span>
-            </div>
-            
-            {/* アクションボタン */}
-            {userApprovalStatus.status === 'pending' && userApprovalStatus.can_act && (
-              <>
-                {/* 審査開始ボタン - 承認待ち状態（sub_statusがnullまたは'reviewing'以外）の場合のみ表示 */}
-                {(!userApprovalStatus.sub_status || userApprovalStatus.sub_status !== 'reviewing') && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => onStartReviewing?.()}
-                    className="h-8 px-3 text-sm bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    審査開始
-                  </Button>
-                )}
-                
-                {/* 承認・却下・差し戻しボタン - 審査中状態（sub_statusが'reviewing'）の場合のみ表示 */}
-                {userApprovalStatus.sub_status === 'reviewing' && (
-                  <>
+              
+              {/* 承認フロー状態バッジ */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+                <Clock className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  {userApprovalStatus.sub_status === 'reviewing' 
+                    ? `審査中 ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
+                    : `承認待ち ${userApprovalStatus.step}/${userApprovalStatus.total_steps}`
+                  }
+                </span>
+              </div>
+              
+              {/* アクションボタン */}
+              {userApprovalStatus.status === 'pending' && userApprovalStatus.can_act && (
+                <>
+                  {/* 審査開始ボタン - 承認待ち状態（sub_statusがnullまたは'reviewing'以外）の場合のみ表示 */}
+                  {(!userApprovalStatus.sub_status || userApprovalStatus.sub_status !== 'reviewing') && (
                     <Button
                       size="sm"
-                      onClick={() => onApprovalAction?.('approve')}
-                      className="h-8 px-3 text-sm bg-green-600 hover:bg-green-700 text-white"
+                      variant="default"
+                      onClick={() => onStartReviewing?.()}
+                      className="h-8 px-3 text-sm bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      <Check className="h-4 w-4 mr-1" />
-                      承認
+                      審査開始
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onApprovalAction?.('reject')}
-                      className="h-8 px-3 text-sm"
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      却下
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onApprovalAction?.('return')}
-                      className="h-8 px-3 text-sm"
-                    >
-                      <RotateCcw className="h-4 w-4 mr-1" />
-                      差し戻し
-                    </Button>
-                  </>
-                )}
-                
-                {/* 承認依頼ボタン - 下書き状態かつ承認依頼未作成の場合のみ表示 */}
-                {canRequestApproval() && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => setShowApprovalDialog(true)}
-                    className="h-8 px-3 text-sm bg-gray-800 hover:bg-gray-900 text-white"
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    承認依頼
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                  )}
+                  
+                  {/* 承認・却下・差し戻しボタン - 審査中状態（sub_statusが'reviewing'）の場合のみ表示 */}
+                  {userApprovalStatus.sub_status === 'reviewing' && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => onApprovalAction?.('approve')}
+                        className="h-8 px-3 text-sm bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        承認
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onApprovalAction?.('reject')}
+                        className="h-8 px-3 text-sm"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        却下
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onApprovalAction?.('return')}
+                        className="h-8 px-3 text-sm"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        差し戻し
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* 承認依頼作成ダイアログ */}

@@ -32,7 +32,7 @@ class PermissionService
     public static function hasPermission(User $user, string $permissionName): bool
     {
         // 1. システム管理者は全権限を持つ
-        if ($user->is_admin || $user->system_level === 'システム管理者') {
+        if ($user->is_admin) { 
             return true;
         }
 
@@ -154,7 +154,7 @@ class PermissionService
     public static function getUserEffectivePermissions(User $user): array
     {
         // システム管理者は全権限
-        if ($user->is_admin || $user->system_level === 'システム管理者') {
+        if ($user->is_admin) { 
             return ['*']; // 全権限を示す特別な値
         }
         
@@ -258,5 +258,90 @@ class PermissionService
         }
 
         return $availableFeatures;
+    }
+
+    /**
+     * ユーザーがビジネスコードのいずれかの権限を持っているかチェック
+     * 
+     * @param User $user
+     * @param string $businessCode
+     * @param array $permissionNames 権限名の配列（例: ['use', 'list', 'create']）
+     * @return bool
+     */
+    public static function hasAnyBusinessCodePermission(User $user, string $businessCode, array $permissionNames): bool
+    {
+        foreach ($permissionNames as $permissionName) {
+            $fullPermissionName = $businessCode . '.' . $permissionName;
+            if (self::hasPermission($user, $fullPermissionName)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * ユーザーが指定された権限のいずれかを持っているかチェック
+     * 完全な権限名の配列を受け取る
+     * 
+     * @param User $user
+     * @param array $permissionNames 完全な権限名の配列（例: ['estimate.use', 'estimate.create']）
+     * @return bool
+     */
+    public static function hasAnyPermission(User $user, array $permissionNames): bool
+    {
+        foreach ($permissionNames as $permissionName) {
+            if (self::hasPermission($user, $permissionName)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * ユーザーが指定された権限をすべて持っているかチェック
+     * 
+     * @param User $user
+     * @param array $permissionNames 完全な権限名の配列
+     * @return bool
+     */
+    public static function hasAllPermissions(User $user, array $permissionNames): bool
+    {
+        foreach ($permissionNames as $permissionName) {
+            if (!self::hasPermission($user, $permissionName)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * メニュー表示用の権限チェック
+     * ビジネスコードとアクションの組み合わせで判定
+     * 
+     * @param User $user
+     * @param string $businessCode
+     * @param string $action アクション（例: 'use', 'create', 'approval.request'）
+     * @return bool
+     */
+    public static function canAccessMenu(User $user, string $businessCode, string $action): bool
+    {
+        $fullPermissionName = $businessCode . '.' . $action;
+        return self::hasPermission($user, $fullPermissionName);
+    }
+
+    /**
+     * ページ要素表示用の権限チェック
+     * 複数の権限のいずれかを持っているかで判定
+     * 
+     * @param User $user
+     * @param array $requiredPermissions 必要な権限の配列
+     * @return bool
+     */
+    public static function canShowElement(User $user, array $requiredPermissions): bool
+    {
+        return self::hasAnyPermission($user, $requiredPermissions);
     }
 }

@@ -428,7 +428,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'employee_id' => $user->employee_id,
             'login_id' => $user->login_id,
-            'system_level' => $user->system_level,
+            'system_level' => $user->system_level_id,
             'is_admin' => $user->is_admin,
             'last_login_at' => $user->last_login_at,
             

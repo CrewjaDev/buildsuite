@@ -87,7 +87,7 @@ export interface User {
   name: string;
   name_kana?: string;
   email?: string;
-  system_level: string;
+  system_level_id: number;
   is_active: boolean;
   is_admin: boolean;
   permissions?: Permission[];

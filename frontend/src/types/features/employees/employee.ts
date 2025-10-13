@@ -31,7 +31,7 @@ export interface Employee {
   user?: {
     id: number
     login_id?: string
-    system_level?: string
+    system_level_id?: number
     is_admin: boolean
     last_login_at?: string
     is_locked: boolean
@@ -122,6 +122,6 @@ export interface SystemLevel {
 export interface SystemAccessData {
   login_id: string
   password: string
-  system_level: string
+  system_level_id: number
   is_admin?: boolean
 }

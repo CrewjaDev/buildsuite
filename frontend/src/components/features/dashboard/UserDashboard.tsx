@@ -66,7 +66,7 @@ export default function UserDashboard({ user }: UserDashboardProps) {
   useEffect(() => {
     fetchStats()
     // 承認者権限または承認依頼一覧権限がある場合に承認件数を取得
-    if (user.permissions?.includes('approval.authority') || user.permissions?.includes('approval.approval.list')) {
+    if (user.permissions?.includes('approval.approval.authority') || user.permissions?.includes('approval.approval.list')) {
       fetchApprovalCounts()
     }
   }, [fetchStats, fetchApprovalCounts, user.permissions])
@@ -168,7 +168,7 @@ export default function UserDashboard({ user }: UserDashboardProps) {
       {/* カードグリッド */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 justify-items-center">
         {/* 承認者用カード（承認者権限がある場合のみ表示） */}
-        {user.permissions?.includes('approval.authority') && (
+        {user.permissions?.includes('approval.approval.authority') && (
         <Card className="cursor-pointer hover:shadow-md transition-shadow w-80 h-48" onClick={handleViewAllApprovals}>
           <CardHeader className="pb-2 px-3 -mt-2">
             <CardTitle className="flex items-center justify-between text-base">

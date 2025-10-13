@@ -27,7 +27,7 @@ export interface UserDetail {
   service_months?: number
   
   // システム情報
-  system_level?: string
+  system_level_id?: number
   is_active?: boolean
   is_admin?: boolean
   permissions?: string[]
@@ -95,7 +95,7 @@ export interface HeaderUser {
   email?: string
   avatar?: string
   is_admin?: boolean
-  system_level?: string
+  system_level_id?: number
   permissions?: string[]
   primary_department?: {
     id: number

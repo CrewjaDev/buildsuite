@@ -54,7 +54,7 @@ class SystemLevel extends Model
      */
     public function users()
     {
-        return $this->hasMany(User::class, 'system_level', 'code');
+        return $this->hasMany(User::class, 'system_level_id', 'id');
     }
 
     /**

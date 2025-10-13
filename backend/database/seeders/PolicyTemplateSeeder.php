@@ -259,7 +259,7 @@ class PolicyTemplateSeeder extends Seeder
                 'rules' => '{{builder_rules}}'
             ],
             'parameters' => [
-                'required_fields' => ['user.department_id', 'user.position_id', 'user.system_level'],
+                'required_fields' => ['user.department_id', 'user.position_id', 'user.system_level_id'],
                 'configurable_values' => [
                     'builder_rules' => [
                         'type' => 'condition_builder',
@@ -272,16 +272,16 @@ class PolicyTemplateSeeder extends Seeder
                         'available_fields' => [
                             'user.department_id' => '部署',
                             'user.position_id' => '職位',
-                            'user.system_level' => 'システムレベル',
-                            'user.roles' => '役割',
+                            'user.system_level_id' => 'システムレベル',
+                            'user.role_ids' => '役割',
                             'user.id' => 'ユーザーID',
                             'data.created_by' => '作成者'
                         ],
                         'field_operators' => [
                             'user.department_id' => ['in' => '含む'],
                             'user.position_id' => ['in' => '含む', 'gte' => '以上', 'lte' => '以下'],
-                            'user.system_level' => ['in' => '含む', 'gte' => '以上', 'lte' => '以下'],
-                            'user.roles' => ['in' => '含む'],
+                            'user.system_level_id' => ['in' => '含む', 'gte' => '以上', 'lte' => '以下'],
+                            'user.role_ids' => ['in' => '含む'],
                             'user.id' => ['in' => '含む'],
                             'data.created_by' => ['in' => '含む']
                         ],

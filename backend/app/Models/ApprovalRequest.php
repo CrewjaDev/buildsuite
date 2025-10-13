@@ -1100,4 +1100,110 @@ class ApprovalRequest extends Model
         
         return false;
     }
+
+    /**
+     * 承認フローの進行状況を生成
+     */
+    public function getProgressStatus(): array
+    {
+        $flow = $this->approvalFlow;
+        if (!$flow || !$flow->approval_steps) {
+            return [
+                'current_status' => '不明',
+                'progress_text' => '承認フロー情報なし',
+                'current_approvers' => []
+            ];
+        }
+
+        $steps = $flow->approval_steps;
+        $totalSteps = count(array_filter($steps, function($step) {
+            return ($step['step'] ?? 0) > 0; // ステップ0を除外
+        }));
+
+        // 現在のステップ情報を取得
+        $currentStepInfo = null;
+        foreach ($steps as $step) {
+            if (($step['step'] ?? 0) === $this->current_step) {
+                $currentStepInfo = $step;
+                break;
+            }
+        }
+
+        if (!$currentStepInfo) {
+            return [
+                'current_status' => '不明',
+                'progress_text' => 'ステップ情報なし',
+                'current_approvers' => []
+            ];
+        }
+
+        // 進行状況テキストを生成
+        $progressText = '';
+        $currentApprovers = [];
+
+        if ($this->status === 'approved') {
+            $progressText = '全承認完了';
+        } elseif ($this->status === 'rejected') {
+            $progressText = $currentStepInfo['name'] . 'で却下';
+        } elseif ($this->status === 'returned') {
+            $progressText = $currentStepInfo['name'] . 'で差戻し';
+        } else {
+            // pending状態の場合
+            if ($this->sub_status === 'reviewing') {
+                $progressText = $currentStepInfo['name'] . '審査中';
+            } else {
+                $progressText = $currentStepInfo['name'] . '承認待ち';
+            }
+
+            // 次のステップがある場合は追加
+            $nextStepInfo = null;
+            foreach ($steps as $step) {
+                if (($step['step'] ?? 0) === $this->current_step + 1) {
+                    $nextStepInfo = $step;
+                    break;
+                }
+            }
+
+            if ($nextStepInfo) {
+                $progressText .= ' → ' . $nextStepInfo['name'] . '承認待ち';
+            }
+        }
+
+        // 現在の承認者情報を取得
+        if (isset($currentStepInfo['approvers'])) {
+            foreach ($currentStepInfo['approvers'] as $approver) {
+                if ($approver['type'] === 'user') {
+                    $user = \App\Models\User::find($approver['value']);
+                    if ($user && $user->employee) {
+                        $currentApprovers[] = $user->employee->name;
+                    } else {
+                        $currentApprovers[] = $approver['display_name'] ?? '不明';
+                    }
+                } elseif ($approver['type'] === 'role') {
+                    $role = \App\Models\Role::find($approver['value']);
+                    if ($role) {
+                        $currentApprovers[] = $role->display_name ?? $role->name;
+                    } else {
+                        $currentApprovers[] = $approver['display_name'] ?? '不明';
+                    }
+                } elseif ($approver['type'] === 'system_level') {
+                    $systemLevel = \App\Models\SystemLevel::find($approver['value']);
+                    if ($systemLevel) {
+                        $currentApprovers[] = $systemLevel->display_name ?? $systemLevel->name;
+                    } else {
+                        $currentApprovers[] = $approver['display_name'] ?? '不明';
+                    }
+                }
+            }
+        }
+
+        return [
+            'current_status' => $this->sub_status === 'reviewing' ? '審査中' : 
+                              ($this->status === 'pending' ? '承認待ち' : $this->status),
+            'progress_text' => $progressText,
+            'current_approvers' => $currentApprovers,
+            'current_step' => $this->current_step,
+            'total_steps' => $totalSteps
+        ];
+    }
 }

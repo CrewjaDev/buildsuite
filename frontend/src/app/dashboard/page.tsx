@@ -22,15 +22,14 @@ export default function DashboardPage() {
 
   // ユーザーの権限に基づいてダッシュボードを切り替え
   const renderDashboard = () => {
+    // システム管理者フラグによる判定
     if (user.is_admin) {
       return <AdminDashboard user={user} />
     }
     
     // システム権限レベルに基づく判定
-    switch (user.system_level) {
-      case 'admin':
-        return <AdminDashboard user={user} />
-      case 'manager':
+    switch (user.system_level_id) {
+      case 3: // manager
         return <ManagerDashboard user={user} />
       default:
         // 一般ユーザーはUserDashboardを使用（承認者権限がある場合は承認管理カードも表示される）

@@ -85,7 +85,7 @@ class CommonApprovalService
     {
         switch ($requester['type']) {
             case 'system_level':
-                return $user->system_level === $requester['value'];
+                return $user->system_level_id == $requester['value'];
             case 'department':
                 return $user->employee?->department_id == $requester['value'];
             case 'position':
@@ -145,7 +145,7 @@ class CommonApprovalService
     {
         switch ($approver['type']) {
             case 'system_level':
-                return $user->system_level === $approver['value'];
+                return $user->system_level_id == $approver['value'];
             case 'department':
                 return $user->employee?->department_id == $approver['value'];
             case 'position':

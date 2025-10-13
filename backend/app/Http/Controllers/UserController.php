@@ -104,7 +104,7 @@ class UserController extends Controller
                 'primary_department' => $user->departments->where('pivot.is_primary', true)->first(), // 追加
                 'job_title' => $user->employee ? $user->employee->job_title : null,
                 'hire_date' => $user->employee && $user->employee->hire_date ? $user->employee->hire_date->toISOString() : null,
-                'system_level' => $user->system_level,
+                'system_level' => $user->system_level_id,
                 'is_active' => $user->is_active,
                 'is_admin' => $user->is_admin,
                 'permissions_count' => $user->permissions ? $user->permissions->count() : 0,

@@ -23,13 +23,16 @@ export default function EstimatesPage() {
   })
   const [searchValue, setSearchValue] = useState('')
   const [filters, setFilters] = useState<Record<string, string | number | boolean | null | undefined>>({})
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
   // 全データ取得（カウンタ計算用）
   const { data: allData } = useEstimates({
-    ...searchParams,
+    // ページネーション情報を除外して全データを取得
     search: searchValue || undefined,
     per_page: 1000, // 全データを取得するため大きな値を設定
+    sort_by: searchParams.sort_by,
+    sort_order: searchParams.sort_order,
     ...filters
   }) as { data: EstimatesResponse | undefined; isLoading: boolean; error: Error | null }
 
@@ -38,7 +41,8 @@ export default function EstimatesPage() {
     ...searchParams,
     search: searchValue || undefined,
     status: activeTab === 'all' ? undefined : activeTab,
-    ...filters
+    ...filters,
+    ...columnFilters
   }) as { data: EstimatesResponse | undefined; isLoading: boolean; error: Error | null }
 
 
@@ -139,6 +143,25 @@ export default function EstimatesPage() {
   const handleClearFilters = useCallback(() => {
     setFilters({})
     setSearchValue('')
+    setColumnFilters({})
+  }, [])
+
+  // 列フィルターハンドラー
+  const handleColumnFilterChange = useCallback((columnId: string, value: string) => {
+    console.log('列フィルター変更:', columnId, value)
+    setColumnFilters(prev => {
+      const newFilters = { ...prev }
+      if (value) {
+        newFilters[columnId] = value
+      } else {
+        delete newFilters[columnId]
+      }
+      return newFilters
+    })
+    setSearchParams(prev => ({
+      ...prev,
+      page: 1 // フィルター変更時は1ページ目に戻る
+    }))
   }, [])
 
   const handleCreateNew = useCallback(() => {
@@ -160,6 +183,19 @@ export default function EstimatesPage() {
       ...prev,
       page: 1 // タブ切り替え時は1ページ目に戻る
     }))
+  }, [])
+
+  // ソートハンドラー
+  const handleSort = useCallback((field: keyof Estimate) => {
+    setSearchParams(prev => {
+      const newSortDirection = prev.sort_by === field && prev.sort_order === 'asc' ? 'desc' : 'asc'
+      return {
+        ...prev,
+        sort_by: field,
+        sort_order: newSortDirection,
+        page: 1 // ソート時は1ページ目に戻る
+      }
+    })
   }, [])
 
   return (
@@ -208,6 +244,13 @@ export default function EstimatesPage() {
             onDelete={handleDeleteEstimate}
             onView={handleViewEstimate}
             onRowClick={handleRowClick}
+            // ソート機能
+            sortField={searchParams.sort_by}
+            sortDirection={searchParams.sort_order}
+            onSort={handleSort}
+            // 列フィルター機能
+            columnFilters={columnFilters}
+            onColumnFilterChange={handleColumnFilterChange}
             // ページネーション
             currentPage={searchParams.page}
             totalCount={data?.meta?.total || 0}

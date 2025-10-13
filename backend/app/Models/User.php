@@ -31,7 +31,7 @@ class User extends Authenticatable
         'employee_id',      // 社員への外部キー
         'login_id',         // ログインID
         'password',         // パスワード
-        'system_level',     // システム権限レベル
+        'system_level_id',  // システム権限レベルID
         'is_active',        // アクティブ状態
         'is_admin',         // 管理者権限
         'last_login_at',    // 最終ログイン時刻
@@ -119,7 +119,7 @@ class User extends Authenticatable
      */
     public function systemLevel()
     {
-        return $this->belongsTo(SystemLevel::class, 'system_level', 'code');
+        return $this->belongsTo(SystemLevel::class, 'system_level_id', 'id');
     }
 
     /**
@@ -216,17 +216,17 @@ class User extends Authenticatable
     /**
      * ユーザーが指定された役割を持っているかチェック
      */
-    public function hasRole(string $role): bool
+    public function hasRole(int $roleId): bool
     {
-        return $this->activeRoles()->where('name', $role)->exists();
+        return $this->activeRoles()->where('role_id', $roleId)->exists();
     }
 
     /**
      * ユーザーが指定されたシステム権限レベルを持っているかチェック
      */
-    public function hasSystemLevel(string $systemLevel): bool
+    public function hasSystemLevel(int $systemLevel): bool
     {
-        return $this->system_level === $systemLevel;
+        return $this->system_level_id == $systemLevel;
     }
 
     /**

@@ -11,7 +11,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // AuthServiceProviderを登録
+        $this->app->register(AuthServiceProvider::class);
     }
 
     /**

@@ -18,6 +18,13 @@ export interface ApprovalRequest {
   updated_at: string
   // 追加フィールド
   requester_name?: string
+  progress_status?: {
+    current_status: string
+    progress_text: string
+    current_approvers: string[]
+    current_step: number
+    total_steps: number
+  }
   // リレーション
   approval_flow?: {
     id: number

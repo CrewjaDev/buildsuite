@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Models\Estimate;
 use App\Models\EstimateItem;
 use App\Models\Partner;
@@ -14,6 +15,7 @@ use App\Models\ConstructionClassification;
 
 class EstimateController extends Controller
 {
+    use AuthorizesRequests;
     /**
      * 見積一覧を取得
      */
@@ -25,84 +27,175 @@ class EstimateController extends Controller
                 ->with(['partner', 'projectType', 'constructionClassification', 'creator', 'creatorEmployee', 'responsibleUser'])
                 ->orderBy('created_at', 'desc');
 
-            // 検索条件
+            // ABACポリシーによるフィルタリング
+            $estimates = $query->get();
+            $accessibleEstimates = $estimates->filter(function ($estimate) use ($user) {
+                return $user->can('view', $estimate);
+            });
+
+            // 検索条件をABACフィルタリング後のコレクションに適用
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('estimate_number', 'like', "%{$search}%")
-                      ->orWhere('project_name', 'like', "%{$search}%")
-                      ->orWhereHas('partner', function ($partnerQuery) use ($search) {
-                          $partnerQuery->where('name', 'like', "%{$search}%");
-                      });
+                $accessibleEstimates = $accessibleEstimates->filter(function ($estimate) use ($search) {
+                    return str_contains($estimate->estimate_number, $search) ||
+                           str_contains($estimate->project_name, $search) ||
+                           ($estimate->partner && str_contains($estimate->partner->partner_name, $search));
                 });
+            }
+
+            // 列フィルターの適用
+            $columnFilters = [
+                'estimate_number' => $request->get('estimate_number'),
+                'partner_name' => $request->get('partner_name'),
+                'project_name' => $request->get('project_name'),
+                'total_amount' => $request->get('total_amount'),
+                'created_by_name' => $request->get('created_by_name'),
+                'status' => $request->get('status'),
+                'estimate_date' => $request->get('estimate_date'),
+                'project_description' => $request->get('project_description'),
+            ];
+
+            foreach ($columnFilters as $field => $value) {
+                if (!empty($value)) {
+                    $accessibleEstimates = $accessibleEstimates->filter(function ($estimate) use ($field, $value) {
+                        switch ($field) {
+                            case 'estimate_number':
+                                return str_contains($estimate->estimate_number, $value);
+                            case 'partner_name':
+                                return $estimate->partner && str_contains($estimate->partner->partner_name, $value);
+                            case 'project_name':
+                                return str_contains($estimate->project_name, $value);
+                            case 'total_amount':
+                                return str_contains((string)$estimate->total_amount, $value);
+                            case 'created_by_name':
+                                return $estimate->creatorEmployee && str_contains($estimate->creatorEmployee->name, $value);
+                            case 'status':
+                                return str_contains($estimate->status, $value);
+                            case 'estimate_date':
+                                return $estimate->issue_date && str_contains($estimate->issue_date, $value);
+                            case 'project_description':
+                                return str_contains($estimate->project_location, $value);
+                            default:
+                                return true;
+                        }
+                    });
+                }
             }
 
             // ステータスフィルター
             if ($request->filled('status') && $request->status !== 'all') {
-                $query->where('status', $request->status);
+                $accessibleEstimates = $accessibleEstimates->where('status', $request->status);
             }
 
             // プロジェクトタイプフィルター
             if ($request->filled('project_type_id')) {
-                $query->where('project_type_id', $request->project_type_id);
+                $accessibleEstimates = $accessibleEstimates->where('project_type_id', $request->project_type_id);
             }
 
             // 工事分類フィルター
             if ($request->filled('construction_classification_id')) {
-                $query->where('construction_classification_id', $request->construction_classification_id);
+                $accessibleEstimates = $accessibleEstimates->where('construction_classification_id', $request->construction_classification_id);
             }
 
             // 日付範囲フィルター
             if ($request->filled('date_from')) {
-                $query->where('created_at', '>=', $request->date_from);
+                $accessibleEstimates = $accessibleEstimates->filter(function ($estimate) use ($request) {
+                    return $estimate->created_at >= $request->date_from;
+                });
             }
             if ($request->filled('date_to')) {
-                $query->where('created_at', '<=', $request->date_to . ' 23:59:59');
+                $accessibleEstimates = $accessibleEstimates->filter(function ($estimate) use ($request) {
+                    return $estimate->created_at <= $request->date_to . ' 23:59:59';
+                });
+            }
+
+            // ソート処理
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            
+            // ソート可能なフィールドのマッピング
+            $sortableFields = [
+                'estimate_number' => 'estimate_number',
+                'project_name' => 'project_name',
+                'partner_name' => 'partner.partner_name',
+                'total_amount' => 'total_amount',
+                'created_by_name' => 'creatorEmployee.name',
+                'status' => 'status',
+                'estimate_date' => 'issue_date',
+                'project_description' => 'project_location',
+                'created_at' => 'created_at',
+                'updated_at' => 'updated_at'
+            ];
+            
+            if (isset($sortableFields[$sortBy])) {
+                $sortField = $sortableFields[$sortBy];
+                
+                // リレーションのフィールドの場合は特別な処理
+                if (str_contains($sortField, '.')) {
+                    $accessibleEstimates = $accessibleEstimates->sortBy(function ($estimate) use ($sortField) {
+                        $parts = explode('.', $sortField);
+                        $value = $estimate;
+                        foreach ($parts as $part) {
+                            $value = $value?->$part;
+                        }
+                        return $value;
+                    }, SORT_REGULAR, $sortOrder === 'desc');
+                } else {
+                    $accessibleEstimates = $accessibleEstimates->sortBy($sortField, SORT_REGULAR, $sortOrder === 'desc');
+                }
             }
 
             // ページネーション
             $perPage = $request->get('per_page', 20);
-            $estimates = $query->paginate($perPage);
+            $page = $request->get('page', 1);
+            $offset = ($page - 1) * $perPage;
+            $estimates = $accessibleEstimates->slice($offset, $perPage)->values();
 
             // フロントエンド用にフィールドを追加
-            $estimatesData = $estimates->items();
-            foreach ($estimatesData as $estimate) {
-                $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
-                $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
+            $estimatesData = [];
+            foreach ($estimates as $estimate) {
+                $estimateData = $estimate->toArray();
+                $estimateData['partner_name'] = $estimate->partner ? $estimate->partner->partner_name : null;
+                $estimateData['project_type_name'] = $estimate->projectType ? $estimate->projectType->type_name : null;
                 // Employeeテーブルから社員名を取得
-                $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
-                $estimate->responsible_user_name = $estimate->responsibleUser ? $estimate->responsibleUser->name : null;
+                $estimateData['created_by_name'] = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
+                $estimateData['responsible_user_name'] = $estimate->responsibleUser ? $estimate->responsibleUser->name : null;
                 // フロントエンドで使用するフィールド名に合わせる
-                $estimate->estimate_date = $estimate->issue_date;
-                $estimate->construction_period_from = $estimate->project_period_start;
-                $estimate->construction_period_to = $estimate->project_period_end;
-                $estimate->project_description = $estimate->project_location;
+                $estimateData['estimate_date'] = $estimate->issue_date;
+                $estimateData['construction_period_from'] = $estimate->project_period_start;
+                $estimateData['construction_period_to'] = $estimate->project_period_end;
+                $estimateData['project_description'] = $estimate->project_location;
                 
                 // 工事種別に紐づく項目を追加
                 if ($estimate->projectType) {
-                    $estimate->overhead_rate = $estimate->projectType->overhead_rate;
-                    $estimate->cost_expense_rate = $estimate->projectType->cost_expense_rate;
-                    $estimate->material_expense_rate = $estimate->projectType->material_expense_rate;
+                    $estimateData['overhead_rate'] = $estimate->projectType->overhead_rate;
+                    $estimateData['cost_expense_rate'] = $estimate->projectType->cost_expense_rate;
+                    $estimateData['material_expense_rate'] = $estimate->projectType->material_expense_rate;
                 }
                 // 取引先の詳細情報を追加
                 if ($estimate->partner) {
-                    $estimate->partner_type = $estimate->partner->partner_type;
-                    $estimate->partner_address = $estimate->partner->address;
-                    $estimate->partner_contact_person = $estimate->partner->representative;
-                    $estimate->partner_phone = $estimate->partner->phone;
-                    $estimate->partner_email = $estimate->partner->email;
+                    $estimateData['partner_type'] = $estimate->partner->partner_type;
+                    $estimateData['partner_address'] = $estimate->partner->address;
+                    $estimateData['partner_contact_person'] = $estimate->partner->representative;
+                    $estimateData['partner_phone'] = $estimate->partner->phone;
+                    $estimateData['partner_email'] = $estimate->partner->email;
                 }
+                
+                $estimatesData[] = $estimateData;
             }
 
+            $totalCount = $accessibleEstimates->count();
+            $lastPage = ceil($totalCount / $perPage);
+            
             return response()->json([
                 'data' => $estimatesData,
                 'meta' => [
-                    'current_page' => $estimates->currentPage(),
-                    'last_page' => $estimates->lastPage(),
-                    'per_page' => $estimates->perPage(),
-                    'total' => $estimates->total(),
-                    'from' => $estimates->firstItem(),
-                    'to' => $estimates->lastItem(),
+                    'current_page' => $page,
+                    'last_page' => $lastPage,
+                    'per_page' => $perPage,
+                    'total' => $totalCount,
+                    'from' => $offset + 1,
+                    'to' => min($offset + $perPage, $totalCount),
                 ],
                 'message' => '見積一覧を取得しました'
             ]);
@@ -132,6 +225,9 @@ class EstimateController extends Controller
                     $query->orderBy('display_order', 'asc');
                 }
             ])->findOrFail($id);
+
+            // Policyを使用した権限チェック
+            $this->authorize('view', $estimate);
 
             // フロントエンド用にフィールドを追加
             $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
@@ -299,6 +395,9 @@ class EstimateController extends Controller
         try {
             $estimate = Estimate::findOrFail($id);
 
+            // Policyを使用した権限チェック
+            $this->authorize('update', $estimate);
+
             $validator = Validator::make($request->all(), [
                 'estimate_number' => 'sometimes|required|string|max:50|unique:estimates,estimate_number,' . $id,
                 'project_name' => 'sometimes|required|string|max:255',
@@ -392,6 +491,9 @@ class EstimateController extends Controller
     {
         try {
             $estimate = Estimate::findOrFail($id);
+
+            // Policyを使用した権限チェック
+            $this->authorize('delete', $estimate);
 
             // 見積明細も削除
             $estimate->items()->delete();

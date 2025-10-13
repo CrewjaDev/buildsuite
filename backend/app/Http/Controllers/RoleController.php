@@ -446,7 +446,7 @@ class RoleController extends Controller
                             'employee_id' => $user->employee_id,
                             'name' => $user->name,
                             'email' => $user->email,
-                            'system_level' => $user->system_level,
+                            'system_level' => $user->system_level_id,
                             'is_active' => $user->is_active,
                             'assigned_at' => $user->pivot->assigned_at,
                             'is_active_role' => $user->pivot->is_active,

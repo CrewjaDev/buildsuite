@@ -232,9 +232,16 @@ class UniversalApprovalService
      */
     private function canCancelApprovalRequest($approvalRequest, User $user): bool
     {
-        // 承認依頼作成者または管理者のみキャンセル可能
-        return $approvalRequest->requested_by === $user->id || 
-               $user->system_level >= 3; // 管理者レベル
+        // 1. 承認依頼作成者である必要がある
+        if ($approvalRequest->requested_by !== $user->id) {
+            return false;
+        }
+        
+        // 2. ビジネスコード別の承認依頼キャンセル権限が必要
+        $requestType = $approvalRequest->request_type;
+        $cancelPermission = "{$requestType}.approval.cancel";
+        
+        return \App\Services\PermissionService::hasPermission($user, $cancelPermission);
     }
 
     /**
