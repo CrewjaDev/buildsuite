@@ -112,7 +112,7 @@ export function EmployeeDetailHeader({
               </div>
               <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                 <span>ID: {employee.employee_id}</span>
-                <span>部署: {employee.department.name}</span>
+                <span>部署: {employee.department?.name || '未設定'}</span>
                 {employee.position && (
                   <span>職位: {employee.position.name}</span>
                 )}

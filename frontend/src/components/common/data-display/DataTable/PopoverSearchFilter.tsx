@@ -21,6 +21,8 @@ interface PopoverSearchFilterProps {
   className?: string
   width?: string
   style?: React.CSSProperties
+  showUnsetOption?: boolean
+  unsetLabel?: string
 }
 
 export const PopoverSearchFilter = ({
@@ -31,7 +33,9 @@ export const PopoverSearchFilter = ({
   emptyMessage = '該当する項目がありません',
   className,
   width = '300px',
-  style
+  style,
+  showUnsetOption = false,
+  unsetLabel = '未設定'
 }: PopoverSearchFilterProps) => {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -49,7 +53,13 @@ export const PopoverSearchFilter = ({
   const selectedOption = options.find((option) => option.value === value)
 
   const handleSelect = (selectedValue: string) => {
-    onValueChange(selectedValue === value ? '' : selectedValue)
+    // 「未設定」選択時は常に空文字列を返す
+    if (selectedValue === '') {
+      onValueChange('')
+    } else {
+      // その他の選択時は、既に選択されている値と同じ場合は空文字列、違う場合は選択値
+      onValueChange(selectedValue === value ? '' : selectedValue)
+    }
     setOpen(false)
     setSearchValue('')
   }
@@ -82,22 +92,24 @@ export const PopoverSearchFilter = ({
 
           {/* オプションリスト */}
           <div className="max-h-[200px] overflow-y-auto p-1">
-            {/* すべて選択オプション */}
-            <div
-              className={cn(
-                "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                !value && "bg-accent"
-              )}
-              onClick={() => handleSelect('')}
-            >
-              <Check
+            {/* 未設定オプション（条件付き表示） */}
+            {showUnsetOption && (
+              <div
                 className={cn(
-                  "mr-2 h-4 w-4 shrink-0",
-                  !value ? "opacity-100" : "opacity-0"
+                  "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                  !value && "bg-accent"
                 )}
-              />
-              <span className="truncate">すべて</span>
-            </div>
+                onClick={() => handleSelect('')}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4 shrink-0",
+                    !value ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                <span className="truncate">{unsetLabel}</span>
+              </div>
+            )}
 
             {/* フィルタリングされたオプション */}
             {filteredOptions.length > 0 ? (

@@ -125,9 +125,9 @@ export function EmployeeDetailPage() {
           <div className="w-full max-w-4xl">
             <SystemAccessForm 
               employee={employee}
-              onSuccess={() => {
+              onSuccess={async () => {
                 // データを再取得
-                refetch()
+                await refetch()
                 // 権限更新完了後、照会タブに切り替え
                 setMode('view')
               }}

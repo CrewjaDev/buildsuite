@@ -149,7 +149,7 @@ export function EmployeeTable({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <div className="text-sm text-gray-900">
-                          {employee.department.name}
+                          {employee.department?.name || '未設定'}
                         </div>
                         {employee.position && (
                           <div className="text-sm text-gray-500">

@@ -104,7 +104,6 @@ export interface Department {
 // システム権限レベルの型
 export interface SystemLevel {
   id: number
-  code: string
   name: string
   display_name: string
   priority: number

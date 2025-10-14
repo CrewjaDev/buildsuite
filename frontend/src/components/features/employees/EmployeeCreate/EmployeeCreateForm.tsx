@@ -30,7 +30,7 @@ const employeeCreateSchema = z.object({
   address: z.string().optional(),
   job_title: z.string().optional(),
   hire_date: z.string().optional(),
-  department_id: z.string().min(1, '所属部署は必須です'),
+  department_id: z.string().optional(),
   position_id: z.string().optional(),
 })
 
@@ -115,7 +115,7 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
       // 空文字列をundefinedに変換し、数値変換
       const processedData = {
         ...data,
-        department_id: parseInt(data.department_id),
+        department_id: data.department_id ? parseInt(data.department_id) : null,
         position_id: data.position_id ? parseInt(data.position_id) : undefined,
         // 空文字列をundefinedに変換
         name_kana: data.name_kana || undefined,
@@ -254,8 +254,10 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
               <PopoverSearchFilter
                 options={genderOptions}
                 value={watch('gender') || ''}
-                onValueChange={(value: string) => setValue('gender', value as 'male' | 'female' | 'other')}
+                onValueChange={(value: string) => setValue('gender', (value || undefined) as 'male' | 'female' | 'other' | undefined)}
                 placeholder="性別を選択"
+                showUnsetOption={true}
+                unsetLabel="未設定"
                 width={SELECT_WIDTHS.gender}
               />
             </div>
@@ -307,8 +309,10 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
               <PopoverSearchFilter
                 options={prefectureOptions}
                 value={watch('prefecture') || ''}
-                onValueChange={(value: string) => setValue('prefecture', value)}
+                onValueChange={(value: string) => setValue('prefecture', value || undefined)}
                 placeholder="都道府県を選択"
+                showUnsetOption={true}
+                unsetLabel="未設定"
                 width={SELECT_WIDTHS.prefecture}
               />
             </div>
@@ -336,9 +340,7 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 所属部署 */}
             <div className="space-y-2">
-              <Label htmlFor="department_id">
-                所属部署 <Badge variant="destructive">必須</Badge>
-              </Label>
+              <Label htmlFor="department_id">所属部署</Label>
               <PopoverSearchFilter
                 options={departmentsData?.map(dept => ({
                   value: dept.id.toString(),
@@ -347,6 +349,8 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
                 value={watch('department_id') || ''}
                 onValueChange={(value: string) => setValue('department_id', value)}
                 placeholder="部署を選択"
+                showUnsetOption={true}
+                unsetLabel="未設定"
                 width={SELECT_WIDTHS.department}
               />
               {errors.department_id && (
@@ -363,8 +367,10 @@ export function EmployeeCreateForm({ onSuccess, onCancel }: EmployeeCreateFormPr
                   label: pos.name
                 })) || []}
                 value={watch('position_id') || ''}
-                onValueChange={(value: string) => setValue('position_id', value)}
+                onValueChange={(value: string) => setValue('position_id', value || undefined)}
                 placeholder="職位を選択"
+                showUnsetOption={true}
+                unsetLabel="未設定"
                 width={SELECT_WIDTHS.position}
               />
             </div>

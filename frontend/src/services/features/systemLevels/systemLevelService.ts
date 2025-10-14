@@ -2,7 +2,6 @@ import api from '@/lib/api'
 
 export interface SystemLevel {
   id: number
-  code: string
   name: string
   display_name: string
   description?: string

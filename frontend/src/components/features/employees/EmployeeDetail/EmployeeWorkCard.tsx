@@ -32,7 +32,7 @@ export function EmployeeWorkCard({ employee }: EmployeeWorkCardProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">所属部署</label>
-            <p className="text-sm text-gray-900">{employee.department.name}</p>
+            <p className="text-sm text-gray-900">{employee.department?.name || '未設定'}</p>
           </div>
 
           <div className="space-y-2">

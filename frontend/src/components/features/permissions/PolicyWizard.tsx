@@ -144,7 +144,7 @@ const UserAccessConditionBuilder: React.FC<UserAccessConditionBuilderProps> = ({
 
 
   // 型定義
-  type SystemLevel = { id: number; code: string; display_name: string }
+  type SystemLevel = { id: number; display_name: string }
   type Role = { id: number; name: string; display_name: string }
   type User = { id: number; name: string; employee_name?: string }
   type Option = { value: string | number; label: string }

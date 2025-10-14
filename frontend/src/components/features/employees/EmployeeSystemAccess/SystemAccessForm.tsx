@@ -49,6 +49,7 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
 
   const { addToast } = useToast()
   const { data: systemLevels, isLoading: isLoadingSystemLevels } = useSystemLevels()
+  
   const { data: roles, isLoading: isLoadingRoles } = useRoles()
   const { data: userRoles, isLoading: isLoadingUserRoles } = useUserRoles(employee.user?.id || 0)
   const grantSystemAccessMutation = useGrantSystemAccess()
@@ -58,12 +59,16 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
   const hasSystemAccess = Boolean(employee.has_system_access && employee.user)
 
   // 初期値を定義
-  const initialValues = useMemo(() => ({
-    login_id: employee.user?.login_id || '',
-    system_level_id: employee.user?.system_level_id || 1,
-    is_admin: Boolean(employee.user?.is_admin),
-    roles: userRoles?.map(role => role.id.toString()) || [],
-  }), [employee.user, userRoles])
+  const initialValues = useMemo(() => {
+    console.log('Employee user data:', employee.user)
+    console.log('Employee user system_level_id:', employee.user?.system_level_id)
+    return {
+      login_id: employee.user?.login_id || '',
+      system_level_id: employee.user?.system_level_id || 1,
+      is_admin: Boolean(employee.user?.is_admin),
+      roles: userRoles?.map(role => role.id.toString()) || [],
+    }
+  }, [employee.user, userRoles])
 
   const {
     register,
@@ -88,6 +93,8 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
       is_admin: Boolean(employee.user?.is_admin),
       roles: userRoles?.map(role => role.id.toString()) || [],
     }
+    console.log('useEffect - Resetting form with values:', newValues)
+    console.log('useEffect - Employee user system_level_id:', employee.user?.system_level_id)
     reset(newValues)
   }, [employee.user, userRoles, reset])
 
@@ -149,12 +156,10 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
       // システム権限の更新/付与
       const requestData = {
         login_id: data.login_id.trim(),
-        system_level: data.system_level_id,
+        system_level_id: data.system_level_id,
         is_admin: data.is_admin,
       }
       
-      console.log('Sending request data:', requestData)
-      console.log('Employee ID:', employee.id)
       
       await grantSystemAccessMutation.mutateAsync({
         id: employee.id,
@@ -368,19 +373,25 @@ export function SystemAccessForm({ employee, onSuccess, onCancel }: SystemAccess
                 <Label htmlFor="system_level">
                   システムレベル <Badge variant="destructive">必須</Badge>
                 </Label>
-                <PopoverSearchFilter
+                {isLoadingSystemLevels ? (
+                  <div className="text-sm text-gray-500">システムレベルを読み込み中...</div>
+                ) : (
+                  <PopoverSearchFilter
                   options={systemLevels?.map(level => ({
                     value: level.id.toString(),
-                    label: `${level.display_name} (優先度: ${level.priority})`
+                    label: `${level.display_name || level.name || 'Unknown'} (優先度: ${level.priority || 0})`
                   })) || []}
-                  value={watch('system_level_id')?.toString() || ''}
-                  onValueChange={(value: string) => {
-                    console.log('System level changed to:', value)
-                    setValue('system_level_id', parseInt(value))
-                  }}
-                  placeholder="システムレベルを選択"
-                  width="300px"
-                />
+                    value={String(watch('system_level_id') || '')}
+                    onValueChange={(value: string) => {
+                      const numericValue = parseInt(value)
+                      if (!isNaN(numericValue)) {
+                        setValue('system_level_id', numericValue, { shouldDirty: true })
+                      }
+                    }}
+                    placeholder="システムレベルを選択"
+                    width="300px"
+                  />
+                )}
                 {errors.system_level_id && (
                   <p className="text-sm text-red-600">{errors.system_level_id.message}</p>
                 )}

@@ -19,7 +19,7 @@ class SystemLevelPermissionSeeder extends Seeder
         DB::table('system_level_permissions')->truncate();
         
         // 上長以上に承認権限を付与
-        $supervisorLevel = SystemLevel::where('code', 'supervisor')->first();
+        $supervisorLevel = SystemLevel::where('name', 'supervisor')->first();
         if ($supervisorLevel) {
             $approvalPermissions = Permission::whereIn('name', [
                 'estimate.approval.view',
@@ -39,7 +39,7 @@ class SystemLevelPermissionSeeder extends Seeder
         // 機能特化型の権限は役割に移行したため、削除
         
         // 最高責任者以上に最終承認権限を付与
-        $executiveLevel = SystemLevel::where('code', 'executive')->first();
+        $executiveLevel = SystemLevel::where('name', 'executive')->first();
         if ($executiveLevel) {
             $finalApprovalPermissions = Permission::whereIn('name', [
                 'estimate.approval.view',
@@ -57,7 +57,7 @@ class SystemLevelPermissionSeeder extends Seeder
         }
         
         // システム管理者に全権限を付与
-        $systemAdminLevel = SystemLevel::where('code', 'system_admin')->first();
+        $systemAdminLevel = SystemLevel::where('name', 'admin')->first();
         if ($systemAdminLevel) {
             $allPermissions = Permission::all();
             
@@ -68,7 +68,7 @@ class SystemLevelPermissionSeeder extends Seeder
         }
         
         // 担当者に基本権限を付与
-        $staffLevel = SystemLevel::where('code', 'staff')->first();
+        $staffLevel = SystemLevel::where('name', 'staff')->first();
         if ($staffLevel) {
             $basicPermissions = Permission::whereIn('name', [
                 'estimate.view',

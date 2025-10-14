@@ -18,10 +18,10 @@ export interface Employee {
   hire_date?: string
   service_years?: number
   service_months?: number
-  department: {
+  department?: {
     id: number
     name: string
-  }
+  } | null
   position?: {
     id: number
     name: string
@@ -58,7 +58,7 @@ export interface EmployeeCreateData {
   hire_date?: string
   service_years?: number
   service_months?: number
-  department_id: number
+  department_id?: number | null
   position_id?: number
 }
 
@@ -110,7 +110,6 @@ export interface EmployeeOptions {
 
 export interface SystemLevel {
   id: number
-  code: string
   name: string
   display_name: string
   description: string

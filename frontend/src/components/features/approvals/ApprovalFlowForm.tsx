@@ -550,7 +550,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
     if (field === 'type' || field === 'value') {
       const requester = newRequesters[index]
       if (requester.type === 'system_level') {
-        const systemLevel = systemLevels.find(level => level.code === requester.value)
+        const systemLevel = systemLevels.find(level => level.id.toString() === requester.value)
         newRequesters[index].display_name = systemLevel?.display_name || 'システム権限レベル'
       } else if (requester.type === 'department') {
         const department = departments.find(dept => dept.id.toString() === String(requester.value))
@@ -558,6 +558,9 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
       } else if (requester.type === 'position') {
         const position = positions.find(pos => pos.id.toString() === String(requester.value))
         newRequesters[index].display_name = position?.name || '職位'
+      } else if (requester.type === 'role') {
+        const role = roles.find(role => role.id.toString() === String(requester.value))
+        newRequesters[index].display_name = role?.display_name || role?.name || '役割'
       } else if (requester.type === 'user') {
         // 個別ユーザーの場合はユーザー一覧から名前を取得
         const user = users.find((u) => u.id.toString() === String(requester.value))
@@ -651,12 +654,12 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                 // 値が変更された場合は表示名も更新
                 let displayName = ''
                 const approverType = approver.type
-                const approverValue = value.toString()
+                const approverValue = value?.toString() || ''
                 
                 console.log('承認者の値変更:', { stepIndex, approverIndex, approverType, approverValue })
                 
                 if (approverType === 'system_level') {
-                  const systemLevel = systemLevels.find(level => level.code === approverValue)
+                  const systemLevel = systemLevels.find(level => level.id.toString() === approverValue)
                   displayName = systemLevel?.display_name || approverValue
                 } else if (approverType === 'department') {
                   const department = departments.find(dept => dept.id.toString() === approverValue)
@@ -1034,6 +1037,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               <SelectItem value="system_level">システム権限レベル</SelectItem>
                               <SelectItem value="department">部署</SelectItem>
                               <SelectItem value="position">職位</SelectItem>
+                              <SelectItem value="role">役割</SelectItem>
                               <SelectItem value="user">個別ユーザー</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1052,7 +1056,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                               </SelectTrigger>
                               <SelectContent>
                                 {systemLevels.map((level) => (
-                                  <SelectItem key={level.id} value={level.code}>
+                                  <SelectItem key={level.id} value={level.id.toString()}>
                                     {level.display_name}
                                   </SelectItem>
                                 ))}
@@ -1088,6 +1092,23 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                 {positions.map((pos) => (
                                   <SelectItem key={pos.id} value={pos.id.toString()}>
                                     {pos.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : requester.type === 'role' ? (
+                            <Select 
+                              key={`requester-role-${index}-${requester.value}`}
+                              value={String(requester.value)} 
+                              onValueChange={(value) => updateRequester(index, 'value', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="役割を選択" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {roles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id.toString()}>
+                                    {role.display_name || role.name}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1300,7 +1321,7 @@ export function ApprovalFlowForm({ flow, isOpen, onClose, onSuccess }: ApprovalF
                                     </SelectTrigger>
                                     <SelectContent>
                                       {systemLevels.map((level) => (
-                                        <SelectItem key={level.id} value={level.code}>
+                                        <SelectItem key={level.id} value={level.id.toString()}>
                                           {level.display_name}
                                         </SelectItem>
                                       ))}

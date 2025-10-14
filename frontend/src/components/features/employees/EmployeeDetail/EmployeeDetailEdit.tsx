@@ -32,7 +32,7 @@ const employeeEditSchema = z.object({
   hire_date: z.string().optional(),
 
   is_active: z.boolean(),
-  department_id: z.number().min(1, '所属部署は必須です'),
+  department_id: z.number().optional(),
   position_id: z.number().optional(),
 })
 
@@ -107,7 +107,7 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
       hire_date: employee.hire_date ? format(new Date(employee.hire_date), 'yyyy-MM-dd') : '',
 
       is_active: employee.is_active,
-      department_id: employee.department.id,
+      department_id: employee.department?.id || undefined,
       position_id: employee.position?.id || undefined,
     },
   })
@@ -132,7 +132,7 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
       job_title: employee.job_title || '',
       hire_date: employee.hire_date ? format(new Date(employee.hire_date), 'yyyy-MM-dd') : '',
       is_active: employee.is_active,
-      department_id: employee.department.id,
+      department_id: employee.department?.id || undefined,
       position_id: employee.position?.id || undefined,
     }
     
@@ -146,23 +146,31 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
   const onSubmit = async (data: EmployeeEditFormData) => {
     setIsSubmitting(true)
     try {
-      await updateEmployeeMutation.mutateAsync({
-        id: employee.id,
-        data: {
-          ...data,
+      const submitData = {
+        ...data,
 
-          // 空文字列をundefinedに変換
+        // 空文字列をundefinedに変換、undefinedはnullに変換
+        department_id: data.department_id ?? null,
+        gender: data.gender ?? null,
+        position_id: data.position_id ?? null,
+        prefecture: data.prefecture ?? null,
           email: data.email || undefined,
           name_kana: data.name_kana || undefined,
           birth_date: data.birth_date || undefined,
           phone: data.phone || undefined,
           mobile_phone: data.mobile_phone || undefined,
           postal_code: data.postal_code || undefined,
-          prefecture: data.prefecture || undefined,
           address: data.address || undefined,
           job_title: data.job_title || undefined,
           hire_date: data.hire_date || undefined,
-        },
+        }
+      
+      // デバッグ: 送信データをログ出力
+      console.log('Employee update data being sent:', submitData)
+      
+      await updateEmployeeMutation.mutateAsync({
+        id: employee.id,
+        data: submitData,
       })
 
       addToast({
@@ -243,9 +251,10 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
                 <PopoverSearchFilter
                   options={genderOptions}
                   value={watchedValues.gender || ''}
-                  onValueChange={(value) => setValue('gender', value as 'male' | 'female' | 'other')}
+                  onValueChange={(value) => setValue('gender', (value || undefined) as 'male' | 'female' | 'other' | undefined, { shouldDirty: true })}
                   placeholder="性別を選択"
-
+                  showUnsetOption={true}
+                  unsetLabel="未設定"
                   width={SELECT_WIDTHS.gender}
                 />
               </div>
@@ -324,9 +333,10 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
                 <PopoverSearchFilter
                   options={prefectureOptions}
                   value={watchedValues.prefecture || ''}
-                  onValueChange={(value) => setValue('prefecture', value)}
+                  onValueChange={(value) => setValue('prefecture', value || undefined, { shouldDirty: true })}
                   placeholder="都道府県を選択"
-
+                  showUnsetOption={true}
+                  unsetLabel="未設定"
                   width={SELECT_WIDTHS.prefecture}
                 />
               </div>
@@ -351,13 +361,14 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="department_id">所属部署 *</Label>
+                <Label htmlFor="department_id">所属部署</Label>
                 <PopoverSearchFilter
                   options={departmentOptions}
                   value={watchedValues.department_id?.toString() || ''}
-                  onValueChange={(value) => setValue('department_id', Number(value))}
+                  onValueChange={(value) => setValue('department_id', value ? Number(value) : undefined, { shouldDirty: true })}
                   placeholder="部署を選択"
-
+                  showUnsetOption={true}
+                  unsetLabel="未設定"
                   width={SELECT_WIDTHS.department}
                 />
                 {errors.department_id && (
@@ -370,9 +381,10 @@ export function EmployeeDetailEdit({ employee, onCancel, onSuccess }: EmployeeDe
                 <PopoverSearchFilter
                   options={positionOptions}
                   value={watchedValues.position_id?.toString() || ''}
-                  onValueChange={(value) => setValue('position_id', value ? Number(value) : undefined)}
+                  onValueChange={(value) => setValue('position_id', value ? Number(value) : undefined, { shouldDirty: true })}
                   placeholder="職位を選択"
-
+                  showUnsetOption={true}
+                  unsetLabel="未設定"
                   width={SELECT_WIDTHS.position}
                 />
               </div>

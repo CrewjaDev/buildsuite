@@ -111,7 +111,6 @@ class SystemLevelController extends Controller
         try {
             // バリデーション
             $validator = Validator::make($request->all(), [
-                'code' => 'required|string|max:50|unique:system_levels,code',
                 'name' => 'required|string|max:100',
                 'display_name' => 'required|string|max:255',
                 'description' => 'nullable|string',
@@ -189,12 +188,6 @@ class SystemLevelController extends Controller
 
             // バリデーション
             $validator = Validator::make($request->all(), [
-                'code' => [
-                    'required',
-                    'string',
-                    'max:50',
-                    Rule::unique('system_levels', 'code')->ignore($id),
-                ],
                 'name' => 'required|string|max:100',
                 'display_name' => 'required|string|max:255',
                 'description' => 'nullable|string',

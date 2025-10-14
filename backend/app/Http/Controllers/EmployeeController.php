@@ -130,7 +130,7 @@ class EmployeeController extends Controller
                 'address' => 'nullable|string|max:500',
                 'job_title' => 'nullable|string|max:100',
                 'hire_date' => 'nullable|date',
-                'department_id' => 'required|integer|exists:departments,id',
+                'department_id' => 'nullable|integer|exists:departments,id',
                 'position_id' => 'nullable|integer|exists:positions,id',
             ]);
 
@@ -252,26 +252,37 @@ class EmployeeController extends Controller
 
         $employeeData = $validator->validated();
         
+        // デバッグ: 受信データをログ出力
+        \Log::info('Employee update data received:', $employeeData);
+        
         // 空文字列をnullに変換
         foreach ($employeeData as $key => $value) {
             if ($value === '') {
                 $employeeData[$key] = null;
             }
         }
+        
+        // デバッグ: 変換後のデータをログ出力
+        \Log::info('Employee update data after conversion:', $employeeData);
 
         // 社員情報を更新
         $employee->update($employeeData);
 
         // 部署が変更された場合、user_departmentsテーブルも同期
-        if (isset($employeeData['department_id']) && $employee->user) {
-            $employee->user->departments()->sync([
-                $employeeData['department_id'] => [
-                    'assigned_at' => now(),
-                    'assigned_by' => auth()->id() ?? 1,
-                    'is_primary' => true,
-                    'is_active' => true,
-                ]
-            ]);
+        if (array_key_exists('department_id', $employeeData) && $employee->user) {
+            if ($employeeData['department_id'] !== null) {
+                $employee->user->departments()->sync([
+                    $employeeData['department_id'] => [
+                        'assigned_at' => now(),
+                        'assigned_by' => auth()->id() ?? 1,
+                        'is_primary' => true,
+                        'is_active' => true,
+                    ]
+                ]);
+            } else {
+                // 部署がnullの場合は、user_departmentsから削除
+                $employee->user->departments()->detach();
+            }
         }
 
         // 勤続年数・月数は自動計算（アクセサーで実装済み）
@@ -376,7 +387,7 @@ class EmployeeController extends Controller
             'user' => $employee->user ? [
                 'id' => $employee->user->id,
                 'login_id' => $employee->user->login_id,
-                'system_level' => $employee->user->system_level,
+                'system_level_id' => $employee->user->system_level_id,
                 'is_admin' => $employee->user->is_admin,
                 'last_login_at' => $employee->user->last_login_at,
                 'is_locked' => $employee->user->isLocked(),
@@ -402,7 +413,7 @@ class EmployeeController extends Controller
                     'max:255',
                     Rule::unique('users', 'login_id')->ignore($employee->user?->id),
                 ],
-                'system_level' => 'required|string|exists:system_levels,code',
+                'system_level_id' => 'required|integer|exists:system_levels,id',
                 'is_admin' => 'boolean',
             ];
             
@@ -504,7 +515,7 @@ class EmployeeController extends Controller
         try {
             $systemLevels = SystemLevel::where('is_active', true)
                 ->orderBy('priority', 'desc')
-                ->get(['code', 'name', 'display_name', 'priority']);
+                ->get(['id', 'name', 'display_name', 'priority']);
 
             return response()->json([
                 'success' => true,
