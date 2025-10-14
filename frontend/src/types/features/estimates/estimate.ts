@@ -57,6 +57,8 @@ export interface Estimate {
   created_by_name?: string
   responsible_user_id?: number
   responsible_user_name?: string
+  responsible_user_department?: string
+  responsible_user_department_id?: number
   updated_by: number
   updated_by_name?: string
   approved_by?: number

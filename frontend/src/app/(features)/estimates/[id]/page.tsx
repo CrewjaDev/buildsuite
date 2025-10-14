@@ -28,6 +28,14 @@ export default function EstimateDetailPage() {
     // ページの先頭にスクロール
     window.scrollTo(0, 0)
   }, [])
+
+  // エラー時のリダイレクト処理（シンプル）
+  useEffect(() => {
+    if (error) {
+      // エラーが発生した場合は一覧ページにリダイレクト
+      router.replace('/estimates')
+    }
+  }, [error, router])
   
 
   // ユーザー承認状態を取得
@@ -108,13 +116,9 @@ export default function EstimateDetailPage() {
     )
   }
 
-  // エラー状態
+  // エラー状態（シンプル）
   if (error) {
-    return (
-      <div className="flex justify-center items-center min-h-screen text-red-500">
-        <p>見積情報の読み込みでエラーが発生しました: {error.message}</p>
-      </div>
-    )
+    return null // リダイレクト処理が動作するまで何も表示しない
   }
 
   // 見積データがない場合
@@ -152,8 +156,14 @@ export default function EstimateDetailPage() {
               queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
             }}
             onDeleteSuccess={() => {
-              // 削除成功時は一覧ページに戻る
-              router.push('/estimates')
+              // 削除成功時のみ一覧ページに遷移
+              addToast({
+                title: "見積を削除しました",
+                description: "見積が正常に削除されました。",
+                type: "success"
+              })
+              // 削除成功時のみ一覧ページに遷移
+              window.location.href = '/estimates'
             }}
           />
         </div>

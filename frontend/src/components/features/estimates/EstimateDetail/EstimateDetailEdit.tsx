@@ -100,10 +100,25 @@ export function EstimateDetailEdit({ estimate, onCancel, onSuccess }: EstimateDe
       })
       
       onSuccess()
-    } catch {
+    } catch (error: unknown) {
+      console.error('見積更新エラー:', error)
+      
+      // APIから返される詳細なエラーメッセージを取得
+      let errorMessage = "見積の更新中にエラーが発生しました。"
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string; message?: string } } }
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
       addToast({
         title: "更新に失敗しました",
-        description: "見積の更新中にエラーが発生しました。",
+        description: errorMessage,
         type: "error"
       })
     }

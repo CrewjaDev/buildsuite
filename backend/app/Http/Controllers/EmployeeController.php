@@ -157,7 +157,7 @@ class EmployeeController extends Controller
             $employee = Employee::create($employeeData);
 
             // 関連データを読み込み
-            $employee->load(['department', 'position']);
+            $employee->load(['department', 'position', 'user']);
 
             return response()->json([
                 'success' => true,
@@ -261,6 +261,18 @@ class EmployeeController extends Controller
 
         // 社員情報を更新
         $employee->update($employeeData);
+
+        // 部署が変更された場合、user_departmentsテーブルも同期
+        if (isset($employeeData['department_id']) && $employee->user) {
+            $employee->user->departments()->sync([
+                $employeeData['department_id'] => [
+                    'assigned_at' => now(),
+                    'assigned_by' => auth()->id() ?? 1,
+                    'is_primary' => true,
+                    'is_active' => true,
+                ]
+            ]);
+        }
 
         // 勤続年数・月数は自動計算（アクセサーで実装済み）
 

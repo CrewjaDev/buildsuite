@@ -24,6 +24,9 @@ export const useEstimate = (id: string) => {
     queryFn: () => estimateService.getEstimate(id),
     enabled: !!id, // idが存在する時のみ実行
     staleTime: 10 * 60 * 1000, // 10分間キャッシュ
+    retry: false, // リトライを完全に無効化
+    refetchOnWindowFocus: false, // ウィンドウフォーカス時の再取得を無効化
+    refetchOnMount: false, // マウント時の再取得を無効化
   })
 }
 
@@ -38,7 +41,7 @@ export const useCreateEstimate = () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
       // 見積統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
-      // 新しく作成された見積のキャッシュを設定
+      // 新しく作成された見積のキャッシュを設定（削除されたデータのキャッシュは設定しない）
       queryClient.setQueryData(['estimate', newEstimate.id], newEstimate)
     },
   })
@@ -69,12 +72,31 @@ export const useDeleteEstimate = () => {
   return useMutation({
     mutationFn: (id: string) => estimateService.deleteEstimate(id),
     onSuccess: (_, deletedId) => {
-      // 見積詳細のキャッシュを削除
-      queryClient.removeQueries({ queryKey: ['estimate', deletedId] })
+      // 削除成功をログ出力
+      console.log('見積削除成功:', deletedId)
+      
       // 見積一覧のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
       // 見積統計のキャッシュを無効化
       queryClient.invalidateQueries({ queryKey: ['estimate-stats'] })
+      // 承認関連のクエリも無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-approval'] })
+      // 見積明細関連のクエリも無効化
+      queryClient.invalidateQueries({ queryKey: ['estimate-items'] })
+      queryClient.invalidateQueries({ queryKey: ['estimate-breakdowns'] })
+      
+      // 削除された見積データへのアクセスを防ぐため、関連するクエリをすべて削除
+      // 詳細ページから離脱した後に実行されるように遅延実行
+      setTimeout(() => {
+        queryClient.removeQueries({ queryKey: ['estimate', deletedId] })
+        queryClient.removeQueries({ queryKey: ['estimate-items', deletedId] })
+        queryClient.removeQueries({ queryKey: ['estimate-breakdowns', deletedId] })
+        queryClient.removeQueries({ queryKey: ['estimate-approval', deletedId] })
+      }, 100)
+    },
+    onError: (error: unknown) => {
+      console.error('見積削除エラー:', error)
+      // エラーログを出力（トーストは呼び出し元で処理）
     },
   })
 }

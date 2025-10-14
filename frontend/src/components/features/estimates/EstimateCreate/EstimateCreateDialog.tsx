@@ -12,6 +12,7 @@ import { useProjectTypeOptions, useProjectType } from '@/hooks/features/estimate
 import { useEmployees } from '@/hooks/features/employee/useEmployees'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { ErrorDialog } from '@/components/common/ErrorDialog'
 
 interface EstimateCreateDialogProps {
   isOpen: boolean
@@ -23,13 +24,17 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
   const { user } = useAuth() // ログインユーザー情報を取得
   const createEstimateMutation = useCreateEstimate()
   const dialogRef = useRef<HTMLDivElement>(null)
-  const [dialogSize, setDialogSize] = useState({ width: 900, height: 600 })
+  const [dialogSize, setDialogSize] = useState({ width: 650, height: 600 })
+  const [errorDialog, setErrorDialog] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: ''
+  })
   
   // ダイアログの幅に基づいてレスポンシブクラスを決定
-  const isNarrowDialog = dialogSize.width < 700
+  const isNarrowDialog = dialogSize.width < 600
   
-  // デバッグ用：現在の幅を表示
-  console.log('Dialog width:', dialogSize.width, 'isNarrowDialog:', isNarrowDialog)
+  // デバッグ用：現在の幅を表示（必要に応じてコメントアウト）
+  // console.log('Dialog width:', dialogSize.width, 'isNarrowDialog:', isNarrowDialog, 'Breakpoint: 600px')
 
   // フォーム状態
   const [formData, setFormData] = useState<CreateEstimateRequest>({
@@ -42,7 +47,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
     project_location: '',
     project_period_start: '',
     project_period_end: '',
-    responsible_user_id: user?.id || 0, // ログインユーザーIDを初期設定
+    responsible_user_id: user?.id, // ログインユーザーIDを初期設定
   })
 
   // マスターデータ取得
@@ -55,7 +60,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
 
   // ログインユーザー情報が取得されたら担当者を設定
   useEffect(() => {
-    if (user?.id && formData.responsible_user_id === 0) {
+    if (user?.id && (!formData.responsible_user_id || formData.responsible_user_id === 0)) {
       setFormData(prev => ({
         ...prev,
         responsible_user_id: user.id
@@ -115,31 +120,45 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
       
       toast.success('見積を作成しました')
       // ダイアログサイズをリセット
-      setDialogSize({ width: 900, height: 600 })
+      setDialogSize({ width: 650, height: 600 })
+      
+      // 見積作成成功時は詳細ページに遷移（削除処理とは独立）
       onSuccess?.(estimate.id)
       onClose()
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('見積の作成に失敗しました:', error)
-      toast.error('見積の作成に失敗しました。もう一度お試しください。')
+      
+      // APIから返される詳細なエラーメッセージを取得
+      let errorMessage = '見積の作成に失敗しました。もう一度お試しください。'
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string; message?: string } } }
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      // エラーダイアログを表示
+      setErrorDialog({
+        isOpen: true,
+        message: errorMessage
+      })
     }
   }
 
   const handleCancel = useCallback(() => {
     // ダイアログサイズをリセット
-    setDialogSize({ width: 900, height: 600 })
+    setDialogSize({ width: 650, height: 600 })
     onClose()
   }, [onClose])
 
-  // リサイズハンドラー
-  const handleResize = useCallback((e: MouseEvent) => {
-    if (!dialogRef.current) return
-    
-    const rect = dialogRef.current.getBoundingClientRect()
-    const newWidth = Math.max(400, Math.min(1200, e.clientX - rect.left))
-    const newHeight = Math.max(400, Math.min(window.innerHeight - 100, e.clientY - rect.top))
-    
-    setDialogSize({ width: newWidth, height: newHeight })
+  const handleErrorDialogClose = useCallback(() => {
+    setErrorDialog({ isOpen: false, message: '' })
   }, [])
+
 
   // ウィンドウリサイズ時の調整
   const handleWindowResize = useCallback(() => {
@@ -173,6 +192,9 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
       const newWidth = Math.max(320, Math.min(1200, startWidth + deltaX))
       const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY))
       
+      // デバッグ用（必要に応じてコメントアウト）
+      // console.log('Resizing to:', newWidth, 'isNarrowDialog will be:', newWidth < 600)
+      
       setDialogSize({ width: newWidth, height: newHeight })
     }
     
@@ -193,21 +215,21 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
     }
   }, [isOpen, handleWindowResize])
 
-  // ダイアログのリサイズを監視
-  useEffect(() => {
-    if (!isOpen || !dialogRef.current) return
+  // ダイアログのリサイズを監視（ResizeObserverは削除して、カスタムハンドラーのみ使用）
+  // useEffect(() => {
+  //   if (!isOpen || !dialogRef.current) return
 
-    const dialog = dialogRef.current
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        setDialogSize({ width, height })
-      }
-    })
+  //   const dialog = dialogRef.current
+  //   const resizeObserver = new ResizeObserver((entries) => {
+  //     for (const entry of entries) {
+  //       const { width, height } = entry.contentRect
+  //       setDialogSize({ width, height })
+  //     }
+  //   })
 
-    resizeObserver.observe(dialog)
-    return () => resizeObserver.disconnect()
-  }, [isOpen])
+  //   resizeObserver.observe(dialog)
+  //   return () => resizeObserver.disconnect()
+  // }, [isOpen])
 
   // ダイアログが開かれた時にフォームをリセット
   useEffect(() => {
@@ -222,14 +244,15 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
         project_location: '',
         project_period_start: '',
         project_period_end: '',
-        responsible_user_id: user?.id || 0,
+        responsible_user_id: user?.id || undefined,
       })
-      setDialogSize({ width: 900, height: 600 })
+      setDialogSize({ width: 650, height: 600 })
     }
   }, [isOpen, user?.id])
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       {isOpen && <div className="fixed inset-0 bg-black/50 z-50" />}
       <DialogContent 
         ref={dialogRef}
@@ -242,8 +265,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
           minHeight: '400px',
           maxHeight: '90vh',
           position: 'fixed',
-          zIndex: 9999,
-          resize: 'both',
+          zIndex: 50,
           overflow: 'auto',
           boxSizing: 'border-box'
         }}
@@ -278,17 +300,38 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
               <PopoverSearchFilter
                 value={formData.responsible_user_id?.toString() || ''}
                 onValueChange={(value) => handleInputChange('responsible_user_id', parseInt(value))}
-                options={Array.isArray(employeesData?.employees) ? employeesData.employees.map(employee => ({
-                  value: employee.id.toString(),
-                  label: employee.name
-                })) : []}
-                placeholder={user?.id ? "担当者を選択してください（現在のユーザーが設定済み）" : "担当者を選択してください"}
+                options={(() => {
+                  const employeeOptions = Array.isArray(employeesData?.employees) 
+                    ? employeesData.employees.map(employee => ({
+                        value: employee.id.toString(),
+                        label: employee.name
+                      }))
+                    : []
+                  
+                  // ログインユーザーがoptionsに含まれていない場合は追加
+                  if (user?.id && !employeeOptions.find(opt => opt.value === user.id.toString())) {
+                    employeeOptions.unshift({
+                      value: user.id.toString(),
+                      label: user.name || 'ログインユーザー'
+                    })
+                  }
+                  
+                  return employeeOptions
+                })()}
+                placeholder="担当者を選択してください"
                 className="w-full"
+                style={{ zIndex: 100 }}
               />
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-600 flex items-center justify-center">
-                {formData.responsible_user_id && formData.responsible_user_id > 0 && employeesData?.employees ? (
-                  <span className="text-center">
-                    部署: {employeesData.employees.find(emp => emp.id === formData.responsible_user_id)?.department?.name || '部署情報なし'}
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-600 flex items-center">
+                {formData.responsible_user_id && formData.responsible_user_id > 0 ? (
+                  <span>
+                    部署: {
+                      // ログインユーザーの場合、user.primary_departmentから取得
+                      formData.responsible_user_id === user?.id && user?.primary_department 
+                        ? user.primary_department.name
+                        : // その他のユーザーの場合、employeesDataから取得
+                          employeesData?.employees?.find(emp => emp.id === formData.responsible_user_id)?.department?.name || '部署情報なし'
+                    }
                   </span>
                 ) : (
                   '部署情報'
@@ -311,6 +354,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
               })) : []}
               placeholder="受注先を選択してください"
               className="flex-1"
+              style={{ zIndex: 100 }}
             />
           </div>
 
@@ -397,6 +441,7 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
               })) : []}
               placeholder="工事種別を選択してください"
               className="flex-1"
+              style={{ zIndex: 100 }}
             />
           </div>
 
@@ -455,18 +500,28 @@ export function EstimateCreateDialog({ isOpen, onClose, onSuccess }: EstimateCre
         
         {/* リサイズハンドル */}
         <div
-          className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize bg-blue-100 hover:bg-blue-200 opacity-80 hover:opacity-100 transition-all duration-200 border-2 border-blue-300 hover:border-blue-500 rounded-tl-lg"
+          className="absolute bottom-0 right-0 w-10 h-10 cursor-se-resize bg-blue-200 hover:bg-blue-300 opacity-90 hover:opacity-100 transition-all duration-200 border-2 border-blue-400 hover:border-blue-600 rounded-tl-lg"
           onMouseDown={handleMouseDown}
           style={{
-            background: 'linear-gradient(-45deg, transparent 40%, #3b82f6 40%, #3b82f6 60%, transparent 60%)',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            background: 'linear-gradient(-45deg, transparent 30%, #2563eb 30%, #2563eb 70%, transparent 70%)',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
           }}
-          title="ドラッグしてリサイズ"
+          title="ドラッグしてリサイズ（600px未満で縦並び）"
         >
-          <div className="absolute bottom-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+          <div className="absolute bottom-2 right-2 w-3 h-3 bg-blue-600 rounded-full"></div>
+          <div className="absolute bottom-1 right-1 w-1 h-1 bg-white rounded-full"></div>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* エラーダイアログ */}
+    <ErrorDialog
+      isOpen={errorDialog.isOpen}
+      onClose={handleErrorDialogClose}
+      title="見積作成エラー"
+      message={errorDialog.message}
+    />
+    </>
   )
 }
 

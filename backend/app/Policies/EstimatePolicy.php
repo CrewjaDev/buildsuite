@@ -27,7 +27,27 @@ class EstimatePolicy
             'status' => $estimate->status,
         ];
         
-        return $this->abacService->evaluateAccess($user, $resourceData, [], 'view', 'estimate');
+        // ABACポリシーによる評価を試行
+        $abacResult = $this->abacService->evaluateAccess($user, $resourceData, [], 'view', 'estimate');
+        
+        // ABACポリシーが設定されている場合はその結果を返す
+        if ($abacResult !== null) {
+            return $abacResult;
+        }
+        
+        // ABACポリシーが設定されていない場合のフォールバック
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.view')) {
+            return false;
+        }
+        
+        // 作成者の場合は常に閲覧可能
+        if ($estimate->created_by === $user->id) {
+            return true;
+        }
+        
+        // その他の場合は拒否
+        return false;
     }
 
     /**
@@ -42,7 +62,31 @@ class EstimatePolicy
             'status' => $estimate->status,
         ];
         
-        return $this->abacService->evaluateAccess($user, $resourceData, [], 'update', 'estimate');
+        // ABACポリシーによる評価を試行
+        $abacResult = $this->abacService->evaluateAccess($user, $resourceData, [], 'edit', 'estimate');
+        
+        // ABACポリシーが設定されている場合はその結果を返す
+        if ($abacResult !== null) {
+            return $abacResult;
+        }
+        
+        // ABACポリシーが設定されていない場合のフォールバック
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.edit')) {
+            return false;
+        }
+        
+        // ステータスチェック（下書きのみ編集可能）
+        if (!in_array($estimate->status, ['draft'])) {
+            return false;
+        }
+        
+        // 作成者のチェック（作成者のみ編集可能）
+        if ($estimate->created_by !== $user->id) {
+            return false;
+        }
+        
+        return true;
     }
 
     /**
@@ -57,7 +101,31 @@ class EstimatePolicy
             'status' => $estimate->status,
         ];
         
-        return $this->abacService->evaluateAccess($user, $resourceData, [], 'delete', 'estimate');
+        // ABACポリシーによる評価を試行
+        $abacResult = $this->abacService->evaluateAccess($user, $resourceData, [], 'delete', 'estimate');
+        
+        // ABACポリシーが設定されている場合はその結果を返す
+        if ($abacResult !== null) {
+            return $abacResult;
+        }
+        
+        // ABACポリシーが設定されていない場合のフォールバック
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.delete')) {
+            return false;
+        }
+        
+        // ステータスチェック（下書きのみ削除可能）
+        if (!in_array($estimate->status, ['draft'])) {
+            return false;
+        }
+        
+        // 作成者のチェック（作成者のみ削除可能）
+        if ($estimate->created_by !== $user->id) {
+            return false;
+        }
+        
+        return true;
     }
 
     /**

@@ -18,9 +18,9 @@ class ABACPolicyEvaluationService
      * @param array $resourceData リソースデータ
      * @param array $environmentData 環境データ
      * @param string $action アクション
-     * @return bool アクセス許可
+     * @return bool|null アクセス許可（null: ポリシー未設定, true: 許可, false: 拒否）
      */
-    public function evaluateAccess(User $user, array $resourceData, array $environmentData = [], string $action = 'read', string $businessCode = 'estimate'): bool
+    public function evaluateAccess(User $user, array $resourceData, array $environmentData = [], string $action = 'read', string $businessCode = 'estimate'): ?bool
     {
         // アクティブなポリシーを取得（ビジネスコード、アクション、リソースタイプでフィルタ）
         $policies = AccessPolicy::active()
@@ -30,13 +30,18 @@ class ABACPolicyEvaluationService
             ->orderByPriority()
             ->get();
 
+        // ポリシーが設定されていない場合はnullを返す
+        if ($policies->isEmpty()) {
+            return null;
+        }
+
         foreach ($policies as $policy) {
             if ($this->evaluatePolicy($policy, $user, $resourceData, $environmentData)) {
                 return $policy->effect === 'allow';
             }
         }
 
-        // デフォルトは拒否
+        // ポリシーは存在するが、どの条件にも該当しない場合は拒否
         return false;
     }
 
@@ -60,7 +65,7 @@ class ABACPolicyEvaluationService
         return [
             'user' => [
                 'id' => $user->id,
-                'department_id' => $user->employee?->department_id,
+                'department_id' => $user->primaryDepartment?->id,
                 'position_id' => $user->employee?->position_id,
                 'system_level_id' => $user->system_level_id,
                 'role_ids' => $user->roles()->pluck('role_id')->toArray(),

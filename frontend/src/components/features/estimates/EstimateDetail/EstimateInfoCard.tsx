@@ -9,6 +9,16 @@ interface EstimateInfoCardProps {
 }
 
 export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
+  // デバッグ情報を出力
+  console.log('EstimateInfoCard render data:', {
+    estimate_id: estimate.id,
+    estimate_number: estimate.estimate_number,
+    responsible_user_name: estimate.responsible_user_name,
+    responsible_user_department: estimate.responsible_user_department,
+    responsible_user_department_type: typeof estimate.responsible_user_department,
+    responsible_user_name_type: typeof estimate.responsible_user_name,
+  });
+
   return (
     <div className="space-y-0">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -72,7 +82,14 @@ export function EstimateInfoCard({ estimate }: EstimateInfoCardProps) {
                         担当者
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-900">
-                        {estimate.created_by_name || '-'}
+                        <div className="flex flex-col gap-1">
+                          <span>{estimate.responsible_user_name || '-'}</span>
+                          {estimate.responsible_user_name && (
+                            <span className="text-xs text-gray-500">
+                              部署: {estimate.responsible_user_department || '部署情報なし'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
 

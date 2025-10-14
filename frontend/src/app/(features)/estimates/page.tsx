@@ -174,6 +174,7 @@ export default function EstimatesPage() {
 
   const handleCreateSuccess = useCallback((estimateId: string) => {
     setIsCreateDialogOpen(false)
+    // 見積作成成功後は詳細ページに遷移
     router.push(`/estimates/${estimateId}`)
   }, [router])
 

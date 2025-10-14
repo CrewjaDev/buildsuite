@@ -133,6 +133,14 @@ class User extends Authenticatable
     }
 
     /**
+     * プライマリ部署を取得するアクセサー
+     */
+    public function getPrimaryDepartmentAttribute()
+    {
+        return $this->departments->where('pivot.is_primary', true)->first();
+    }
+
+    /**
      * ユーザーの職位とのリレーション（employee経由）
      */
     public function position()
@@ -200,9 +208,9 @@ class User extends Authenticatable
             return true;
         }
 
-        // 社員の部署による権限チェック（employeeリレーション経由）
-        if ($this->employee && $this->employee->department) {
-            $departmentPermissions = $this->employee->department->permissions()
+        // 部署による権限チェック（user_departmentsテーブル経由）
+        if ($this->primaryDepartment) {
+            $departmentPermissions = $this->primaryDepartment->permissions()
                 ->where('name', $permission)
                 ->where('is_active', true)
                 ->exists();

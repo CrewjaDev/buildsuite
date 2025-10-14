@@ -53,10 +53,25 @@ export function EstimateItemsCard({ estimateId, isReadOnly = false }: EstimateIt
         description: "見積明細が正常に削除されました。",
         type: "success"
       })
-    } catch {
+    } catch (error: unknown) {
+      console.error('明細削除エラー:', error)
+      
+      // APIから返される詳細なエラーメッセージを取得
+      let errorMessage = "明細の削除中にエラーが発生しました。"
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string; message?: string } } }
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
       addToast({
         title: "削除に失敗しました",
-        description: "明細の削除中にエラーが発生しました。",
+        description: errorMessage,
         type: "error"
       })
     }
@@ -87,10 +102,25 @@ export function EstimateItemsCard({ estimateId, isReadOnly = false }: EstimateIt
       }
       setShowForm(false)
       setEditingItem(null)
-    } catch {
+    } catch (error: unknown) {
+      console.error('明細操作エラー:', error)
+      
+      // APIから返される詳細なエラーメッセージを取得
+      let errorMessage = editingItem ? "明細の更新中にエラーが発生しました。" : "明細の追加中にエラーが発生しました。"
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string; message?: string } } }
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
       addToast({
         title: editingItem ? "更新に失敗しました" : "追加に失敗しました",
-        description: editingItem ? "明細の更新中にエラーが発生しました。" : "明細の追加中にエラーが発生しました。",
+        description: errorMessage,
         type: "error"
       })
     }

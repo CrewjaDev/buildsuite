@@ -115,6 +115,8 @@ class PermissionSeeder extends Seeder
             'approval.return' => '差し戻し',
             'approval.cancel' => '承認依頼キャンセル',
             'approval.authority' => '承認者機能利用',
+            'responsible_user.change' => '担当者変更',
+            'responsible_user.set_self' => '担当者自己設定',
         ];
         
         $moduleName = $moduleNames[$module] ?? $module;
@@ -172,6 +174,8 @@ class PermissionSeeder extends Seeder
             'approval.return' => '差し戻し',
             'approval.cancel' => 'キャンセル',
             'approval.authority' => '承認者機能利用',
+            'responsible_user.change' => '担当者変更',
+            'responsible_user.set_self' => '担当者自己設定',
         ];
         
         $moduleName = $moduleNames[$module] ?? $module;

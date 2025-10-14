@@ -211,7 +211,7 @@ class EstimateController extends Controller
     /**
      * 見積詳細を取得
      */
-    public function show(string $id): JsonResponse
+public function show(string $id): JsonResponse
     {
         try {
             $estimate = Estimate::with([
@@ -219,21 +219,31 @@ class EstimateController extends Controller
                 'projectType', 
                 'constructionClassification',
                 'creatorEmployee',
-                'responsibleUser',
+                'responsibleUser.employee',
+                'responsibleUserDepartment',
                 'approvalRequest',
                 'items' => function ($query) {
                     $query->orderBy('display_order', 'asc');
                 }
-            ])->findOrFail($id);
+            ])->whereNull('deleted_at')->findOrFail($id);
+
+            $user = auth()->user();
 
             // Policyを使用した権限チェック
-            $this->authorize('view', $estimate);
+            try {
+                $this->authorize('view', $estimate);
+            } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                // 権限エラーの場合、詳細なメッセージを返す
+                $errorMessage = $this->getViewPermissionErrorMessage($user, $estimate);
+                return response()->json([
+                    'message' => '見積詳細の取得に失敗しました',
+                    'error' => $errorMessage
+                ], 403);
+            }
 
-            // フロントエンド用にフィールドを追加
-            $estimate->partner_name = $estimate->partner ? $estimate->partner->partner_name : null;
-            $estimate->project_type_name = $estimate->projectType ? $estimate->projectType->type_name : null;
-            $estimate->created_by_name = $estimate->creatorEmployee ? $estimate->creatorEmployee->name : null;
-            $estimate->responsible_user_name = $estimate->responsibleUser ? $estimate->responsibleUser->name : null;
+            // アクセサーは自動的に動作するため、手動設定は不要
+            // responsible_user_departmentは手動で追加（リレーション名と重複するため）
+            $estimate->setAttribute('responsible_user_department', $estimate->getResponsibleUserDepartmentAttribute());
             
             // フィールド名のマッピング（データベースのカラム名をフロントエンドのフィールド名に変換）
             $estimate->estimate_date = $estimate->issue_date;
@@ -268,8 +278,37 @@ class EstimateController extends Controller
                 $estimate->sub_status = null;
             }
 
+            // レスポンス用のデータを準備
+            $responseData = $estimate->toArray();
+            
+            // 部署情報と担当者名を確実に文字列として設定（リレーションを上書き）
+            $responseData['responsible_user_department'] = $estimate->getResponsibleUserDepartmentAttribute();
+            $responseData['responsible_user_name'] = $estimate->getResponsibleUserNameAttribute();
+            
+            // 空文字列の場合はnullに変換
+            if (empty($responseData['responsible_user_department'])) {
+                $responseData['responsible_user_department'] = null;
+            }
+            if (empty($responseData['responsible_user_name'])) {
+                $responseData['responsible_user_name'] = null;
+            }
+            
+            // デバッグ情報を追加
+            \Log::info('EstimateController show response data', [
+                'estimate_id' => $estimate->id,
+                'estimate_number' => $estimate->estimate_number,
+                'responsible_user_department' => $responseData['responsible_user_department'],
+                'responsible_user_name' => $responseData['responsible_user_name'],
+                'responsible_user_department_type' => gettype($responseData['responsible_user_department']),
+                'responsible_user_name_type' => gettype($responseData['responsible_user_name']),
+                'responsible_user_department_id' => $estimate->responsible_user_department_id,
+                'responsible_user_id' => $estimate->responsible_user_id,
+                'department_id' => $estimate->department_id,
+                'created_by' => $estimate->created_by,
+            ]);
+            
             return response()->json([
-                'data' => $estimate,
+                'data' => $responseData,
                 'message' => '見積詳細を取得しました'
             ]);
 
@@ -321,8 +360,17 @@ class EstimateController extends Controller
             // 担当者が未設定の場合は作成者を担当者に設定
             $data['responsible_user_id'] = $data['responsible_user_id'] ?? $user->id;
             
+            // 部署IDを設定（作成者の部署を使用）
+            $data['department_id'] = $user->primaryDepartment?->id;
+            
+            // 担当者の部署IDを取得して保存
+            if ($data['responsible_user_id']) {
+                $responsibleUser = \App\Models\User::find($data['responsible_user_id']);
+                $data['responsible_user_department_id'] = $responsibleUser?->primaryDepartment?->id;
+            }
+            
             $data['visibility'] = 'private'; // 作成時はプライベート
-            $data['department_id'] = $user->department_id ?? null; // ユーザーの部署ID
+            // department_idは既に上記で設定済み（重複設定を削除）
             
             // 必須フィールドのデフォルト値設定
             $data['status'] = $data['status'] ?? 'draft';
@@ -373,8 +421,32 @@ class EstimateController extends Controller
 
             DB::commit();
 
+            // 作成された見積データを詳細情報付きで返す
+            $estimateWithRelations = $estimate->load([
+                'partner', 
+                'projectType', 
+                'constructionClassification', 
+                'creatorEmployee',
+                'responsibleUser.employee',
+                'responsibleUserDepartment',
+                'items'
+            ]);
+            
+            // レスポンス用のデータを準備（showメソッドと同じ処理）
+            $responseData = $estimateWithRelations->toArray();
+            $responseData['responsible_user_department'] = $estimateWithRelations->getResponsibleUserDepartmentAttribute();
+            $responseData['responsible_user_name'] = $estimateWithRelations->getResponsibleUserNameAttribute();
+            
+            // 空文字列の場合はnullに変換
+            if (empty($responseData['responsible_user_department'])) {
+                $responseData['responsible_user_department'] = null;
+            }
+            if (empty($responseData['responsible_user_name'])) {
+                $responseData['responsible_user_name'] = null;
+            }
+            
             return response()->json([
-                'data' => $estimate->load(['partner', 'projectType', 'constructionClassification', 'items']),
+                'data' => $responseData,
                 'message' => '見積を作成しました'
             ], 201);
 
@@ -393,10 +465,20 @@ class EstimateController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         try {
-            $estimate = Estimate::findOrFail($id);
+            $estimate = Estimate::whereNull('deleted_at')->findOrFail($id);
+            $user = auth()->user();
 
             // Policyを使用した権限チェック
-            $this->authorize('update', $estimate);
+            try {
+                $this->authorize('update', $estimate);
+            } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                // 権限エラーの場合、詳細なメッセージを返す
+                $errorMessage = $this->getUpdatePermissionErrorMessage($user, $estimate);
+                return response()->json([
+                    'message' => '見積の更新に失敗しました',
+                    'error' => $errorMessage
+                ], 403);
+            }
 
             $validator = Validator::make($request->all(), [
                 'estimate_number' => 'sometimes|required|string|max:50|unique:estimates,estimate_number,' . $id,
@@ -490,10 +572,20 @@ class EstimateController extends Controller
     public function destroy(string $id): JsonResponse
     {
         try {
-            $estimate = Estimate::findOrFail($id);
+            $estimate = Estimate::whereNull('deleted_at')->findOrFail($id);
+            $user = auth()->user();
 
             // Policyを使用した権限チェック
-            $this->authorize('delete', $estimate);
+            try {
+                $this->authorize('delete', $estimate);
+            } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                // 権限エラーの場合、詳細なメッセージを返す
+                $errorMessage = $this->getDeletePermissionErrorMessage($user, $estimate);
+                return response()->json([
+                    'message' => '見積の削除に失敗しました',
+                    'error' => $errorMessage
+                ], 403);
+            }
 
             // 見積明細も削除
             $estimate->items()->delete();
@@ -509,6 +601,73 @@ class EstimateController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * 閲覧権限エラーの詳細メッセージを生成
+     */
+    private function getViewPermissionErrorMessage($user, $estimate): string
+    {
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.view')) {
+            return '見積閲覧権限がありません。管理者に権限の付与を依頼してください。';
+        }
+
+        // 作成者チェック
+        if ($estimate->created_by !== $user->id) {
+            return '作成者のみ見積を閲覧できます。';
+        }
+
+        // ABACポリシーが設定されていない場合
+        return 'ABACポリシーが設定されていません。管理者にポリシーの設定を依頼してください。';
+    }
+
+    /**
+     * 更新権限エラーの詳細メッセージを生成
+     */
+    private function getUpdatePermissionErrorMessage($user, $estimate): string
+    {
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.edit')) {
+            return '見積編集権限がありません。管理者に権限の付与を依頼してください。';
+        }
+
+        // ステータスチェック
+        if (!in_array($estimate->status, ['draft'])) {
+            return '下書き状態の見積のみ編集できます。現在のステータス: ' . $estimate->status;
+        }
+
+        // 作成者チェック
+        if ($estimate->created_by !== $user->id) {
+            return '作成者のみ見積を編集できます。';
+        }
+
+        // ABACポリシーが設定されていない場合
+        return 'ABACポリシーが設定されていません。管理者にポリシーの設定を依頼してください。';
+    }
+
+    /**
+     * 削除権限エラーの詳細メッセージを生成
+     */
+    private function getDeletePermissionErrorMessage($user, $estimate): string
+    {
+        // 基本的な権限チェック
+        if (!\App\Services\PermissionService::hasPermission($user, 'estimate.delete')) {
+            return '見積削除権限がありません。管理者に権限の付与を依頼してください。';
+        }
+
+        // ステータスチェック
+        if (!in_array($estimate->status, ['draft'])) {
+            return '下書き状態の見積のみ削除できます。現在のステータス: ' . $estimate->status;
+        }
+
+        // 作成者チェック
+        if ($estimate->created_by !== $user->id) {
+            return '作成者のみ見積を削除できます。';
+        }
+
+        // ABACポリシーが設定されていない場合
+        return 'ABACポリシーが設定されていません。管理者にポリシーの設定を依頼してください。';
     }
 
     /**
@@ -529,7 +688,7 @@ class EstimateController extends Controller
                 ], 422);
             }
 
-            $estimate = Estimate::findOrFail($id);
+            $estimate = Estimate::whereNull('deleted_at')->findOrFail($id);
             $estimate->update([
                 'status' => $request->status,
                 'remarks' => $request->remarks,
@@ -597,7 +756,9 @@ class EstimateController extends Controller
     private function generateEstimateNumber(): string
     {
         $year = date('Y');
-        $lastEstimate = Estimate::where('estimate_number', 'like', "EST-{$year}-%")
+        // 削除されたデータも含めて検索（withTrashed()を使用）
+        $lastEstimate = Estimate::withTrashed()
+            ->where('estimate_number', 'like', "EST-{$year}-%")
             ->orderBy('estimate_number', 'desc')
             ->first();
 

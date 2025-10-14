@@ -136,7 +136,9 @@ class BusinessCodeService
                 'approval.approve',
                 'approval.reject',
                 'approval.return',
-                'approval.cancel'
+                'approval.cancel',
+                'responsible_user.change',
+                'responsible_user.set_self'
             ],
             'settings' => [
                 'max_amount' => 10000000,

@@ -20,6 +20,7 @@ interface PopoverSearchFilterProps {
   emptyMessage?: string
   className?: string
   width?: string
+  style?: React.CSSProperties
 }
 
 export const PopoverSearchFilter = ({
@@ -29,7 +30,8 @@ export const PopoverSearchFilter = ({
   placeholder = 'フィルターを選択...',
   emptyMessage = '該当する項目がありません',
   className,
-  width = '300px'
+  width = '300px',
+  style
 }: PopoverSearchFilterProps) => {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -65,7 +67,7 @@ export const PopoverSearchFilter = ({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0" style={{ width }} align="start">
+      <PopoverContent className="p-0" style={{ width, ...style }} align="start">
         <div className="flex flex-col">
           {/* 検索入力 */}
           <div className="flex items-center border-b px-3 py-2">

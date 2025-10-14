@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Edit, Trash2 } from 'lucide-react'
 import { useDeleteEstimate } from '@/hooks/features/estimates/useEstimates'
 import { useToast } from '@/components/ui/toast'
+import { useAuth } from '@/hooks/useAuth'
+import { ErrorDialog } from '@/components/common/ErrorDialog'
 
 interface EstimateDetailViewProps {
   estimate: Estimate
@@ -28,22 +30,36 @@ export function EstimateDetailView({ estimate, userApprovalStatus, onDataUpdate,
   const [showBreakdownEditDialog, setShowBreakdownEditDialog] = useState(false)
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
   const [showApprovalRequestDialog, setShowApprovalRequestDialog] = useState(false)
+  const [errorDialog, setErrorDialog] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: ''
+  })
   
   const { addToast } = useToast()
+  const { hasPermission } = useAuth()
   const deleteEstimateMutation = useDeleteEstimate()
   
-
-
-
+  const handleErrorDialogClose = () => {
+    setErrorDialog({ isOpen: false, message: '' })
+  }
 
   // 編集可能かどうかの判定
   const canEdit = () => {
-    // ユーザー承認状態が存在し、編集権限がある場合
-    return userApprovalStatus && 
-           (userApprovalStatus.status === 'pending' || 
-            userApprovalStatus.status === 'not_started' ||
-            userApprovalStatus.status === 'rejected' ||
-            userApprovalStatus.status === 'returned')
+    // 基本的な編集権限をチェック
+    if (!hasPermission('estimate.edit')) {
+      return false
+    }
+    
+    // 承認依頼が存在しない場合は編集可能（下書き状態など）
+    if (!userApprovalStatus) {
+      return true
+    }
+    
+    // ユーザー承認状態が存在し、編集可能なステータスの場合
+    return userApprovalStatus.status === 'pending' || 
+           userApprovalStatus.status === 'not_started' ||
+           userApprovalStatus.status === 'rejected' ||
+           userApprovalStatus.status === 'returned'
   }
 
 
@@ -55,27 +71,26 @@ export function EstimateDetailView({ estimate, userApprovalStatus, onDataUpdate,
     onDataUpdate?.()
   }
 
-  // 削除処理
+  // 削除処理（シンプル）
   const handleDelete = async () => {
     if (!estimate || !window.confirm('この見積を削除しますか？この操作は取り消せません。')) {
       return
     }
 
-    try {
-      await deleteEstimateMutation.mutateAsync(estimate.id)
-      addToast({
-        title: "見積を削除しました",
-        description: "見積が正常に削除されました。",
-        type: "success"
-      })
-      onDeleteSuccess?.()
-    } catch {
-      addToast({
-        title: "削除に失敗しました",
-        description: "見積の削除中にエラーが発生しました。",
-        type: "error"
-      })
-    }
+    // 削除処理を実行し、成功時は即座に一覧ページに遷移
+    deleteEstimateMutation.mutate(estimate.id, {
+      onSuccess: () => {
+        // 削除成功時は即座に一覧ページに遷移
+        onDeleteSuccess?.()
+      },
+      onError: (error: unknown) => {
+        console.error('削除エラー:', error)
+        setErrorDialog({
+          isOpen: true,
+          message: "見積の削除中にエラーが発生しました。"
+        })
+      }
+    })
   }
 
   return (
@@ -271,6 +286,14 @@ export function EstimateDetailView({ estimate, userApprovalStatus, onDataUpdate,
           // 親コンポーネントにデータ更新を通知
           onDataUpdate?.()
         }}
+      />
+
+      {/* エラーダイアログ */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={handleErrorDialogClose}
+        title="見積削除エラー"
+        message={errorDialog.message}
       />
     </div>
   )

@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use App\Contracts\ApprovableData;
+use App\Models\Department;
 
 class Estimate extends Model implements ApprovableData
 {
@@ -71,6 +73,7 @@ class Estimate extends Model implements ApprovableData
         // システム管理
         'created_by',
         'responsible_user_id',
+        'responsible_user_department_id',
         'approved_by',
         
         // 承認関連
@@ -149,6 +152,14 @@ class Estimate extends Model implements ApprovableData
     }
 
     /**
+     * 担当者の部署とのリレーション
+     */
+    public function responsibleUserDepartment(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'responsible_user_department_id');
+    }
+
+    /**
      * 承認者とのリレーション
      */
     public function approver(): BelongsTo
@@ -215,9 +226,9 @@ class Estimate extends Model implements ApprovableData
     /**
      * 作成者（Employee）とのリレーション
      */
-    public function creatorEmployee(): BelongsTo
+    public function creatorEmployee(): HasOneThrough
     {
-        return $this->belongsTo(Employee::class, 'created_by', 'id');
+        return $this->hasOneThrough(Employee::class, User::class, 'id', 'id', 'created_by', 'employee_id');
     }
 
     /**
@@ -226,6 +237,67 @@ class Estimate extends Model implements ApprovableData
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * 取引先名を取得
+     */
+    public function getPartnerNameAttribute(): ?string
+    {
+        return $this->partner?->partner_name;
+    }
+
+    /**
+     * 工事種別名を取得
+     */
+    public function getProjectTypeNameAttribute(): ?string
+    {
+        return $this->projectType?->type_name;
+    }
+
+    /**
+     * 担当者名を取得
+     */
+    public function getResponsibleUserNameAttribute(): ?string
+    {
+        return $this->responsibleUser?->employee?->name;
+    }
+
+    /**
+     * 担当者の部署名を取得
+     */
+    public function getResponsibleUserDepartmentAttribute(): ?string
+    {
+        // 保存された部署IDから取得（作成時のスナップショット）
+        if ($this->responsible_user_department_id) {
+            // リレーションが読み込まれている場合はそれを使用
+            if ($this->relationLoaded('responsibleUserDepartment')) {
+                $department = $this->getRelation('responsibleUserDepartment');
+                return $department ? $department->name : null;
+            }
+            // リレーションが読み込まれていない場合は、直接クエリを実行
+            $department = Department::find($this->responsible_user_department_id);
+            return $department ? $department->name : null;
+        }
+        
+        // フォールバック: 現在の担当者の部署から取得
+        return $this->responsibleUser?->primaryDepartment?->name;
+    }
+
+    /**
+     * 作成者名を取得
+     */
+    public function getCreatedByNameAttribute(): ?string
+    {
+        return $this->creator?->employee?->name;
+    }
+
+    /**
+     * 更新者名を取得
+     */
+    public function getUpdatedByNameAttribute(): ?string
+    {
+        return $this->updater?->employee?->name;
     }
 
     /**
@@ -444,6 +516,10 @@ class Estimate extends Model implements ApprovableData
         'formatted_total_amount',
         'formatted_subtotal',
         'formatted_tax_amount',
+        'partner_name',
+        'project_type_name',
+        'responsible_user_name',
+        'created_by_name',
     ];
 
     // ===== スコープ =====
@@ -912,7 +988,9 @@ class Estimate extends Model implements ApprovableData
     public function generateEstimateNumber(): string
     {
         $year = date('Y');
-        $lastEstimate = static::where('estimate_number', 'like', "EST-{$year}-%")
+        // 削除されたデータも含めて検索（withTrashed()を使用）
+        $lastEstimate = static::withTrashed()
+            ->where('estimate_number', 'like', "EST-{$year}-%")
             ->orderBy('estimate_number', 'desc')
             ->first();
 

@@ -105,7 +105,8 @@ export function EstimateBreakdownEditDialog({
       const dbSmallBreakdowns = allBreakdowns.filter(b => b.breakdown_type === 'small' && !b.id.startsWith('temp-'))
       
       // データベースに小内訳が存在しない場合のみ、一時的な小内訳を作成
-      if (dbSmallBreakdowns.length === 0) {
+      // ただし、削除されたデータに対しては一時的な小内訳を作成しない
+      if (dbSmallBreakdowns.length === 0 && estimate && estimate.id) {
         const newSmallBreakdown: EstimateBreakdown = {
           id: `temp-${Date.now()}`,
           estimate_id: estimate.id,
