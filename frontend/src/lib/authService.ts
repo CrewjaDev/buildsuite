@@ -67,6 +67,16 @@ export const authService = {
     } catch (error: unknown) {
       console.error('Me error:', error)
       
+      // タイムアウトエラーの場合は特別な処理はしない（api.tsで処理される）
+      if (error && typeof error === 'object' && 'code' in error) {
+        const axiosError = error as { code?: string; message?: string }
+        if (axiosError.code === 'ECONNABORTED' || 
+            (axiosError.message && axiosError.message.includes('timeout'))) {
+          // タイムアウトエラーはapi.tsで処理されるため、そのまま再スロー
+          throw error
+        }
+      }
+      
       // エラーオブジェクトにstatusプロパティを追加
       if (error && typeof error === 'object' && 'response' in error) {
         const axiosError = error as { response?: { status: number } }

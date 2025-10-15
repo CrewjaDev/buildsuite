@@ -8,6 +8,9 @@ import { store, persistor } from '@/store/store'
 import { ToastProvider } from '@/components/ui/toast'
 import { Toaster } from 'sonner'
 import AuthProvider from '@/components/common/AuthProvider'
+import { TimeoutProvider, useTimeout } from '@/contexts/TimeoutContext'
+import { setTimeoutNotificationCallback } from '@/lib/api'
+import { useEffect } from 'react'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -26,17 +29,37 @@ const queryClient = new QueryClient({
   },
 })
 
+// タイムアウト通知の設定コンポーネント
+function TimeoutNotificationSetup() {
+  const { showTimeoutDialog } = useTimeout()
+
+  useEffect(() => {
+    // APIタイムアウト通知のコールバックを設定
+    setTimeoutNotificationCallback(showTimeoutDialog)
+    
+    // クリーンアップ
+    return () => {
+      setTimeoutNotificationCallback(null)
+    }
+  }, [showTimeoutDialog])
+
+  return null
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
-          <AuthProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-            <Toaster position="top-right" richColors />
-          </AuthProvider>
+          <TimeoutProvider>
+            <TimeoutNotificationSetup />
+            <AuthProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+              <Toaster position="top-right" richColors />
+            </AuthProvider>
+          </TimeoutProvider>
         </PersistGate>
       </Provider>
       <ReactQueryDevtools initialIsOpen={false} />

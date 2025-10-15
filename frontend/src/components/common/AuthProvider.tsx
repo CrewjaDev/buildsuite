@@ -78,12 +78,32 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (!isAuthenticated) return
 
+    let lastActivity = Date.now()
+    let isIdle = false
+
     const refreshPermissions = async () => {
+      // アイドル状態の場合は権限更新をスキップ
+      if (isIdle) {
+        console.log('Skipping permission update due to idle state')
+        return
+      }
+
       try {
         const { effectivePermissions } = await authService.me()
         dispatch(updatePermissions(effectivePermissions))
       } catch (error: unknown) {
         console.error('Permission update failed:', error)
+        
+        // タイムアウトエラーの場合は特別な処理はしない（api.tsで処理される）
+        if (error && typeof error === 'object' && 'code' in error) {
+          const axiosError = error as { code?: string; message?: string }
+          if (axiosError.code === 'ECONNABORTED' || 
+              (axiosError.message && axiosError.message.includes('timeout'))) {
+            // タイムアウトエラーはapi.tsで処理されるため、何もしない
+            return
+          }
+        }
+        
         // 認証エラーの場合はログアウト
         if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
           localStorage.removeItem('token')
@@ -93,21 +113,47 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
+    // ユーザーアクティビティの監視
+    const handleActivity = () => {
+      lastActivity = Date.now()
+      isIdle = false
+    }
+
+    // アイドル状態のチェック（30分でアイドルとみなす）
+    const checkIdleState = () => {
+      if (Date.now() - lastActivity > 30 * 60 * 1000) { // 30分
+        isIdle = true
+        console.log('User is now idle, stopping permission updates')
+      }
+    }
+
     // ページフォーカス時の更新
     const handleFocus = () => {
+      isIdle = false
+      lastActivity = Date.now()
       refreshPermissions()
     }
 
-    // 定期更新（30秒間隔）
-    const interval = setInterval(refreshPermissions, 30000)
+    // 定期更新（5分間隔）
+    const interval = setInterval(refreshPermissions, 5 * 60 * 1000)
+    
+    // アイドル状態チェック（1分間隔）
+    const idleCheckInterval = setInterval(checkIdleState, 60 * 1000)
 
     // イベントリスナーの登録
     window.addEventListener('focus', handleFocus)
+    window.addEventListener('mousemove', handleActivity)
+    window.addEventListener('keypress', handleActivity)
+    window.addEventListener('click', handleActivity)
     
     // クリーンアップ
     return () => {
       window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('mousemove', handleActivity)
+      window.removeEventListener('keypress', handleActivity)
+      window.removeEventListener('click', handleActivity)
       clearInterval(interval)
+      clearInterval(idleCheckInterval)
     }
   }, [isAuthenticated, dispatch, router])
 
